@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>진근 Index Fund | OS</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+
+<body>
+
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">JG</div>
+                <div class="logo-text">
+                    <h1>[진근 Index Fund]</h1>
+                    <span class="subtitle">THE OS FOR WEALTH</span>
+                </div>
+            </div>
+
+            <div class="menu-label">TOOLS</div>
+            <ul class="nav-menu">
+                <li class="nav-item active" data-target="overview-section">
+                    <span class="indicator">■</span>
+                    <span class="label">OVERVIEW</span>
+                </li>
+                <li class="nav-item" data-target="trade-section">
+                    <span class="indicator">■</span>
+                    <span class="label">TRADE DECK</span>
+                </li>
+                <li class="nav-item" id="nav-settings">
+                    <span class="indicator">■</span>
+                    <span class="label">SETTINGS</span>
+                </li>
+            </ul>
+
+            <div class="sidebar-footer">
+                <div id="sys-status" class="sys-status">
+                    <span id="sys-status-text">SYSTEM ONLINE</span>
+                    <div id="sys-status-dot" class="status-dot"></div>
+                </div>
+                <div id="current-date" class="sys-date">2025.12.07</div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Header -->
+            <header class="top-bar">
+                <div id="friday-indicator" class="friday-indicator not-friday">
+                    <i data-lucide="calendar-x"></i>
+                    <span>Not Friday</span>
+                </div>
+            </header>
+
+            <!-- SECTION 1: SYSTEM OVERVIEW -->
+            <section id="overview-section" class="dashboard-section">
+                <h2 class="section-title">/// SYSTEM OVERVIEW ///</h2>
+
+                <!-- System Stats (Risk Metrics) -->
+                <div class="stats-grid">
+                    <div class="stat-card glass">
+                        <div class="stat-label">WEEKLY RETURN</div>
+                        <div id="weekly-pnl" class="stat-value">--%</div>
+                        <div class="stat-bar">
+                            <div class="fill" style="width: 60%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass">
+                        <div class="stat-label">TOTAL AUM</div>
+                        <div id="total-value" class="stat-value">₩0</div>
+                    </div>
+                    <div class="stat-card glass">
+                        <div class="stat-label">CAGR (Est.)</div>
+                        <div id="risk-cagr" class="stat-value">--%</div>
+                    </div>
+                    <div class="stat-card glass">
+                        <div class="stat-label">RISK (StdDev)</div>
+                        <div id="risk-std" class="stat-value">--%</div>
+                    </div>
+                </div>
+
+                <!-- Allocation Grid -->
+                <div class="allocation-grid">
+                    <!-- Doughnut Chart -->
+                    <div class="chart-card glass">
+                        <h3 class="card-title">ASSET ALLOCATION</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="allocationChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Resource Allocation (Bars) -->
+                    <div class="resource-card glass">
+                        <h3 class="card-title">RESOURCE ALLOCATION</h3>
+                        <div class="allocation-table-wrapper">
+                            <table class="allocation-table compact">
+                                <thead>
+                                    <tr>
+                                        <th>ASSET</th>
+                                        <th class="group-weight">ACTUAL</th>
+                                        <th class="group-weight">TARGET</th>
+                                        <th class="group-value">VALUE</th>
+                                        <th class="group-value">PRICE</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allocation-body">
+                                    <!-- JS Populated -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Graph Placeholder -->
+                <div class="perf-card glass">
+                    <h3 class="card-title">1-YEAR PERFORMANCE HISTORY</h3>
+                    <div class="graph-placeholder">
+                        <div class="placeholder-text">
+                            <span>GRAPH MODULE INITIALIZING...</span>
+                            <small>Data accumulation in progress</small>
+                        </div>
+                        <!-- Future Canvas Here -->
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- SECTION 2: TRADE OPERATIONS -->
+            <section id="trade-section" class="dashboard-section">
+                <div class="section-divider">
+                    <span>/// SYSTEMS CHECK ///</span>
+                    <div class="divider-line"></div>
+                </div>
+
+                <div class="trade-grid">
+                    <!-- Diagnostics (Market Conditions) -->
+                    <div class="diag-card glass">
+                        <h3 class="card-title">DIAGNOSTICS</h3>
+                        <div id="condition-grid" class="condition-grid">
+                            <!-- JS Populated -->
+                        </div>
+                    </div>
+
+                    <!-- System Alerts (Signals) -->
+                    <div class="alerts-card glass">
+                        <div class="card-header-row">
+                            <h3 class="card-title">SYSTEM ALERTS</h3>
+                            <span id="signal-status-badge" class="badge">SCANNING...</span>
+                        </div>
+
+                        <div class="alert-group">
+                            <h4 class="alert-type">SELL SIGNALS</h4>
+                            <ul id="sell-signals-list" class="signal-list"></ul>
+                        </div>
+                        <div class="alert-group">
+                            <h4 class="alert-type">BUY SIGNALS</h4>
+                            <ul id="buy-signals-list" class="signal-list"></ul>
+                        </div>
+                        <div class="alert-group">
+                            <h4 class="alert-type">REBALANCING PROTOCOL</h4>
+                            <div id="rebalance-advice" class="advice-box">System Balanced.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal (Settings/History) -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content glass">
+            <div class="modal-header-row">
+                <h2 class="glow-text">SYSTEM CONFIG</h2>
+                <button id="close-modal-btn" class="icon-btn">✕</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="tab-btn active" data-tab="holdings">HOLDINGS</button>
+                <button class="tab-btn" data-tab="history">LOGS</button>
+                <button class="tab-btn" data-tab="data">DATA</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Holdings Tab -->
+                <div id="tab-holdings" class="tab-content">
+                    <p class="tab-desc">Adjust target weights and current holdings.</p>
+                    <form id="holdings-form">
+                        <!-- JS Injected -->
+                    </form>
+                    <div class="modal-footer-embedded">
+                        <button id="toggle-friday-btn" class="btn-xs" style="margin-right:auto;">Force Friday</button>
+                        <!-- <button id="reset-data-btn" class="btn-xs" style="margin-right:10px;">Reset Data</button> (REMOVED) -->
+                        <button type="submit" form="holdings-form" class="btn primary">UPDATE SYSTEM</button>
+                    </div>
+                </div>
+
+                <!-- History Tab -->
+                <div id="tab-history" class="tab-content hidden">
+                    <div id="history-controls">
+                        <button id="add-event-btn" class="btn-block">+ LOG NEW EVENT</button>
+                        <div id="history-log-list" style="max-height: 400px; overflow-y: auto; margin-top: 10px;"></div>
+                    </div>
+                    <div id="event-creation-container" class="hidden"></div>
+                </div>
+
+                <!-- Data Tab -->
+                <div id="tab-data" class="tab-content hidden">
+                    <div class="data-section">
+                        <h4 class="section-title"><i data-lucide="database"></i> DATA SUMMARY</h4>
+                        <div id="data-summary" class="data-summary-grid">
+                            <!-- JS Injected -->
+                        </div>
+                    </div>
+
+                    <div class="data-section">
+                        <h4 class="section-title"><i data-lucide="download"></i> EXPORT DATA</h4>
+                        <p class="section-desc">Download all portfolio data as a JSON backup file.</p>
+                        <button id="export-data-btn" class="btn primary full-width">
+                            <i data-lucide="file-down"></i> EXPORT BACKUP
+                        </button>
+                    </div>
+
+                    <div class="data-section">
+                        <h4 class="section-title"><i data-lucide="upload"></i> IMPORT DATA</h4>
+                        <p class="section-desc warning-text">⚠️ Warning: Importing will OVERWRITE all existing data!</p>
+                        <div class="import-zone" id="import-zone">
+                            <input type="file" id="import-file-input" accept=".json" hidden>
+                            <i data-lucide="file-up"></i>
+                            <span>Click to select backup file or drag & drop</span>
+                        </div>
+                        <div id="import-status" class="import-status hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Elements for Logic Compatibility -->
+    <button id="edit-allocation-btn" style="display:none;"></button> <!-- Triggered via Nav -->
+
+    <script src="js/finance.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/strategy.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

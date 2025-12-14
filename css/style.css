@@ -7386,15 +7386,43 @@ body.weekend-freeze.negative .main-content::after {
    Static Backtest Visualization
    =================================== */
 
-.hypothetical-toggles {
+/* Responsive Toggle Grid - 4 toggles in a row, wraps on narrow screens */
+.cv-toggles-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px 16px;
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px dashed rgba(148, 163, 184, 0.15);
-  flex-wrap: wrap;
 }
 
-.hypothetical-toggles .cv-toggle {
-  min-width: 180px;
+/* 2 columns when medium width */
+@media (max-width: 900px) {
+  .cv-toggles-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 1 column when narrow */
+@media (max-width: 500px) {
+  .cv-toggles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cv-toggles-grid .cv-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cv-toggles-grid .toggle-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #slope-toggle-wrapper {
@@ -7405,6 +7433,7 @@ body.weekend-freeze.negative .main-content::after {
   opacity: 1;
   pointer-events: auto;
 }
+
 
 /* Execution Alpha Badge */
 .execution-alpha-badge {

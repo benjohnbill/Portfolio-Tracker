@@ -426,8 +426,9 @@
                   </div>
                 </div>
 
-                <!-- Toggle Controls -->
-                <div class="cv-toggles">
+                <!-- Toggle Controls (Responsive Grid: 4 columns → 2 columns → 1 column) -->
+                <div class="cv-toggles-grid">
+                  <!-- Row 1: Projection Controls -->
                   <div class="cv-toggle">
                     <label class="toggle-switch">
                       <input type="checkbox" id="cv-projection-toggle">
@@ -442,16 +443,14 @@
                     </label>
                     <span class="toggle-label">Expected Result</span>
                   </div>
-                </div>
-
-                <!-- Hypothetical Trajectory Controls -->
-                <div class="cv-toggles hypothetical-toggles">
+                  
+                  <!-- Row 2: Hypothetical Controls -->
                   <div class="cv-toggle">
                     <label class="toggle-switch">
                       <input type="checkbox" id="hypo-history-toggle">
                       <span class="toggle-slider"></span>
                     </label>
-                    <span class="toggle-label">Show Hypothetical (Since Aug 2020)</span>
+                    <span class="toggle-label">Show Hypothetical</span>
                   </div>
                   <div class="cv-toggle" id="slope-toggle-wrapper" style="opacity: 0.5; pointer-events: none;">
                     <label class="toggle-switch">
@@ -460,10 +459,13 @@
                     </label>
                     <span class="toggle-label">Compare Slope</span>
                   </div>
-                  <div class="execution-alpha-badge hidden" id="execution-alpha-badge" title="Value added by your dynamic rebalancing vs. static holding">
-                    ⚡ Execution Alpha: <span id="alpha-value">--</span>%p
-                  </div>
                 </div>
+                
+                <!-- Execution Alpha Badge (separate row) -->
+                <div class="execution-alpha-badge hidden" id="execution-alpha-badge" title="Value added by your dynamic rebalancing vs. static holding">
+                  ⚡ Execution Alpha: <span id="alpha-value">--</span>%p
+                </div>
+
 
                 <!-- Result Message (Hidden by default, controlled by Expected Result toggle) -->
                 <div class="cv-result hidden" id="cv-result">

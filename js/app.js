@@ -2507,25 +2507,37 @@ async function updateHypotheticalChart(showHypothetical, showSlope = false) {
 
 /**
  * Get actual portfolio data in the format needed for comparison
+ * Uses aumHistory (daily AUM values) instead of portfolioHistory (event logs)
  * @returns {Object} { dates: [], values: [] }
  */
 function getActualPortfolioData() {
-  if (!portfolioHistory || portfolioHistory.length < 2) {
-    console.warn("No portfolio history available");
+  // Use globalAumHistory which contains daily AUM values
+  const aumHistory = window._globalAumHistory;
+  
+  if (!aumHistory || aumHistory.length < 2) {
+    console.warn("No AUM history available for actual portfolio data");
     return null;
   }
   
-  // Sort by date and extract values
-  const sorted = [...portfolioHistory].sort((a, b) => {
+  // Sort by date (should already be sorted, but ensure)
+  const sorted = [...aumHistory].sort((a, b) => {
     return new Date(a.date) - new Date(b.date);
   });
   
+  // Convert dates to YYYY-MM-DD format (avoid UTC offset issues)
   const dates = sorted.map(h => {
     const d = new Date(h.date);
-    return d.toISOString().split('T')[0];
+    // Use local date parts to avoid timezone offset
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
   
-  const values = sorted.map(h => h.value);
+  // Extract totalValue (not 'value' which doesn't exist)
+  const values = sorted.map(h => h.totalValue);
+  
+  console.log(`📊 Actual portfolio data: ${dates.length} days, from ${dates[0]} to ${dates[dates.length - 1]}`);
   
   return { dates, values };
 }

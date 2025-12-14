@@ -3024,5 +3024,250 @@ const Finance = {
             portfolioProjection,
             benchmarkProjection
         };
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // HYPOTHETICAL TRAJECTORY SIMULATOR
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    /**
+     * Calculate Hypothetical Trajectory with static allocation and quarterly rebalancing
+     * @param {Object} assetData - Data from /api/hypothetical-data endpoint
+     * @param {number} initialCapital - Starting capital (default: 100 for normalization)
+     * @returns {Object} - { dates: [], values: [], stats: {} }
+     */
+    calculateHypotheticalTrajectory: (assetData, initialCapital = 100) => {
+        if (!assetData || !assetData.assets || Object.keys(assetData.assets).length < 4) {
+            console.warn("Hypothetical: Insufficient asset data");
+            return null;
+        }
+        
+        const weights = assetData.weights;
+        const assets = assetData.assets;
+        
+        // Find common date range across all assets
+        const allDates = new Set();
+        Object.values(assets).forEach(asset => {
+            asset.dates.forEach(d => allDates.add(d));
+        });
+        const sortedDates = [...allDates].sort();
+        
+        // Build price lookup: { ticker: { date: price } }
+        const priceLookup = {};
+        Object.entries(assets).forEach(([ticker, data]) => {
+            priceLookup[ticker] = {};
+            data.dates.forEach((date, i) => {
+                priceLookup[ticker][date] = data.prices[i];
+            });
+        });
+        
+        // Quarterly rebalance dates (end of Mar, Jun, Sep, Dec)
+        const isQuarterEnd = (dateStr) => {
+            const date = new Date(dateStr);
+            const month = date.getMonth(); // 0-indexed
+            const day = date.getDate();
+            // Check if it's last trading day region of quarter end months
+            if ([2, 5, 8, 11].includes(month) && day >= 25) {
+                return true;
+            }
+            return false;
+        };
+        
+        // Initialize portfolio
+        let portfolioValue = initialCapital;
+        const results = { dates: [], values: [] };
+        let holdings = {}; // { ticker: shares }
+        let lastRebalanceDate = null;
+        
+        // Initial allocation
+        const firstDate = sortedDates[0];
+        Object.entries(weights).forEach(([ticker, weight]) => {
+            const price = priceLookup[ticker]?.[firstDate];
+            if (price && price > 0) {
+                const allocation = portfolioValue * weight;
+                holdings[ticker] = allocation / price;
+            }
+        });
+        
+        // Simulate each day
+        for (const date of sortedDates) {
+            // Calculate current portfolio value
+            let currentValue = 0;
+            let allPricesAvailable = true;
+            
+            Object.entries(holdings).forEach(([ticker, shares]) => {
+                const price = priceLookup[ticker]?.[date];
+                if (price && price > 0) {
+                    currentValue += shares * price;
+                } else {
+                    allPricesAvailable = false;
+                }
+            });
+            
+            if (!allPricesAvailable || currentValue <= 0) continue;
+            
+            // Check for quarterly rebalancing
+            if (isQuarterEnd(date) && date !== lastRebalanceDate) {
+                // Check if this is actually the last trading day of the month
+                const nextDate = sortedDates[sortedDates.indexOf(date) + 1];
+                if (nextDate) {
+                    const currentMonth = new Date(date).getMonth();
+                    const nextMonth = new Date(nextDate).getMonth();
+                    if (currentMonth !== nextMonth) {
+                        // This is the last trading day of the quarter
+                        // Rebalance to target weights
+                        Object.entries(weights).forEach(([ticker, weight]) => {
+                            const price = priceLookup[ticker]?.[date];
+                            if (price && price > 0) {
+                                const targetValue = currentValue * weight;
+                                holdings[ticker] = targetValue / price;
+                            }
+                        });
+                        lastRebalanceDate = date;
+                    }
+                }
+            }
+            
+            results.dates.push(date);
+            results.values.push(currentValue);
+            portfolioValue = currentValue;
+        }
+        
+        // Calculate statistics
+        if (results.values.length < 2) {
+            return null;
+        }
+        
+        const startValue = results.values[0];
+        const endValue = results.values[results.values.length - 1];
+        const totalDays = results.values.length;
+        const years = totalDays / 252;
+        const totalReturn = (endValue / startValue - 1) * 100;
+        const cagr = (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
+        
+        // Calculate MDD
+        let peak = results.values[0];
+        let maxDrawdown = 0;
+        results.values.forEach(value => {
+            if (value > peak) peak = value;
+            const drawdown = (peak - value) / peak;
+            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+        });
+        
+        results.stats = {
+            startDate: results.dates[0],
+            endDate: results.dates[results.dates.length - 1],
+            totalReturn: totalReturn.toFixed(2),
+            cagr: cagr.toFixed(2),
+            mdd: (maxDrawdown * -100).toFixed(2),
+            tradingDays: totalDays,
+            years: years.toFixed(2)
+        };
+        
+        return results;
+    },
+
+    /**
+     * Calculate Execution Alpha by comparing actual portfolio vs static model
+     * Only for the overlapping period (actual inception to now)
+     * @param {Object} hypotheticalData - Result from calculateHypotheticalTrajectory
+     * @param {Object} actualData - Actual portfolio performance data { dates: [], values: [] }
+     * @returns {Object} - { alpha, cagrActual, cagrStatic, periodDays }
+     */
+    calculateExecutionAlpha: (hypotheticalData, actualData) => {
+        if (!hypotheticalData || !actualData || !actualData.dates || actualData.dates.length < 2) {
+            return null;
+        }
+        
+        const actualStartDate = actualData.dates[0];
+        const actualEndDate = actualData.dates[actualData.dates.length - 1];
+        
+        // Find the hypothetical values for the actual period
+        const hypothStartIdx = hypotheticalData.dates.indexOf(actualStartDate);
+        const hypothEndIdx = hypotheticalData.dates.indexOf(actualEndDate);
+        
+        if (hypothStartIdx === -1 || hypothEndIdx === -1 || hypothStartIdx >= hypothEndIdx) {
+            console.warn("ExecutionAlpha: Date range mismatch");
+            return null;
+        }
+        
+        const hypothStartValue = hypotheticalData.values[hypothStartIdx];
+        const hypothEndValue = hypotheticalData.values[hypothEndIdx];
+        
+        const actualStartValue = actualData.values[0];
+        const actualEndValue = actualData.values[actualData.values.length - 1];
+        
+        const periodDays = hypothEndIdx - hypothStartIdx;
+        const years = periodDays / 252;
+        
+        if (years <= 0 || hypothStartValue <= 0 || actualStartValue <= 0) {
+            return null;
+        }
+        
+        // Calculate CAGR for both
+        const cagrActual = (Math.pow(actualEndValue / actualStartValue, 1 / years) - 1) * 100;
+        const cagrStatic = (Math.pow(hypothEndValue / hypothStartValue, 1 / years) - 1) * 100;
+        
+        const alpha = cagrActual - cagrStatic;
+        
+        return {
+            alpha: alpha.toFixed(2),
+            cagrActual: cagrActual.toFixed(2),
+            cagrStatic: cagrStatic.toFixed(2),
+            periodDays,
+            years: years.toFixed(2)
+        };
+    },
+
+    /**
+     * Create Ghost Benchmark line - hypothetical trajectory rebased to actual start
+     * This allows direct slope comparison eliminating Y-axis optical illusions
+     * @param {Object} hypotheticalData - Full hypothetical trajectory
+     * @param {string} actualStartDate - The inception date of actual portfolio
+     * @param {number} actualStartValue - The starting value of actual portfolio
+     * @returns {Object} - { dates: [], values: [] } for the ghost line
+     */
+    createGhostBenchmark: (hypotheticalData, actualStartDate, actualStartValue) => {
+        if (!hypotheticalData || !actualStartDate || !actualStartValue) {
+            return null;
+        }
+        
+        const startIdx = hypotheticalData.dates.indexOf(actualStartDate);
+        if (startIdx === -1) {
+            // Try to find closest date
+            const targetDate = new Date(actualStartDate);
+            let closestIdx = 0;
+            let minDiff = Infinity;
+            hypotheticalData.dates.forEach((d, i) => {
+                const diff = Math.abs(new Date(d) - targetDate);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestIdx = i;
+                }
+            });
+            if (minDiff > 7 * 24 * 60 * 60 * 1000) { // More than 7 days diff
+                console.warn("GhostBenchmark: No close date match found");
+                return null;
+            }
+            const hypothStartValue = hypotheticalData.values[closestIdx];
+            
+            // Calculate rebased values
+            const ghostDates = hypotheticalData.dates.slice(closestIdx);
+            const ghostValues = hypotheticalData.values.slice(closestIdx).map(v => {
+                return (v / hypothStartValue) * actualStartValue;
+            });
+            
+            return { dates: ghostDates, values: ghostValues };
+        }
+        
+        const hypothStartValue = hypotheticalData.values[startIdx];
+        
+        // Calculate daily returns from hypothetical and apply to actual start
+        const ghostDates = hypotheticalData.dates.slice(startIdx);
+        const ghostValues = hypotheticalData.values.slice(startIdx).map(v => {
+            return (v / hypothStartValue) * actualStartValue;
+        });
+        
+        return { dates: ghostDates, values: ghostValues };
     }
 };

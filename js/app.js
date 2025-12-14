@@ -2362,5 +2362,215 @@ function updateRebalancingTimer() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HYPOTHETICAL TRAJECTORY SIMULATOR
+// Show static backtest from 2020-08-11 to compare with actual performance
+// ═══════════════════════════════════════════════════════════════════════════
+
+window._hypotheticalData = null;
+window._hypotheticalTrajectory = null;
+window._showHypothetical = false;
+window._showSlope = false;
+
+/**
+ * Fetch hypothetical data from backend API
+ */
+async function fetchHypotheticalData() {
+  try {
+    console.log("📊 Fetching hypothetical data...");
+    const response = await fetch('/api/hypothetical-data');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    window._hypotheticalData = data;
+    console.log("✅ Hypothetical data loaded:", Object.keys(data.assets).length, "assets");
+    return data;
+  } catch (error) {
+    console.error("❌ Failed to fetch hypothetical data:", error);
+    return null;
+  }
+}
+
+/**
+ * Calculate and display hypothetical trajectory on chart
+ */
+async function updateHypotheticalChart(showHypothetical, showSlope = false) {
+  const alphaBadge = document.getElementById('execution-alpha-badge');
+  const alphaValue = document.getElementById('alpha-value');
+  const slopeWrapper = document.getElementById('slope-toggle-wrapper');
+  
+  // If turning off, remove hypothetical from chart
+  if (!showHypothetical) {
+    window._showHypothetical = false;
+    window._showSlope = false;
+    if (alphaBadge) alphaBadge.classList.add('hidden');
+    if (slopeWrapper) {
+      slopeWrapper.style.opacity = '0.5';
+      slopeWrapper.style.pointerEvents = 'none';
+    }
+    
+    // Restore original chart
+    if (typeof updatePerformanceChartWithHypothetical === 'function') {
+      updatePerformanceChartWithHypothetical(null, null, null);
+    }
+    return;
+  }
+  
+  window._showHypothetical = true;
+  
+  // Enable slope toggle
+  if (slopeWrapper) {
+    slopeWrapper.style.opacity = '1';
+    slopeWrapper.style.pointerEvents = 'auto';
+    slopeWrapper.classList.add('enabled');
+  }
+  
+  // Fetch data if not already loaded
+  if (!window._hypotheticalData) {
+    await fetchHypotheticalData();
+  }
+  
+  if (!window._hypotheticalData) {
+    console.warn("No hypothetical data available");
+    return;
+  }
+  
+  // Calculate trajectory
+  const trajectory = Finance.calculateHypotheticalTrajectory(
+    window._hypotheticalData,
+    100 // Normalized to 100
+  );
+  
+  if (!trajectory) {
+    console.warn("Failed to calculate hypothetical trajectory");
+    return;
+  }
+  
+  window._hypotheticalTrajectory = trajectory;
+  console.log("📈 Hypothetical trajectory:", trajectory.stats);
+  
+  // Get actual portfolio data for comparison
+  const actualData = getActualPortfolioData();
+  
+  // Calculate Execution Alpha if slope comparison enabled
+  let ghostBenchmark = null;
+  let executionAlpha = null;
+  
+  if (showSlope && actualData) {
+    window._showSlope = true;
+    
+    executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
+    
+    if (executionAlpha) {
+      console.log("⚡ Execution Alpha:", executionAlpha);
+      
+      // Update alpha badge
+      if (alphaBadge && alphaValue) {
+        alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
+        alphaBadge.classList.remove('hidden', 'positive', 'negative');
+        alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
+      }
+      
+      // Create ghost benchmark
+      ghostBenchmark = Finance.createGhostBenchmark(
+        trajectory,
+        actualData.dates[0],
+        actualData.values[0]
+      );
+    }
+  } else {
+    window._showSlope = false;
+    if (alphaBadge) alphaBadge.classList.add('hidden');
+  }
+  
+  // Update chart with hypothetical overlay
+  if (typeof updatePerformanceChartWithHypothetical === 'function') {
+    updatePerformanceChartWithHypothetical(trajectory, ghostBenchmark, actualData);
+  }
+}
+
+/**
+ * Get actual portfolio data in the format needed for comparison
+ * @returns {Object} { dates: [], values: [] }
+ */
+function getActualPortfolioData() {
+  if (!portfolioHistory || portfolioHistory.length < 2) {
+    console.warn("No portfolio history available");
+    return null;
+  }
+  
+  // Sort by date and extract values
+  const sorted = [...portfolioHistory].sort((a, b) => {
+    return new Date(a.date) - new Date(b.date);
+  });
+  
+  const dates = sorted.map(h => {
+    const d = new Date(h.date);
+    return d.toISOString().split('T')[0];
+  });
+  
+  const values = sorted.map(h => h.value);
+  
+  return { dates, values };
+}
+
+/**
+ * Setup event listeners for hypothetical trajectory toggles
+ */
+function setupHypotheticalTrajectoryListeners() {
+  const hypoToggle = document.getElementById('hypo-history-toggle');
+  const slopeToggle = document.getElementById('hypo-slope-toggle');
+  
+  if (hypoToggle) {
+    hypoToggle.addEventListener('change', async (e) => {
+      const showHypothetical = e.target.checked;
+      const showSlope = document.getElementById('hypo-slope-toggle')?.checked || false;
+      
+      console.log("🔄 Hypothetical toggle:", showHypothetical ? 'ON' : 'OFF');
+      
+      // If turning off hypothetical, also turn off slope
+      if (!showHypothetical && slopeToggle) {
+        slopeToggle.checked = false;
+      }
+      
+      await updateHypotheticalChart(showHypothetical, showSlope);
+    });
+  }
+  
+  if (slopeToggle) {
+    slopeToggle.addEventListener('change', async (e) => {
+      const showSlope = e.target.checked;
+      const showHypothetical = document.getElementById('hypo-history-toggle')?.checked || false;
+      
+      console.log("🔄 Slope comparison toggle:", showSlope ? 'ON' : 'OFF');
+      
+      // Slope requires hypothetical to be on
+      if (!showHypothetical && showSlope) {
+        console.log("⚠️ Hypothetical must be enabled first");
+        e.target.checked = false;
+        return;
+      }
+      
+      await updateHypotheticalChart(showHypothetical, showSlope);
+    });
+  }
+  
+  // Hover on alpha badge to show/toggle ghost benchmark
+  const alphaBadge = document.getElementById('execution-alpha-badge');
+  if (alphaBadge) {
+    alphaBadge.addEventListener('click', () => {
+      const slopeToggle = document.getElementById('hypo-slope-toggle');
+      if (slopeToggle && window._showHypothetical) {
+        slopeToggle.checked = !slopeToggle.checked;
+        slopeToggle.dispatchEvent(new Event('change'));
+      }
+    });
+  }
+}
+
+// Initialize hypothetical listeners after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  setupHypotheticalTrajectoryListeners();
+});
+
 // Start
 initApp();

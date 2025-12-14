@@ -629,6 +629,110 @@ def get_stress_test_data():
     return jsonify(result)
 
 
+@app.route('/api/hypothetical-data', methods=['GET'])
+def get_hypothetical_data():
+    """
+    Fetch historical price data for Hypothetical Trajectory simulation.
+    Returns daily prices for Base 6 assets from 2020-08-11 (MSTR Bitcoin adoption) to present.
+    Uses US proxy tickers for full historical data coverage.
+    
+    CACHING: Data is saved to hypothetical_cache.json after first fetch.
+    """
+    HYPOTHETICAL_CACHE_FILE = os.path.join(BASE_DIR, "hypothetical_cache.json")
+    HYPOTHETICAL_START = datetime.datetime(2020, 8, 11)
+    
+    # Check if cache exists and is recent (within last day)
+    if os.path.exists(HYPOTHETICAL_CACHE_FILE):
+        try:
+            with open(HYPOTHETICAL_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+            
+            cache_date = cached_data.get('last_updated', '')
+            today_str = datetime.datetime.now().strftime('%Y-%m-%d')
+            
+            # If cache is from today, use it
+            if cache_date == today_str and len(cached_data.get('assets', {})) >= 6:
+                logger.info("Hypothetical: Using cached data from today")
+                return jsonify(cached_data)
+        except Exception as e:
+            logger.warning(f"Hypothetical: Cache read error, re-fetching... ({e})")
+    
+    # Asset mapping: Portfolio Ticker -> US Proxy Ticker for historical data
+    PROXY_TICKERS = {
+        'QQQ': 'QQQ',      # Direct
+        'DBMF': 'DBMF',    # Direct (available since 2019)
+        'GLDM': 'GLDM',    # Direct (available since 2018)
+        'TLT': 'TLT',      # US TLT as proxy for Korean TLT ETF
+        'MSTR': 'MSTR',    # Direct
+        'CSI300': 'ASHR',  # ASHR as proxy for CSI300 (better US-traded liquidity)
+    }
+    
+    # Target weights for simulation
+    TARGET_WEIGHTS = {
+        'QQQ': 0.30,
+        'DBMF': 0.30,
+        'TLT': 0.10,
+        'GLDM': 0.10,
+        'MSTR': 0.10,
+        'CSI300': 0.10
+    }
+    
+    result = {
+        'start_date': HYPOTHETICAL_START.strftime('%Y-%m-%d'),
+        'end_date': datetime.datetime.now().strftime('%Y-%m-%d'),
+        'last_updated': datetime.datetime.now().strftime('%Y-%m-%d'),
+        'weights': TARGET_WEIGHTS,
+        'assets': {}
+    }
+    
+    end_date = datetime.datetime.now()
+    
+    for asset_key, ticker in PROXY_TICKERS.items():
+        try:
+            logger.info(f"Hypothetical: Fetching {ticker} for {asset_key}...")
+            df = yf.download(ticker, start=HYPOTHETICAL_START, end=end_date + datetime.timedelta(days=1),
+                           progress=False, auto_adjust=True, ignore_tz=True)
+            
+            if df.empty:
+                logger.warning(f"Hypothetical: Empty data for {ticker}")
+                continue
+            
+            # Handle MultiIndex columns
+            close_data = df['Close']
+            if isinstance(close_data, pd.DataFrame):
+                close_data = close_data.squeeze(axis=1)
+            
+            if not isinstance(close_data, pd.Series):
+                continue
+            
+            # Convert to list format
+            dates = close_data.index.strftime('%Y-%m-%d').tolist()
+            prices = close_data.tolist()
+            
+            result['assets'][asset_key] = {
+                'proxy_ticker': ticker,
+                'dates': dates,
+                'prices': prices,
+                'weight': TARGET_WEIGHTS.get(asset_key, 0)
+            }
+            
+            logger.info(f"Hypothetical: {asset_key} loaded ({len(dates)} days)")
+            
+        except Exception as e:
+            logger.error(f"Hypothetical fetch error for {ticker}: {e}")
+            continue
+    
+    # Save to cache
+    try:
+        with open(HYPOTHETICAL_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2)
+        logger.info(f"Hypothetical: Data cached to {HYPOTHETICAL_CACHE_FILE}")
+    except Exception as e:
+        logger.error(f"Hypothetical: Failed to save cache: {e}")
+    
+    return jsonify(result)
+
+
 @app.route('/api/exchange-rate', methods=['GET'])
 def get_exchange_rate():
     """

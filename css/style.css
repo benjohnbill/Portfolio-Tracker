@@ -7380,3 +7380,92 @@ body.weekend-freeze.negative .main-content::after {
 .dashboard-container.sim-mode .cv-dot.portfolio {
   background: var(--sim-primary);
 }
+
+/* ===================================
+   HYPOTHETICAL TRAJECTORY SIMULATOR
+   Static Backtest Visualization
+   =================================== */
+
+.hypothetical-toggles {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.15);
+  flex-wrap: wrap;
+}
+
+.hypothetical-toggles .cv-toggle {
+  min-width: 180px;
+}
+
+#slope-toggle-wrapper {
+  transition: opacity 0.3s ease;
+}
+
+#slope-toggle-wrapper.enabled {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Execution Alpha Badge */
+.execution-alpha-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(234, 179, 8, 0.1) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fbbf24;
+  cursor: help;
+  transition: all 0.3s ease;
+}
+
+.execution-alpha-badge:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(234, 179, 8, 0.2) 100%);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+}
+
+.execution-alpha-badge.hidden {
+  display: none;
+}
+
+.execution-alpha-badge.positive {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(20, 184, 166, 0.1) 100%);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.execution-alpha-badge.positive:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.execution-alpha-badge.negative {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(248, 113, 113, 0.1) 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.execution-alpha-badge.negative:hover {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+}
+
+#alpha-value {
+  font-weight: 700;
+}
+
+/* Sim Mode Overrides */
+.dashboard-container.sim-mode .hypothetical-toggles {
+  border-top-color: rgba(168, 85, 247, 0.2);
+}
+
+.dashboard-container.sim-mode .execution-alpha-badge.positive {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(236, 72, 153, 0.1) 100%);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: var(--sim-primary);
+}

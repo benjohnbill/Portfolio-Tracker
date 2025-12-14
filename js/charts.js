@@ -1157,3 +1157,174 @@ function updatePerformanceChartProjection(cvData) {
         yearLabels
     });
 }
+
+
+/**
+ * Update Performance Chart with Hypothetical Trajectory overlay
+ * Shows static backtest from 2020-08-11 alongside actual portfolio
+ * 
+ * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
+ * @param {Object} ghostBenchmark - Ghost benchmark { dates: [], values: [] } for slope comparison
+ * @param {Object} actualData - Actual portfolio data { dates: [], values: [] }
+ */
+function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, actualData) {
+    if (!performanceChart) {
+        console.warn("Performance chart not initialized");
+        return;
+    }
+    
+    // If no hypothetical data, restore original chart
+    if (!hypothetical) {
+        // Remove hypothetical datasets if they exist
+        const datasetsToKeep = performanceChart.data.datasets.filter(
+            ds => !ds.label.includes('Hypothetical') && !ds.label.includes('Ghost')
+        );
+        performanceChart.data.datasets = datasetsToKeep;
+        performanceChart.update();
+        console.log("📊 Hypothetical overlay removed");
+        return;
+    }
+    
+    // Find or create hypothetical dataset
+    let hypoDataset = performanceChart.data.datasets.find(ds => ds.label === 'Hypothetical Strategy');
+    let ghostDataset = performanceChart.data.datasets.find(ds => ds.label === 'Ghost Benchmark');
+    
+    // Get current chart labels (dates from actual data)
+    const currentLabels = performanceChart.data.labels;
+    
+    // Create normalized hypothetical data aligned with main chart's timeline
+    // We need to show the full hypothetical range, so we prepend dates
+    
+    // Get inception date from actual data (first date in portfolio history)
+    const actualStartDate = actualData?.dates?.[0] || '2024-03-12';
+    
+    // Find where inception falls in hypothetical timeline
+    const inceptionIdx = hypothetical.dates.indexOf(actualStartDate);
+    
+    // Normalize hypothetical values at inception point to match actual start value
+    // This is for visual comparison purposes
+    const actualStartValue = actualData?.values?.[0] || 100;
+    
+    // Calculate scale factor: normalize hypothetical to actual at inception
+    const hypoValueAtInception = inceptionIdx >= 0 ? hypothetical.values[inceptionIdx] : hypothetical.values[0];
+    const scaleFactor = actualStartValue / hypoValueAtInception;
+    
+    // Scale all hypothetical values
+    const scaledHypoValues = hypothetical.values.map(v => v * scaleFactor);
+    
+    // Create combined date labels: hypothetical dates (before inception) + current labels (after)
+    // First, get all hypothetical dates before inception
+    const preInceptionDates = hypothetical.dates.slice(0, inceptionIdx > 0 ? inceptionIdx : 0);
+    const preInceptionValues = scaledHypoValues.slice(0, inceptionIdx > 0 ? inceptionIdx : 0);
+    
+    // Create sparse labels for pre-inception period (show year markers only)
+    const preInceptionLabels = preInceptionDates.map((date, i) => {
+        const d = new Date(date);
+        const month = d.getMonth();
+        const day = d.getDate();
+        // Show year on January 1st (or first trading day)
+        if (month === 0 && day <= 5) {
+            return d.getFullYear().toString();
+        }
+        // Show "Aug 2020" for the start
+        if (i === 0) {
+            return "Aug '20";
+        }
+        // Show quarter markers
+        if ([3, 6, 9].includes(month) && day <= 5) {
+            const quarters = ['', '', '', 'Q1', '', '', 'Q2', '', '', 'Q3', '', ''];
+            return quarters[month] + " '" + (d.getFullYear() % 100);
+        }
+        return '';
+    });
+    
+    // Combined labels and data for extended chart
+    const extendedLabels = [...preInceptionLabels, ...currentLabels];
+    
+    // Extend existing datasets with null values for pre-inception period
+    const preInceptionNulls = new Array(preInceptionLabels.length).fill(null);
+    
+    // Update each existing dataset to have null values for pre-inception
+    performanceChart.data.datasets.forEach(ds => {
+        if (!ds.label.includes('Hypothetical') && !ds.label.includes('Ghost')) {
+            ds.data = [...preInceptionNulls, ...ds.data.slice(0, currentLabels.length)];
+        }
+    });
+    
+    // Create hypothetical dataset (full range)
+    // For post-inception, we need to align with current chart dates
+    const hypoDataForChart = [...preInceptionValues];
+    
+    // Add values for the actual period
+    if (inceptionIdx >= 0) {
+        const postInceptionHypo = scaledHypoValues.slice(inceptionIdx);
+        // Match to current labels length
+        for (let i = 0; i < currentLabels.length; i++) {
+            hypoDataForChart.push(postInceptionHypo[i] || null);
+        }
+    }
+    
+    if (!hypoDataset) {
+        // Create new hypothetical dataset
+        hypoDataset = {
+            label: 'Hypothetical Strategy',
+            data: hypoDataForChart,
+            borderColor: 'rgba(20, 184, 166, 0.6)',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            order: 5  // Draw at back
+        };
+        performanceChart.data.datasets.push(hypoDataset);
+    } else {
+        hypoDataset.data = hypoDataForChart;
+    }
+    
+    // Handle Ghost Benchmark if provided (for slope comparison)
+    if (ghostBenchmark && ghostBenchmark.values.length > 0) {
+        // Ghost starts at actual inception, so needs null prefix
+        const ghostData = [...preInceptionNulls, ...ghostBenchmark.values.slice(0, currentLabels.length)];
+        
+        if (!ghostDataset) {
+            ghostDataset = {
+                label: 'Ghost Benchmark',
+                data: ghostData,
+                borderColor: 'rgba(251, 191, 36, 0.4)',  // Amber, faded
+                backgroundColor: 'transparent',
+                borderWidth: 1,
+                borderDash: [4, 2],
+                fill: false,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                order: 4  // Just above hypothetical
+            };
+            performanceChart.data.datasets.push(ghostDataset);
+        } else {
+            ghostDataset.data = ghostData;
+        }
+    } else if (ghostDataset) {
+        // Remove ghost dataset if not needed
+        const idx = performanceChart.data.datasets.indexOf(ghostDataset);
+        if (idx > -1) {
+            performanceChart.data.datasets.splice(idx, 1);
+        }
+    }
+    
+    // Update labels
+    performanceChart.data.labels = extendedLabels;
+    
+    performanceChart.update();
+    
+    console.log("📊 Hypothetical overlay updated:", {
+        totalPoints: extendedLabels.length,
+        preInceptionPoints: preInceptionLabels.length,
+        actualPeriodPoints: currentLabels.length,
+        hypoStats: hypothetical.stats,
+        hasGhost: !!ghostBenchmark
+    });
+}

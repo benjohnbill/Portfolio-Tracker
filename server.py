@@ -313,6 +313,11 @@ def build_cache_from_history(history_data):
     temp_cache = {}
     
     for ticker, data in history_data['data'].items():
+        # Skip tickers not in current ASSET_MAP (prevents ghost data like old CTA)
+        if ticker not in ASSET_MAP:
+            logger.debug(f"Skipping {ticker}: not in ASSET_MAP")
+            continue
+            
         if 'dates' not in data or 'history' not in data:
             continue
         

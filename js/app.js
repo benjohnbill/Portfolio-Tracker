@@ -2409,36 +2409,34 @@ async function fetchHypotheticalData() {
 
 /**
  * Calculate and display hypothetical trajectory on chart
+ * 
+ * Two modes:
+ * - Show Hypothetical (showSlope=false): Full backtest 2020~present
+ * - Compare Slope (showSlope=true): Original chart range with hypothetical overlay
  */
 async function updateHypotheticalChart(showHypothetical, showSlope = false) {
   const alphaBadge = document.getElementById('execution-alpha-badge');
   const alphaValue = document.getElementById('alpha-value');
   const slopeWrapper = document.getElementById('slope-toggle-wrapper');
   
-  // If turning off, remove hypothetical from chart
-  if (!showHypothetical) {
+  // ═══════════════════════════════════════════════════════════════════
+  // CASE 1: Both OFF - Restore original chart
+  // ═══════════════════════════════════════════════════════════════════
+  if (!showHypothetical && !showSlope) {
     window._showHypothetical = false;
     window._showSlope = false;
     if (alphaBadge) alphaBadge.classList.add('hidden');
     if (slopeWrapper) {
       slopeWrapper.style.opacity = '0.5';
       slopeWrapper.style.pointerEvents = 'none';
+      slopeWrapper.classList.remove('enabled');
     }
     
     // Restore original chart
-    if (typeof updatePerformanceChartWithHypothetical === 'function') {
-      updatePerformanceChartWithHypothetical(null, null, null);
+    if (typeof window._refreshPerformanceChart === 'function') {
+      window._refreshPerformanceChart();
     }
     return;
-  }
-  
-  window._showHypothetical = true;
-  
-  // Enable slope toggle
-  if (slopeWrapper) {
-    slopeWrapper.style.opacity = '1';
-    slopeWrapper.style.pointerEvents = 'auto';
-    slopeWrapper.classList.add('enabled');
   }
   
   // Fetch data if not already loaded
@@ -2465,43 +2463,68 @@ async function updateHypotheticalChart(showHypothetical, showSlope = false) {
   window._hypotheticalTrajectory = trajectory;
   console.log("📈 Hypothetical trajectory:", trajectory.stats);
   
-  // Get actual portfolio data for comparison
+  // Get actual portfolio data
   const actualData = getActualPortfolioData();
   
-  // Calculate Execution Alpha if slope comparison enabled
-  let ghostBenchmark = null;
-  let executionAlpha = null;
-  
-  if (showSlope && actualData) {
+  // ═══════════════════════════════════════════════════════════════════
+  // CASE 2: Compare Slope ON - Original chart range + Hypothetical overlay
+  // ═══════════════════════════════════════════════════════════════════
+  if (showSlope) {
+    window._showHypothetical = true;
     window._showSlope = true;
     
-    executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
-    
-    if (executionAlpha) {
-      console.log("⚡ Execution Alpha:", executionAlpha);
-      
-      // Update alpha badge
-      if (alphaBadge && alphaValue) {
-        alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
-        alphaBadge.classList.remove('hidden', 'positive', 'negative');
-        alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
-      }
-      
-      // Create ghost benchmark
-      ghostBenchmark = Finance.createGhostBenchmark(
-        trajectory,
-        actualData.dates[0],
-        actualData.values[0]
-      );
+    // Enable slope toggle styling
+    if (slopeWrapper) {
+      slopeWrapper.style.opacity = '1';
+      slopeWrapper.style.pointerEvents = 'auto';
+      slopeWrapper.classList.add('enabled');
     }
-  } else {
-    window._showSlope = false;
-    if (alphaBadge) alphaBadge.classList.add('hidden');
+    
+    // Calculate Execution Alpha
+    if (actualData) {
+      const executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
+      
+      if (executionAlpha) {
+        console.log("⚡ Execution Alpha:", executionAlpha);
+        
+        // Update alpha badge
+        if (alphaBadge && alphaValue) {
+          alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
+          alphaBadge.classList.remove('hidden', 'positive', 'negative');
+          alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
+        }
+      }
+    }
+    
+    // Use Compare Slope chart (original range + hypothetical)
+    if (typeof updatePerformanceChartCompareSlope === 'function') {
+      updatePerformanceChartCompareSlope(trajectory, actualData);
+    } else {
+      console.warn("updatePerformanceChartCompareSlope not found");
+    }
+    
+    return;
   }
   
-  // Update chart with hypothetical overlay
+  // ═══════════════════════════════════════════════════════════════════
+  // CASE 3: Show Hypothetical ON (Slope OFF) - Full 2020~present backtest
+  // ═══════════════════════════════════════════════════════════════════
+  window._showHypothetical = true;
+  window._showSlope = false;
+  
+  // Enable slope toggle
+  if (slopeWrapper) {
+    slopeWrapper.style.opacity = '1';
+    slopeWrapper.style.pointerEvents = 'auto';
+    slopeWrapper.classList.add('enabled');
+  }
+  
+  // Hide alpha badge in this mode
+  if (alphaBadge) alphaBadge.classList.add('hidden');
+  
+  // Use full hypothetical chart (2020~present)
   if (typeof updatePerformanceChartWithHypothetical === 'function') {
-    updatePerformanceChartWithHypothetical(trajectory, ghostBenchmark, actualData);
+    updatePerformanceChartWithHypothetical(trajectory, null, actualData);
   }
 }
 

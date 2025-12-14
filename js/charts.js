@@ -1484,3 +1484,264 @@ function setPerformanceChartRefreshCallback(callback) {
 }
 
 
+/**
+ * Update Performance Chart with Hypothetical overlay for Slope Comparison
+ * Uses ORIGINAL chart range (Inception~Present) with hypothetical added
+ * 
+ * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
+ * @param {Object} actualData - Actual portfolio data { dates: [], values: [] }
+ */
+function updatePerformanceChartCompareSlope(hypothetical, actualData) {
+    const perfCtx = document.getElementById('perfChart');
+    if (!perfCtx) {
+        console.warn("Performance chart canvas not found");
+        return;
+    }
+    
+    // Destroy existing chart
+    if (performanceChart) {
+        performanceChart.destroy();
+        performanceChart = null;
+    }
+    
+    // Get original chart data from global storage
+    const aumHistory = window._globalAumHistory;
+    const spyNormalized = window._globalSpyNormalized;
+    const ma60Data = window._globalMa60Data;
+    
+    if (!aumHistory || aumHistory.length < 2) {
+        console.warn("No AUM history for compare slope chart");
+        return;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 1: Build hypothetical data aligned with actual dates
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // Build date -> hypothetical value map
+    const hypoMap = {};
+    if (hypothetical && hypothetical.dates) {
+        const actualStartValue = actualData?.values?.[0] || aumHistory[0]?.totalValue || 17400000;
+        
+        // Find inception index in hypothetical
+        const INCEPTION_DATE = '2024-03-12';
+        let inceptionIdx = hypothetical.dates.indexOf(INCEPTION_DATE);
+        if (inceptionIdx === -1) {
+            inceptionIdx = hypothetical.dates.findIndex(d => d >= INCEPTION_DATE);
+        }
+        
+        // Scale factor to match actual portfolio at inception
+        const hypoValueAtInception = inceptionIdx >= 0 ? hypothetical.values[inceptionIdx] : hypothetical.values[0];
+        const scaleFactor = actualStartValue / hypoValueAtInception;
+        
+        hypothetical.dates.forEach((date, i) => {
+            hypoMap[date] = hypothetical.values[i] * scaleFactor;
+        });
+        
+        console.log(`📊 Compare Slope: Scale factor ${scaleFactor.toFixed(4)}`);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 2: Create labels and data arrays
+    // ═══════════════════════════════════════════════════════════════════
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let lastMonth = -1;
+    
+    const labels = aumHistory.map((item, index) => {
+        const date = new Date(item.date);
+        const month = date.getMonth();
+        
+        if (month !== lastMonth) {
+            lastMonth = month;
+            return monthNames[month];
+        }
+        return '';
+    });
+    
+    // Track month boundaries
+    const monthBoundaryIndices = [];
+    lastMonth = -1;
+    aumHistory.forEach((item, index) => {
+        const date = new Date(item.date);
+        const month = date.getMonth();
+        if (month !== lastMonth) {
+            monthBoundaryIndices.push(index);
+            lastMonth = month;
+        }
+    });
+    
+    const aumValues = aumHistory.map(item => item.totalValue);
+    const ma60Values = ma60Data ? ma60Data.map(item => item.ma) : [];
+    
+    // Build hypothetical values aligned with aumHistory dates
+    const hypotheticalValues = aumHistory.map(item => {
+        const d = new Date(item.date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        return hypoMap[dateStr] || null;
+    });
+    
+    console.log(`📊 Compare Slope: ${hypotheticalValues.filter(v => v !== null).length} hypothetical points mapped`);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 3: Build datasets (same as original + hypothetical)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    const datasets = [
+        {
+            label: 'Portfolio AUM',
+            data: aumValues,
+            borderColor: '#06d6a0',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2.5,
+            order: 1
+        },
+        {
+            label: '60-Day MA',
+            data: ma60Values,
+            borderColor: 'rgba(161, 161, 170, 0.9)',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 0.8,
+            order: 3
+        },
+        {
+            label: 'SPY (Benchmark)',
+            data: spyNormalized,
+            borderColor: '#ef476f',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 1.5,
+            order: 4
+        },
+        {
+            label: 'Hypothetical Strategy',
+            data: hypotheticalValues,
+            borderColor: 'rgba(251, 191, 36, 0.8)',  // Amber/Gold color
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            borderDash: [6, 3],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            order: 2
+        }
+    ];
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 4: Create chart (same structure as original performance chart)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    performanceChart = new Chart(perfCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#94a3b8',
+                        usePointStyle: true,
+                        padding: 12,
+                        font: { size: 10 }
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(15, 20, 32, 0.95)',
+                    titleColor: '#ffffff',
+                    bodyColor: '#94a3b8',
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        title: function(context) {
+                            const idx = context[0].dataIndex;
+                            const item = aumHistory[idx];
+                            if (item) {
+                                const date = new Date(item.date);
+                                return date.toLocaleDateString('en-US', { 
+                                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
+                                });
+                            }
+                            return '';
+                        },
+                        label: function(context) {
+                            const value = context.raw;
+                            if (value == null) return '';
+                            return context.dataset.label + ': ₩' + Math.round(value).toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: function(context) {
+                            if (monthBoundaryIndices.includes(context.index)) {
+                                return 'rgba(255, 255, 255, 0.1)';
+                            }
+                            return 'rgba(255, 255, 255, 0.01)';
+                        },
+                        lineWidth: function(context) {
+                            if (monthBoundaryIndices.includes(context.index)) {
+                                return 0.5;
+                            }
+                            return 0;
+                        }
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        font: { size: 10, weight: 'bold' },
+                        maxRotation: 0,
+                        autoSkip: false,
+                        callback: function(value, index) {
+                            return labels[index] || '';
+                        }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.02)'
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return '₩' + (value / 1000000).toFixed(2) + 'M';
+                            } else if (value >= 1000) {
+                                return '₩' + (value / 1000).toFixed(0) + 'K';
+                            }
+                            return '₩' + value;
+                        },
+                        font: { size: 10 }
+                    }
+                }
+            }
+        }
+    });
+    
+    console.log("📊 Compare Slope chart created:", {
+        totalPoints: aumValues.length,
+        hypotheticalMapped: hypotheticalValues.filter(v => v !== null).length,
+        spyPoints: spyNormalized?.length || 0
+    });
+}

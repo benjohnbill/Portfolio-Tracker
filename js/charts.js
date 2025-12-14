@@ -1162,169 +1162,290 @@ function updatePerformanceChartProjection(cvData) {
 /**
  * Update Performance Chart with Hypothetical Trajectory overlay
  * Shows static backtest from 2020-08-11 alongside actual portfolio
+ * Uses year-based X-axis for cleaner visualization (similar to Projection mode)
  * 
  * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
  * @param {Object} ghostBenchmark - Ghost benchmark { dates: [], values: [] } for slope comparison
  * @param {Object} actualData - Actual portfolio data { dates: [], values: [] }
  */
 function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, actualData) {
-    if (!performanceChart) {
-        console.warn("Performance chart not initialized");
+    const perfCtx = document.getElementById('perfChart');
+    if (!perfCtx) {
+        console.warn("Performance chart canvas not found");
         return;
     }
     
-    // If no hypothetical data, restore original chart
+    // If no hypothetical data, restore original chart by triggering a refresh
     if (!hypothetical) {
-        // Remove hypothetical datasets if they exist
-        const datasetsToKeep = performanceChart.data.datasets.filter(
-            ds => !ds.label.includes('Hypothetical') && !ds.label.includes('Ghost')
-        );
-        performanceChart.data.datasets = datasetsToKeep;
-        performanceChart.update();
-        console.log("📊 Hypothetical overlay removed");
+        console.log("📊 Removing hypothetical overlay, restoring original chart...");
+        // Trigger the original dashboard update to rebuild the chart
+        if (typeof window._refreshPerformanceChart === 'function') {
+            window._refreshPerformanceChart();
+        } else {
+            // Fallback: just update the page
+            console.log("💡 Tip: Refresh the page to restore original chart");
+        }
         return;
     }
     
-    // Find or create hypothetical dataset
-    let hypoDataset = performanceChart.data.datasets.find(ds => ds.label === 'Hypothetical Strategy');
-    let ghostDataset = performanceChart.data.datasets.find(ds => ds.label === 'Ghost Benchmark');
+    // Destroy existing chart
+    if (performanceChart) {
+        performanceChart.destroy();
+        performanceChart = null;
+    }
     
-    // Get current chart labels (dates from actual data)
-    const currentLabels = performanceChart.data.labels;
+    // Configuration
+    const HYPOTHETICAL_START_YEAR = 2020;
+    const INCEPTION_YEAR = 2024;
+    const currentYear = new Date().getFullYear();
     
-    // Create normalized hypothetical data aligned with main chart's timeline
-    // We need to show the full hypothetical range, so we prepend dates
+    // Get actual portfolio start value for normalization
+    const actualStartValue = actualData?.values?.[0] || 17400000; // Default to ~17.4M
     
-    // Get inception date from actual data (first date in portfolio history)
-    const actualStartDate = actualData?.dates?.[0] || '2024-03-12';
+    // Find hypothetical value at inception (2024-03-12 or closest)
+    const inceptionDate = '2024-03-12';
+    let inceptionIdx = hypothetical.dates.indexOf(inceptionDate);
     
-    // Find where inception falls in hypothetical timeline
-    const inceptionIdx = hypothetical.dates.indexOf(actualStartDate);
+    // If exact date not found, find closest date in March 2024
+    if (inceptionIdx === -1) {
+        inceptionIdx = hypothetical.dates.findIndex(d => d.startsWith('2024-03'));
+        if (inceptionIdx === -1) {
+            // Fallback to first 2024 date
+            inceptionIdx = hypothetical.dates.findIndex(d => d.startsWith('2024'));
+        }
+    }
     
-    // Normalize hypothetical values at inception point to match actual start value
-    // This is for visual comparison purposes
-    const actualStartValue = actualData?.values?.[0] || 100;
+    if (inceptionIdx === -1) {
+        console.warn("Cannot find inception point in hypothetical data");
+        return;
+    }
     
-    // Calculate scale factor: normalize hypothetical to actual at inception
-    const hypoValueAtInception = inceptionIdx >= 0 ? hypothetical.values[inceptionIdx] : hypothetical.values[0];
+    const hypoValueAtInception = hypothetical.values[inceptionIdx];
     const scaleFactor = actualStartValue / hypoValueAtInception;
     
-    // Scale all hypothetical values
+    // Scale hypothetical values to match actual portfolio's scale
     const scaledHypoValues = hypothetical.values.map(v => v * scaleFactor);
     
-    // Create combined date labels: hypothetical dates (before inception) + current labels (after)
-    // First, get all hypothetical dates before inception
-    const preInceptionDates = hypothetical.dates.slice(0, inceptionIdx > 0 ? inceptionIdx : 0);
-    const preInceptionValues = scaledHypoValues.slice(0, inceptionIdx > 0 ? inceptionIdx : 0);
+    // Generate year labels: 2020, 2021, 2022, 2023, 2024
+    const yearLabels = [];
+    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
+        yearLabels.push("'" + String(year).slice(-2)); // '20, '21, '22, '23, '24
+    }
     
-    // Create sparse labels for pre-inception period (show year markers only)
-    const preInceptionLabels = preInceptionDates.map((date, i) => {
-        const d = new Date(date);
-        const month = d.getMonth();
-        const day = d.getDate();
-        // Show year on January 1st (or first trading day)
-        if (month === 0 && day <= 5) {
-            return d.getFullYear().toString();
-        }
-        // Show "Aug 2020" for the start
-        if (i === 0) {
-            return "Aug '20";
-        }
-        // Show quarter markers
-        if ([3, 6, 9].includes(month) && day <= 5) {
-            const quarters = ['', '', '', 'Q1', '', '', 'Q2', '', '', 'Q3', '', ''];
-            return quarters[month] + " '" + (d.getFullYear() % 100);
-        }
-        return '';
+    // Sample data by year-end (last available value in each year)
+    const hypoByYear = {};
+    const hypoDatesByYear = {};
+    
+    hypothetical.dates.forEach((date, i) => {
+        const year = new Date(date).getFullYear();
+        hypoByYear[year] = scaledHypoValues[i];
+        hypoDatesByYear[year] = date;
     });
     
-    // Combined labels and data for extended chart
-    const extendedLabels = [...preInceptionLabels, ...currentLabels];
+    // Build hypothetical data array (year-end snapshots)
+    const hypotheticalData = [];
+    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
+        hypotheticalData.push(hypoByYear[year] || null);
+    }
     
-    // Extend existing datasets with null values for pre-inception period
-    const preInceptionNulls = new Array(preInceptionLabels.length).fill(null);
+    // Build actual portfolio data (only from inception year onwards)
+    const actualByYear = {};
+    if (actualData && actualData.dates) {
+        actualData.dates.forEach((date, i) => {
+            const year = new Date(date).getFullYear();
+            actualByYear[year] = actualData.values[i];
+        });
+    }
     
-    // Update each existing dataset to have null values for pre-inception
-    performanceChart.data.datasets.forEach(ds => {
-        if (!ds.label.includes('Hypothetical') && !ds.label.includes('Ghost')) {
-            ds.data = [...preInceptionNulls, ...ds.data.slice(0, currentLabels.length)];
-        }
-    });
-    
-    // Create hypothetical dataset (full range)
-    // For post-inception, we need to align with current chart dates
-    const hypoDataForChart = [...preInceptionValues];
-    
-    // Add values for the actual period
-    if (inceptionIdx >= 0) {
-        const postInceptionHypo = scaledHypoValues.slice(inceptionIdx);
-        // Match to current labels length
-        for (let i = 0; i < currentLabels.length; i++) {
-            hypoDataForChart.push(postInceptionHypo[i] || null);
+    const actualPortfolioData = [];
+    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
+        if (year >= INCEPTION_YEAR && actualByYear[year]) {
+            actualPortfolioData.push(actualByYear[year]);
+        } else {
+            actualPortfolioData.push(null);
         }
     }
     
-    if (!hypoDataset) {
-        // Create new hypothetical dataset
-        hypoDataset = {
+    // Build ghost benchmark data (only from inception onwards, rebased)
+    let ghostData = [];
+    if (ghostBenchmark && ghostBenchmark.values.length > 0) {
+        // Ghost benchmark is already rebased to actual start value
+        const ghostByYear = {};
+        ghostBenchmark.dates.forEach((date, i) => {
+            const year = new Date(date).getFullYear();
+            ghostByYear[year] = ghostBenchmark.values[i];
+        });
+        
+        for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
+            if (year >= INCEPTION_YEAR && ghostByYear[year]) {
+                ghostData.push(ghostByYear[year]);
+            } else {
+                ghostData.push(null);
+            }
+        }
+    }
+    
+    // Find inception year index for visual marker
+    const inceptionYearIndex = INCEPTION_YEAR - HYPOTHETICAL_START_YEAR;
+    
+    // Build datasets
+    const datasets = [
+        {
             label: 'Hypothetical Strategy',
-            data: hypoDataForChart,
+            data: hypotheticalData,
             borderColor: 'rgba(20, 184, 166, 0.6)',
             backgroundColor: 'transparent',
-            borderWidth: 1.5,
+            borderWidth: 2,
             borderDash: [6, 4],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: 'rgba(20, 184, 166, 0.8)',
+            order: 2
+        },
+        {
+            label: 'Actual Portfolio',
+            data: actualPortfolioData,
+            borderColor: '#06d6a0',
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            fill: false,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#06d6a0',
+            order: 1
+        }
+    ];
+    
+    // Add ghost benchmark if provided
+    if (ghostData.length > 0 && ghostData.some(v => v !== null)) {
+        datasets.push({
+            label: 'Ghost Benchmark',
+            data: ghostData,
+            borderColor: 'rgba(251, 191, 36, 0.5)',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [4, 2],
             fill: false,
             tension: 0.3,
             pointRadius: 0,
             pointHoverRadius: 3,
-            order: 5  // Draw at back
-        };
-        performanceChart.data.datasets.push(hypoDataset);
-    } else {
-        hypoDataset.data = hypoDataForChart;
+            order: 3
+        });
     }
     
-    // Handle Ghost Benchmark if provided (for slope comparison)
-    if (ghostBenchmark && ghostBenchmark.values.length > 0) {
-        // Ghost starts at actual inception, so needs null prefix
-        const ghostData = [...preInceptionNulls, ...ghostBenchmark.values.slice(0, currentLabels.length)];
-        
-        if (!ghostDataset) {
-            ghostDataset = {
-                label: 'Ghost Benchmark',
-                data: ghostData,
-                borderColor: 'rgba(251, 191, 36, 0.4)',  // Amber, faded
-                backgroundColor: 'transparent',
-                borderWidth: 1,
-                borderDash: [4, 2],
-                fill: false,
-                tension: 0.3,
-                pointRadius: 0,
-                pointHoverRadius: 0,
-                order: 4  // Just above hypothetical
-            };
-            performanceChart.data.datasets.push(ghostDataset);
-        } else {
-            ghostDataset.data = ghostData;
+    // Create new chart with year-based X-axis
+    performanceChart = new Chart(perfCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: yearLabels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#94a3b8',
+                        usePointStyle: true,
+                        padding: 15,
+                        font: { size: 11 }
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(15, 20, 32, 0.95)',
+                    titleColor: '#ffffff',
+                    bodyColor: '#94a3b8',
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            if (value == null) return '';
+                            return context.dataset.label + ': ₩' + Math.round(value).toLocaleString();
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: {
+                        inceptionLine: {
+                            type: 'line',
+                            xMin: inceptionYearIndex,
+                            xMax: inceptionYearIndex,
+                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            label: {
+                                display: true,
+                                content: 'Inception',
+                                position: 'start',
+                                backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                                color: '#94a3b8',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.08)',
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { size: 12, weight: 'bold' }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.05)'
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        callback: function(value) {
+                            if (value >= 100000000) {
+                                return '₩' + (value / 100000000).toFixed(1) + '억';
+                            } else if (value >= 10000000) {
+                                return '₩' + (value / 10000000).toFixed(0) + '천만';
+                            } else if (value >= 1000000) {
+                                return '₩' + (value / 1000000).toFixed(1) + 'M';
+                            }
+                            return '₩' + value.toLocaleString();
+                        },
+                        font: { size: 10 }
+                    }
+                }
+            }
         }
-    } else if (ghostDataset) {
-        // Remove ghost dataset if not needed
-        const idx = performanceChart.data.datasets.indexOf(ghostDataset);
-        if (idx > -1) {
-            performanceChart.data.datasets.splice(idx, 1);
-        }
-    }
+    });
     
-    // Update labels
-    performanceChart.data.labels = extendedLabels;
-    
-    performanceChart.update();
-    
-    console.log("📊 Hypothetical overlay updated:", {
-        totalPoints: extendedLabels.length,
-        preInceptionPoints: preInceptionLabels.length,
-        actualPeriodPoints: currentLabels.length,
+    console.log("📊 Hypothetical chart created:", {
+        yearLabels,
+        hypotheticalData,
+        actualPortfolioData,
+        scaleFactor: scaleFactor.toFixed(4),
         hypoStats: hypothetical.stats,
-        hasGhost: !!ghostBenchmark
+        hasGhost: ghostData.length > 0
     });
 }
+
+/**
+ * Store reference to refresh function for restoring original chart
+ * Called from app.js after main chart is created
+ */
+function setPerformanceChartRefreshCallback(callback) {
+    window._refreshPerformanceChart = callback;
+}
+

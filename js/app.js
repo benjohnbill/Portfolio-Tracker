@@ -327,11 +327,28 @@ async function updateDashboard() {
     benchmarkReturns
   );
 
-  // Store globally for chart restoration when projection is toggled off
+  // Store globally for chart restoration when projection/hypothetical is toggled off
+  window._globalAumHistory = aumHistory;
+  window._globalSpyNormalized = spyNormalized;
   window._globalMa60Data = ma60Data;
   window._globalDailyReturns = dailyReturns;
   window._globalPerfMetrics = perfMetrics;
   window._globalBenchmarkReturns = benchmarkReturns;
+
+  // Register callback for restoring original chart (used when turning off Hypothetical toggle)
+  if (typeof setPerformanceChartRefreshCallback === 'function') {
+    setPerformanceChartRefreshCallback(() => {
+      updatePerformanceChart(
+        window._globalAumHistory,
+        window._globalSpyNormalized,
+        window._globalMa60Data,
+        window._globalDailyReturns,
+        window._globalPerfMetrics,
+        window._globalBenchmarkReturns
+      );
+    });
+  }
+
 
   // 12.5 Calculate individual asset returns for Attribution Analysis
   // Now uses Cumulative Attribution based on actual historical holdings from Logs

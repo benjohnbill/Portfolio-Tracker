@@ -2586,16 +2586,18 @@ function setupHypotheticalTrajectoryListeners() {
   window._hypoViewMode = 'off';
   window._showSPY = true; // Default: SPY shown
   
-  // SPY Toggle
+  // SPY Toggle - directly toggle visibility on charts
   if (spyToggle) {
     spyToggle.addEventListener('change', (e) => {
       window._showSPY = e.target.checked;
-      console.log("📊 SPY toggle:", window._showSPY ? 'ON' : 'OFF');
       
-      // Refresh chart with current settings
-      refreshChartWithCurrentSettings();
+      // Use Chart.js visibility toggle (no chart recreation needed)
+      if (typeof toggleSPYVisibility === 'function') {
+        toggleSPYVisibility(e.target.checked);
+      }
     });
   }
+
   
   // Hypothetical View Radio Buttons
   hypoRadios.forEach(radio => {

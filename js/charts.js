@@ -10,6 +10,37 @@ let histogramChart = null;
 let alphaCurveChart = null;
 let underwaterChart = null;
 
+/**
+ * Toggle SPY benchmark visibility on performance and underwater charts
+ * Uses Chart.js dataset visibility (no chart recreation needed)
+ * @param {boolean} visible - Whether to show SPY
+ */
+function toggleSPYVisibility(visible) {
+    // Performance Chart: SPY is at index 2
+    if (performanceChart && performanceChart.data.datasets.length > 2) {
+        const spyDatasetIndex = performanceChart.data.datasets.findIndex(
+            ds => ds.label && ds.label.includes('SPY')
+        );
+        if (spyDatasetIndex !== -1) {
+            performanceChart.setDatasetVisibility(spyDatasetIndex, visible);
+            performanceChart.update('none'); // Update without animation
+        }
+    }
+    
+    // Underwater Chart: SPY MDD is at index 1
+    if (underwaterChart && underwaterChart.data.datasets.length > 1) {
+        const spyDatasetIndex = underwaterChart.data.datasets.findIndex(
+            ds => ds.label && ds.label.includes('SPY')
+        );
+        if (spyDatasetIndex !== -1) {
+            underwaterChart.setDatasetVisibility(spyDatasetIndex, visible);
+            underwaterChart.update('none');
+        }
+    }
+    
+    console.log("📊 SPY visibility:", visible ? 'ON' : 'OFF');
+}
+
 
 /**
  * Initialize the basic Allocation Chart (Doughnut)

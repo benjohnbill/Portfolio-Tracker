@@ -910,7 +910,8 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                     },
                     y: {
                         position: 'right',
-                        max: 0,
+                        suggestedMax: 0.5,  // Ensure 0% baseline is visible with some padding
+                        grace: '5%',
                         grid: {
                             color: function(context) {
                                 if (context.tick.value === 0) {
@@ -934,6 +935,7 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                         }
                     }
                 }
+
             }
         });
     }

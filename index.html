@@ -426,62 +426,51 @@
                   </div>
                 </div>
 
-                <!-- Toggle Controls (Responsive Grid: 4 columns → 2 columns → 1 column) -->
-                <div class="cv-toggles-grid">
-                  <!-- Row 1: Projection Controls -->
-                  <div class="cv-toggle">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="cv-projection-toggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">Show Projection</span>
-                  </div>
-                  <div class="cv-toggle">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="cv-result-toggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">Expected Result</span>
+                <!-- Chart Control Toggles -->
+                <div class="cv-chart-controls">
+                  <!-- Left: Line Visibility Toggles -->
+                  <div class="cv-line-toggles">
+                    <div class="cv-toggle">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="cv-spy-toggle" checked>
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <span class="toggle-label">SPY</span>
+                    </div>
+                    <div class="cv-toggle">
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="cv-projection-toggle">
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <span class="toggle-label">Projection</span>
+                    </div>
                   </div>
                   
-                  <!-- Row 2: Hypothetical Controls -->
-                  <div class="cv-toggle">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="hypo-history-toggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">Show Hypothetical</span>
-                  </div>
-                  <div class="cv-toggle" id="slope-toggle-wrapper" style="opacity: 0.5; pointer-events: none;">
-                    <label class="toggle-switch">
-                      <input type="checkbox" id="hypo-slope-toggle">
-                      <span class="toggle-slider"></span>
-                    </label>
-                    <span class="toggle-label">Compare Slope</span>
+                  <!-- Right: Hypothetical View Selector (Radio) -->
+                  <div class="cv-hypo-selector">
+                    <span class="cv-hypo-label">Hypothetical:</span>
+                    <div class="cv-radio-group">
+                      <label class="cv-radio">
+                        <input type="radio" name="hypo-view" value="off" checked>
+                        <span class="cv-radio-text">Off</span>
+                      </label>
+                      <label class="cv-radio">
+                        <input type="radio" name="hypo-view" value="full">
+                        <span class="cv-radio-text">Full</span>
+                      </label>
+                      <label class="cv-radio">
+                        <input type="radio" name="hypo-view" value="slope">
+                        <span class="cv-radio-text">Slope</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
                 
-                <!-- Execution Alpha Badge (separate row) -->
-                <div class="execution-alpha-badge hidden" id="execution-alpha-badge" title="Value added by your dynamic rebalancing vs. static holding">
+                <!-- Execution Alpha Badge (shown when hypothetical is on) -->
+                <div class="execution-alpha-badge hidden" id="execution-alpha-badge" title="CAGR difference: Your execution vs static model">
                   ⚡ Execution Alpha: <span id="alpha-value">--</span>%p
                 </div>
 
-
-                <!-- Result Message (Hidden by default, controlled by Expected Result toggle) -->
-                <div class="cv-result hidden" id="cv-result">
-                  <div class="cv-primary-message" id="cv-primary"></div>
-                  <div class="cv-secondary-message" id="cv-secondary"></div>
-                  <div class="cv-timeline">
-                    <span class="cv-timeline-item">
-                      <span class="cv-dot portfolio"></span>
-                      <span id="cv-port-date">--</span>
-                    </span>
-                    <span class="cv-timeline-item">
-                      <span class="cv-dot spy"></span>
-                      <span id="cv-spy-date">--</span>
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

@@ -2573,67 +2573,114 @@ function getActualPortfolioData() {
 }
 
 /**
- * Setup event listeners for hypothetical trajectory toggles
+ * Setup event listeners for chart controls (new design)
+ * - SPY toggle: Show/hide SPY benchmark
+ * - Hypothetical radio: Off / Full / Slope modes
  */
 function setupHypotheticalTrajectoryListeners() {
-  const hypoToggle = document.getElementById('hypo-history-toggle');
-  const slopeToggle = document.getElementById('hypo-slope-toggle');
-  
-  if (hypoToggle) {
-    hypoToggle.addEventListener('change', async (e) => {
-      const showHypothetical = e.target.checked;
-      
-      console.log("🔄 Hypothetical toggle:", showHypothetical ? 'ON' : 'OFF');
-      
-      // If turning off hypothetical, also force slope off
-      if (!showHypothetical) {
-        if (slopeToggle) {
-          slopeToggle.checked = false;
-        }
-        // Pass both as false to fully restore original chart
-        await updateHypotheticalChart(false, false);
-        return;
-      }
-      
-      // When turning ON, check current slope state
-      const showSlope = slopeToggle?.checked || false;
-      await updateHypotheticalChart(showHypothetical, showSlope);
-    });
-  }
-
-  
-  if (slopeToggle) {
-    slopeToggle.addEventListener('change', async (e) => {
-      const showSlope = e.target.checked;
-      const showHypothetical = document.getElementById('hypo-history-toggle')?.checked || false;
-      
-      console.log("🔄 Slope comparison toggle:", showSlope ? 'ON' : 'OFF');
-      
-      // Slope requires hypothetical to be on
-      if (!showHypothetical && showSlope) {
-        console.log("⚠️ Hypothetical must be enabled first");
-        e.target.checked = false;
-        return;
-      }
-      
-      await updateHypotheticalChart(showHypothetical, showSlope);
-    });
-  }
-  
-  // Hover on alpha badge to show/toggle ghost benchmark
+  const spyToggle = document.getElementById('cv-spy-toggle');
+  const hypoRadios = document.querySelectorAll('input[name="hypo-view"]');
   const alphaBadge = document.getElementById('execution-alpha-badge');
-  if (alphaBadge) {
-    alphaBadge.addEventListener('click', () => {
-      const slopeToggle = document.getElementById('hypo-slope-toggle');
-      if (slopeToggle && window._showHypothetical) {
-        slopeToggle.checked = !slopeToggle.checked;
-        slopeToggle.dispatchEvent(new Event('change'));
-      }
+  
+  // Store current hypothetical mode for chart updates
+  window._hypoViewMode = 'off';
+  window._showSPY = true; // Default: SPY shown
+  
+  // SPY Toggle
+  if (spyToggle) {
+    spyToggle.addEventListener('change', (e) => {
+      window._showSPY = e.target.checked;
+      console.log("📊 SPY toggle:", window._showSPY ? 'ON' : 'OFF');
+      
+      // Refresh chart with current settings
+      refreshChartWithCurrentSettings();
     });
   }
+  
+  // Hypothetical View Radio Buttons
+  hypoRadios.forEach(radio => {
+    radio.addEventListener('change', async (e) => {
+      const mode = e.target.value; // 'off', 'full', 'slope'
+      window._hypoViewMode = mode;
+      
+      console.log("🔄 Hypothetical view:", mode);
+      
+      if (mode === 'off') {
+        // Hide alpha badge
+        if (alphaBadge) alphaBadge.classList.add('hidden');
+        
+        // Restore original chart
+        refreshChartWithCurrentSettings();
+      } else {
+        // Fetch data if needed
+        if (!window._hypotheticalData) {
+          await fetchHypotheticalData();
+        }
+        
+        if (!window._hypotheticalData) {
+          console.warn("No hypothetical data available");
+          return;
+        }
+        
+        // Calculate trajectory
+        const trajectory = Finance.calculateHypotheticalTrajectory(
+          window._hypotheticalData,
+          100
+        );
+        
+        if (!trajectory) {
+          console.warn("Failed to calculate hypothetical trajectory");
+          return;
+        }
+        
+        window._hypotheticalTrajectory = trajectory;
+        
+        // Get actual data for comparison
+        const actualData = getActualPortfolioData();
+        
+        // Calculate and show Execution Alpha
+        if (actualData) {
+          const executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
+          if (executionAlpha && alphaBadge) {
+            const alphaValue = document.getElementById('alpha-value');
+            if (alphaValue) {
+              alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
+            }
+            alphaBadge.classList.remove('hidden', 'positive', 'negative');
+            alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
+          }
+        }
+        
+        // Update chart based on mode
+        if (mode === 'full') {
+          // Full backtest: 2020.08.11 ~ present
+          if (typeof updatePerformanceChartWithHypothetical === 'function') {
+            updatePerformanceChartWithHypothetical(trajectory, null, actualData);
+          }
+        } else if (mode === 'slope') {
+          // Compare slope: 2024.03.12 ~ present
+          if (typeof updatePerformanceChartCompareSlope === 'function') {
+            updatePerformanceChartCompareSlope(trajectory, actualData);
+          }
+        }
+      }
+    });
+  });
 }
 
-// Initialize hypothetical listeners after DOM is ready
+/**
+ * Refresh chart with current toggle/radio settings
+ */
+function refreshChartWithCurrentSettings() {
+  if (typeof window._refreshPerformanceChart === 'function') {
+    window._refreshPerformanceChart();
+  }
+  
+  // TODO: Apply SPY visibility toggle when implemented
+  // For now, SPY is always shown by default in the main chart
+}
+
+// Initialize listeners after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setupHypotheticalTrajectoryListeners();
 });

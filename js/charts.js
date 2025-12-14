@@ -1052,54 +1052,64 @@ function updatePerformanceChartProjection(cvData) {
         performanceChart.destroy();
     }
 
+    // Build datasets - SPY is conditional based on toggle state
+    const projectionDatasets = [
+        {
+            label: 'Portfolio',
+            data: portfolioData,
+            borderColor: '#06d6a0',
+            backgroundColor: 'rgba(6, 214, 160, 0.1)',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            borderWidth: 2,
+            segment: {
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
+                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(20, 184, 166, 0.8)' : '#06d6a0'
+            }
+        }
+    ];
+    
+    // Add SPY only if toggle is ON
+    if (window._showSPY !== false) {
+        projectionDatasets.push({
+            label: 'SPY Benchmark',
+            data: spyData,
+            borderColor: '#ef476f',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 1.5,
+            segment: {
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
+                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(239, 71, 111, 0.7)' : '#ef476f'
+            }
+        });
+    }
+    
+    // Add Target Goal line
+    projectionDatasets.push({
+        label: 'Target Goal',
+        data: targetLineData,
+        borderColor: 'rgba(250, 204, 21, 0.7)',
+        borderWidth: 2,
+        borderDash: [8, 4],
+        fill: false,
+        tension: 0,
+        pointRadius: 0,
+        pointHoverRadius: 0
+    });
+
     // Create new chart with year-based X-axis
     performanceChart = new Chart(perfCtx.getContext('2d'), {
         type: 'line',
         data: {
             labels: yearLabels,
-            datasets: [
-                {
-                    label: 'Portfolio',
-                    data: portfolioData,
-                    borderColor: '#06d6a0',
-                    backgroundColor: 'rgba(6, 214, 160, 0.1)',
-                    fill: false,
-                    tension: 0.3,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    borderWidth: 2,
-                    segment: {
-                        borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
-                        borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(20, 184, 166, 0.8)' : '#06d6a0'
-                    }
-                },
-                {
-                    label: 'SPY Benchmark',
-                    data: spyData,
-                    borderColor: '#ef476f',
-                    fill: false,
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    borderWidth: 1.5,
-                    segment: {
-                        borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
-                        borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(239, 71, 111, 0.7)' : '#ef476f'
-                    }
-                },
-                {
-                    label: 'Target Goal',
-                    data: targetLineData,
-                    borderColor: 'rgba(250, 204, 21, 0.7)',
-                    borderWidth: 2,
-                    borderDash: [8, 4],
-                    fill: false,
-                    tension: 0,
-                    pointRadius: 0,
-                    pointHoverRadius: 0
-                }
-            ]
+            datasets: projectionDatasets
         },
+
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -1619,6 +1629,7 @@ function updatePerformanceChartCompareSlope(hypothetical, actualData) {
     
     // ═══════════════════════════════════════════════════════════════════
     // STEP 3: Build datasets (same as original + hypothetical)
+    // SPY dataset is conditional based on toggle state
     // ═══════════════════════════════════════════════════════════════════
     
     const datasets = [
@@ -1642,8 +1653,12 @@ function updatePerformanceChartCompareSlope(hypothetical, actualData) {
             pointRadius: 0,
             borderWidth: 0.8,
             order: 3
-        },
-        {
+        }
+    ];
+    
+    // Add SPY only if toggle is ON
+    if (window._showSPY !== false) {
+        datasets.push({
             label: 'SPY (Benchmark)',
             data: spyNormalized,
             borderColor: '#ef476f',
@@ -1652,21 +1667,24 @@ function updatePerformanceChartCompareSlope(hypothetical, actualData) {
             pointRadius: 0,
             borderWidth: 1.5,
             order: 4
-        },
-        {
-            label: 'Hypothetical Strategy',
-            data: hypotheticalValues,
-            borderColor: 'rgba(251, 191, 36, 0.8)',  // Amber/Gold color
-            backgroundColor: 'transparent',
-            borderWidth: 2,
-            borderDash: [6, 3],
-            fill: false,
-            tension: 0.3,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            order: 2
-        }
-    ];
+        });
+    }
+    
+    // Add Hypothetical Strategy
+    datasets.push({
+        label: 'Hypothetical Strategy',
+        data: hypotheticalValues,
+        borderColor: 'rgba(251, 191, 36, 0.8)',  // Amber/Gold color
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [6, 3],
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        order: 2
+    });
+
     
     // ═══════════════════════════════════════════════════════════════════
     // STEP 4: Create chart (same structure as original performance chart)

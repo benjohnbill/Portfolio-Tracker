@@ -682,17 +682,24 @@ function calculateAndDisplayCompoundVision(targetValue) {
     return;
   }
 
-  // Update UI
+  // Update UI - but only show result panel if Expected Result toggle is ON
   const resultEl = document.getElementById('cv-result');
+  const resultToggle = document.getElementById('cv-result-toggle');
   const primaryEl = document.getElementById('cv-primary');
   const secondaryEl = document.getElementById('cv-secondary');
   const portDateEl = document.getElementById('cv-port-date');
   const spyDateEl = document.getElementById('cv-spy-date');
 
+  // Only show result panel if Expected Result toggle is checked
   if (resultEl) {
-    resultEl.classList.remove('hidden', 'win', 'lag');
-    resultEl.classList.add(_compoundVisionData.portfolioWins ? 'win' : 'lag');
+    const showResult = resultToggle?.checked || false;
+    if (showResult) {
+      resultEl.classList.remove('hidden', 'win', 'lag');
+      resultEl.classList.add(_compoundVisionData.portfolioWins ? 'win' : 'lag');
+    }
+    // If toggle is off, keep it hidden (don't modify)
   }
+
 
   if (primaryEl) {
     primaryEl.textContent = _compoundVisionData.primaryMessage;

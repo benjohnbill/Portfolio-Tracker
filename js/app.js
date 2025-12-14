@@ -2584,7 +2584,10 @@ function setupHypotheticalTrajectoryListeners() {
   
   // Store current hypothetical mode for chart updates
   window._hypoViewMode = 'off';
-  window._showSPY = true; // Default: SPY shown
+  
+  // Initialize SPY state from actual toggle (default: true if toggle is checked or doesn't exist yet)
+  window._showSPY = spyToggle ? spyToggle.checked : true;
+
   
   // SPY Toggle - directly toggle visibility on charts
   if (spyToggle) {

@@ -1129,13 +1129,42 @@ function updatePerformanceChartProjection(cvData) {
                     padding: 12,
                     cornerRadius: 8,
                     callbacks: {
+                        title: function() {
+                            // Show target reach info as title
+                            return '🎯 Goal: ₩' + targetValue.toLocaleString();
+                        },
                         label: function(context) {
-                            const value = context.raw;
-                            if (value == null) return '';
-                            return context.dataset.label + ': ₩' + Math.round(value).toLocaleString();
+                            if (context.dataset.label === 'Target Goal') return '';
+                            
+                            // Show reach date instead of value
+                            if (context.dataset.label === 'Portfolio') {
+                                const portDate = cvData.portfolioFinishDate;
+                                return '📈 Portfolio: ' + portDate.getFullYear() + '년 ' + (portDate.getMonth() + 1) + '월 도달 예상';
+                            } else if (context.dataset.label === 'SPY Benchmark') {
+                                const spyDate = cvData.benchmarkFinishDate;
+                                return '📊 SPY: ' + spyDate.getFullYear() + '년 ' + (spyDate.getMonth() + 1) + '월 도달 예상';
+                            }
+                            return '';
+                        },
+                        afterBody: function() {
+                            // Show time difference
+                            const portDate = cvData.portfolioFinishDate;
+                            const spyDate = cvData.benchmarkFinishDate;
+                            const diffMonths = Math.round((spyDate - portDate) / (1000 * 60 * 60 * 24 * 30));
+                            if (diffMonths > 0) {
+                                const years = Math.floor(diffMonths / 12);
+                                const months = diffMonths % 12;
+                                let diffText = '⏱️ ';
+                                if (years > 0) diffText += years + '년 ';
+                                if (months > 0) diffText += months + '개월 ';
+                                diffText += '빠름';
+                                return [diffText];
+                            }
+                            return [];
                         }
                     }
                 },
+
                 // Add annotation for "Now" marker
                 annotation: {
                     annotations: {

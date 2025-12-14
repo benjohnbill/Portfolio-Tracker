@@ -2575,18 +2575,25 @@ function setupHypotheticalTrajectoryListeners() {
   if (hypoToggle) {
     hypoToggle.addEventListener('change', async (e) => {
       const showHypothetical = e.target.checked;
-      const showSlope = document.getElementById('hypo-slope-toggle')?.checked || false;
       
       console.log("🔄 Hypothetical toggle:", showHypothetical ? 'ON' : 'OFF');
       
-      // If turning off hypothetical, also turn off slope
-      if (!showHypothetical && slopeToggle) {
-        slopeToggle.checked = false;
+      // If turning off hypothetical, also force slope off
+      if (!showHypothetical) {
+        if (slopeToggle) {
+          slopeToggle.checked = false;
+        }
+        // Pass both as false to fully restore original chart
+        await updateHypotheticalChart(false, false);
+        return;
       }
       
+      // When turning ON, check current slope state
+      const showSlope = slopeToggle?.checked || false;
       await updateHypotheticalChart(showHypothetical, showSlope);
     });
   }
+
   
   if (slopeToggle) {
     slopeToggle.addEventListener('change', async (e) => {

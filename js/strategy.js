@@ -19,7 +19,8 @@ const Strategy = {
         // --- Rule 1: TLT Switching ---
         // If TLT RSI > 70 (Overbought) -> Sell TLT -> Buy BIL (Cash)
         // Only show if TLT has holdings (source asset)
-        const tlt = marketData?.TLT;
+        // Use TLT_US (real US TLT) for accurate signal analysis
+        const tlt = marketData?.TLT_US;
         if (tlt && tlt.rsi > 70 && hasHoldings('TLT')) {
             signals.push({ type: 'SELL', msg: 'TLT RSI > 70: Sell TLT → Switch to BIL' });
         }
@@ -56,7 +57,8 @@ const Strategy = {
         // --- Rule 1: TLT Oversold ---
         // If TLT RSI < 30 -> Buy TLT (using BIL)
         // Only show if BIL (source) has holdings
-        const tlt = marketData?.TLT;
+        // Use TLT_US (real US TLT) for accurate signal analysis
+        const tlt = marketData?.TLT_US;
         if (tlt && tlt.rsi < 30 && hasHoldings('BIL')) {
             signals.push({ type: 'BUY', msg: 'TLT RSI < 30: Buy TLT (using BIL)' });
         }

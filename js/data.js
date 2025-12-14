@@ -3,9 +3,11 @@
  * Handles portfolio state and market data fetching (Mock/Simulated for now)
  */
 
+const API_BASE_URL = 'http://127.0.0.1:8080';
+
 const PortfolioDefaults = [
     { id: 'nasdaq', ticker: 'QQQ', name: 'KODEX Nasdaq100 TR', targetWeight: 0.30, type: 'GROWTH', shares: 100, price: 0, currency: 'KRW' },
-    { id: 'cta', ticker: 'CTA', name: 'CTA ETF', targetWeight: 0.30, type: 'DEFENSE', shares: 100, price: 0, currency: 'USD' },
+    { id: 'dbmf', ticker: 'DBMF', name: 'iMGP DBi Managed Futures', targetWeight: 0.30, type: 'DEFENSE', shares: 100, price: 0, currency: 'USD' },
     { id: 'china', ticker: 'CSI300', name: 'RISE China CSI300', targetWeight: 0.10, type: 'GROWTH_HEDGE', shares: 100, price: 0, currency: 'KRW' },
     { id: 'bond', ticker: 'TLT', name: 'ACE 30Y Treasury', targetWeight: 0.10, type: 'HEDGE', shares: 100, price: 0, currency: 'KRW' },
     { id: 'gold', ticker: 'GLDM', name: 'GLDM', targetWeight: 0.10, type: 'HEDGE_INF', shares: 100, price: 0, currency: 'USD' },
@@ -61,7 +63,7 @@ const DataService = {
     fetchMarketData: async () => {
         try {
             console.log("Fetching market data from server...");
-            const response = await fetch('http://127.0.0.1:8080/api/market-data', {
+            const response = await fetch(`${API_BASE_URL}/api/market-data`, {
                 mode: 'cors',
                 method: 'GET'
             });
@@ -83,6 +85,26 @@ const DataService = {
             // Fallback: Return empty to indicate connection failure, NOT mock data.
             // This forces the user to ensure the server is running.
             return {};
+        }
+    },
+
+    /**
+     * Fetch USD/KRW exchange rate from server
+     */
+    fetchExchangeRate: async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/exchange-rate`, {
+                mode: 'cors',
+                method: 'GET'
+            });
+            if (!response.ok) {
+                throw new Error('Server error');
+            }
+            const data = await response.json();
+            return data.rate || 1410;
+        } catch (error) {
+            console.error("Failed to fetch exchange rate:", error);
+            return 1410; // Fallback rate
         }
     },
 
@@ -114,7 +136,7 @@ const DataService = {
 
         return {
             QQQ: { ...makeAssetData(20000), currency: 'KRW' },
-            CTA: { ...makeAssetData(30), currency: 'USD' },
+            DBMF: { ...makeAssetData(30), currency: 'USD' },
             CSI300: { ...makeAssetData(12000), currency: 'KRW' },
             TLT: { ...makeAssetData(10000), currency: 'KRW' },
             GLDM: { ...makeAssetData(54), currency: 'USD' },
@@ -208,11 +230,13 @@ const DataService = {
     /**
      * Export all application data as a JSON file
      * Includes: portfolio, history, snapshots
+     * @param {boolean} isSimulation - If true, marks export as simulation data
      */
-    exportAllData: () => {
+    exportAllData: (isSimulation = false) => {
         const data = {
             exportDate: new Date().toISOString(),
             appVersion: localStorage.getItem('jg_app_version') || 'unknown',
+            mode: isSimulation ? 'simulation' : 'real',
             portfolio: DataService.loadPortfolio(),
             history: DataService.loadHistory(),
             snapshots: DataService.loadSnapshots()
@@ -221,9 +245,14 @@ const DataService = {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
+        const dateStr = new Date().toISOString().split('T')[0];
+        const filename = isSimulation 
+            ? `[SIMULATION]_portfolio_backup_${dateStr}.json`
+            : `portfolio_backup_${dateStr}.json`;
+
         const a = document.createElement('a');
         a.href = url;
-        a.download = `portfolio_backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -266,9 +295,15 @@ const DataService = {
                 DataService.saveSnapshots(data.snapshots);
             }
 
+            // Check if data was from simulation mode
+            const simWarning = data.mode === 'simulation' 
+                ? ' ⚠️ 이 데이터는 Simulation에서 내보낸 데이터입니다.' 
+                : '';
+
             return {
                 success: true,
-                message: `Successfully imported ${data.portfolio.length} holdings and ${data.history.length} log entries`
+                message: `Successfully imported ${data.portfolio.length} holdings and ${data.history.length} log entries${simWarning}`,
+                isSimulation: data.mode === 'simulation'
             };
         } catch (error) {
             return { success: false, message: `Parse error: ${error.message}` };
@@ -283,12 +318,43 @@ const DataService = {
         const history = DataService.loadHistory();
         const snapshots = DataService.loadSnapshots();
 
+        // Calculate days tracked
+        let daysTracked = 0;
+        if (snapshots.length >= 2) {
+            const oldest = new Date(snapshots[0].date);
+            const newest = new Date(snapshots[snapshots.length - 1].date);
+            daysTracked = Math.floor((newest - oldest) / (1000 * 60 * 60 * 24));
+        }
+
+        // Count weekly snapshots (Fridays)
+        const weeklySnapshots = snapshots.filter(s => {
+            const d = new Date(s.date);
+            return d.getDay() === 5; // Friday
+        }).length;
+
+        // Data health check
+        let dataHealth = 'OK';
+        if (snapshots.length < 10) {
+            dataHealth = 'Low Data';
+        } else if (snapshots.length > 0) {
+            const lastDate = new Date(snapshots[snapshots.length - 1].date);
+            const daysSinceLastSnap = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
+            if (daysSinceLastSnap > 7) {
+                dataHealth = 'Stale';
+            } else if (snapshots.length >= 100) {
+                dataHealth = 'Excellent';
+            }
+        }
+
         return {
             holdingsCount: portfolio.length,
             historyCount: history.length,
             snapshotsCount: snapshots.length,
             oldestSnapshot: snapshots.length > 0 ? snapshots[0].date : null,
-            newestSnapshot: snapshots.length > 0 ? snapshots[snapshots.length - 1].date : null
+            newestSnapshot: snapshots.length > 0 ? snapshots[snapshots.length - 1].date : null,
+            daysTracked: daysTracked,
+            weeklySnapshots: weeklySnapshots,
+            dataHealth: dataHealth
         };
     }
 };

@@ -1162,7 +1162,7 @@ function updatePerformanceChartProjection(cvData) {
 /**
  * Update Performance Chart with Hypothetical Trajectory overlay
  * Shows static backtest from 2020-08-11 alongside actual portfolio
- * Uses year-based X-axis for cleaner visualization (similar to Projection mode)
+ * Uses DAILY data points with sparse year-based X-axis labels
  * 
  * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
  * @param {Object} ghostBenchmark - Ghost benchmark { dates: [], values: [] } for slope comparison
@@ -1175,15 +1175,11 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
         return;
     }
     
-    // If no hypothetical data, restore original chart by triggering a refresh
+    // If no hypothetical data, restore original chart
     if (!hypothetical) {
         console.log("📊 Removing hypothetical overlay, restoring original chart...");
-        // Trigger the original dashboard update to rebuild the chart
         if (typeof window._refreshPerformanceChart === 'function') {
             window._refreshPerformanceChart();
-        } else {
-            // Fallback: just update the page
-            console.log("💡 Tip: Refresh the page to restore original chart");
         }
         return;
     }
@@ -1194,114 +1190,127 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
         performanceChart = null;
     }
     
-    // Configuration
-    const HYPOTHETICAL_START_YEAR = 2020;
-    const INCEPTION_YEAR = 2024;
-    const currentYear = new Date().getFullYear();
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 1: Prepare unified date array (all trading days from 2020-08-11)
+    // ═══════════════════════════════════════════════════════════════════
     
-    // Get actual portfolio start value for normalization
-    const actualStartValue = actualData?.values?.[0] || 17400000; // Default to ~17.4M
+    const allDates = hypothetical.dates; // Already sorted, from 2020-08-11 to today
+    const totalPoints = allDates.length;
     
-    // Find hypothetical value at inception (2024-03-12 or closest)
-    const inceptionDate = '2024-03-12';
-    let inceptionIdx = hypothetical.dates.indexOf(inceptionDate);
+    console.log(`📊 Hypothetical chart: ${totalPoints} trading days`);
     
-    // If exact date not found, find closest date in March 2024
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 2: Get actual portfolio start value for normalization
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // Find inception date in hypothetical timeline
+    const INCEPTION_DATE = '2024-03-12';
+    let inceptionIdx = allDates.indexOf(INCEPTION_DATE);
+    
+    // If exact date not found, find closest
     if (inceptionIdx === -1) {
-        inceptionIdx = hypothetical.dates.findIndex(d => d.startsWith('2024-03'));
+        inceptionIdx = allDates.findIndex(d => d >= INCEPTION_DATE);
         if (inceptionIdx === -1) {
-            // Fallback to first 2024 date
-            inceptionIdx = hypothetical.dates.findIndex(d => d.startsWith('2024'));
+            console.warn("Cannot find inception date in hypothetical data");
+            return;
         }
     }
     
-    if (inceptionIdx === -1) {
-        console.warn("Cannot find inception point in hypothetical data");
-        return;
-    }
+    // Get actual start value
+    const actualStartValue = actualData?.values?.[0] || 17400000;
     
+    // Get hypothetical value at inception for scaling
     const hypoValueAtInception = hypothetical.values[inceptionIdx];
     const scaleFactor = actualStartValue / hypoValueAtInception;
     
-    // Scale hypothetical values to match actual portfolio's scale
-    const scaledHypoValues = hypothetical.values.map(v => v * scaleFactor);
+    console.log(`📊 Scale factor: ${scaleFactor.toFixed(4)} (Actual: ₩${actualStartValue.toLocaleString()}, Hypo at inception: ${hypoValueAtInception.toFixed(2)})`);
     
-    // Generate year labels: 2020, 2021, 2022, 2023, 2024
-    const yearLabels = [];
-    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
-        yearLabels.push("'" + String(year).slice(-2)); // '20, '21, '22, '23, '24
-    }
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 3: Build data arrays
+    // ═══════════════════════════════════════════════════════════════════
     
-    // Sample data by year-end (last available value in each year)
-    const hypoByYear = {};
-    const hypoDatesByYear = {};
+    // Hypothetical: Scale all values to match actual portfolio's scale
+    const hypotheticalData = hypothetical.values.map(v => v * scaleFactor);
     
-    hypothetical.dates.forEach((date, i) => {
-        const year = new Date(date).getFullYear();
-        hypoByYear[year] = scaledHypoValues[i];
-        hypoDatesByYear[year] = date;
-    });
+    // Actual Portfolio: null before inception, real values after
+    const actualPortfolioData = new Array(totalPoints).fill(null);
     
-    // Build hypothetical data array (year-end snapshots)
-    const hypotheticalData = [];
-    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
-        hypotheticalData.push(hypoByYear[year] || null);
-    }
-    
-    // Build actual portfolio data (only from inception year onwards)
-    const actualByYear = {};
-    if (actualData && actualData.dates) {
+    if (actualData && actualData.dates && actualData.values) {
+        // Build date -> value map for actual data
+        const actualMap = {};
         actualData.dates.forEach((date, i) => {
-            const year = new Date(date).getFullYear();
-            actualByYear[year] = actualData.values[i];
-        });
-    }
-    
-    const actualPortfolioData = [];
-    for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
-        if (year >= INCEPTION_YEAR && actualByYear[year]) {
-            actualPortfolioData.push(actualByYear[year]);
-        } else {
-            actualPortfolioData.push(null);
-        }
-    }
-    
-    // Build ghost benchmark data (only from inception onwards, rebased)
-    let ghostData = [];
-    if (ghostBenchmark && ghostBenchmark.values.length > 0) {
-        // Ghost benchmark is already rebased to actual start value
-        const ghostByYear = {};
-        ghostBenchmark.dates.forEach((date, i) => {
-            const year = new Date(date).getFullYear();
-            ghostByYear[year] = ghostBenchmark.values[i];
+            actualMap[date] = actualData.values[i];
         });
         
-        for (let year = HYPOTHETICAL_START_YEAR; year <= currentYear; year++) {
-            if (year >= INCEPTION_YEAR && ghostByYear[year]) {
-                ghostData.push(ghostByYear[year]);
-            } else {
-                ghostData.push(null);
+        // Fill in actual values where dates match
+        allDates.forEach((date, i) => {
+            if (actualMap[date] !== undefined) {
+                actualPortfolioData[i] = actualMap[date];
             }
-        }
+        });
+        
+        console.log(`📊 Actual portfolio: ${actualData.dates.length} data points mapped`);
     }
     
-    // Find inception year index for visual marker
-    const inceptionYearIndex = INCEPTION_YEAR - HYPOTHETICAL_START_YEAR;
+    // Ghost Benchmark: null before inception, rebased hypothetical after
+    let ghostData = new Array(totalPoints).fill(null);
     
-    // Build datasets
+    if (ghostBenchmark && ghostBenchmark.values && ghostBenchmark.values.length > 0) {
+        // Build date -> value map for ghost
+        const ghostMap = {};
+        ghostBenchmark.dates.forEach((date, i) => {
+            ghostMap[date] = ghostBenchmark.values[i];
+        });
+        
+        // Fill in ghost values where dates match
+        allDates.forEach((date, i) => {
+            if (ghostMap[date] !== undefined) {
+                ghostData[i] = ghostMap[date];
+            }
+        });
+        
+        console.log(`📊 Ghost benchmark: ${ghostBenchmark.dates.length} data points mapped`);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 4: Create sparse X-axis labels (show year markers only)
+    // ═══════════════════════════════════════════════════════════════════
+    
+    const yearBoundaryIndices = [];
+    let lastYear = null;
+    
+    const labels = allDates.map((date, index) => {
+        const year = new Date(date).getFullYear();
+        
+        // Mark year boundaries
+        if (year !== lastYear) {
+            yearBoundaryIndices.push(index);
+            lastYear = year;
+            
+            // Show year label at first trading day of each year
+            return "'" + String(year).slice(-2); // '20, '21, '22, '23, '24, '25
+        }
+        return ''; // Empty for non-boundary days
+    });
+    
+    console.log(`📊 Year boundaries at indices:`, yearBoundaryIndices);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 5: Build datasets
+    // ═══════════════════════════════════════════════════════════════════
+    
     const datasets = [
         {
             label: 'Hypothetical Strategy',
             data: hypotheticalData,
-            borderColor: 'rgba(20, 184, 166, 0.6)',
+            borderColor: 'rgba(20, 184, 166, 0.7)',
             backgroundColor: 'transparent',
-            borderWidth: 2,
-            borderDash: [6, 4],
+            borderWidth: 1.5,
+            borderDash: [6, 3],
             fill: false,
-            tension: 0.3,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: 'rgba(20, 184, 166, 0.8)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 3,
             order: 2
         },
         {
@@ -1311,16 +1320,15 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
             backgroundColor: 'transparent',
             borderWidth: 2.5,
             fill: false,
-            tension: 0.3,
-            pointRadius: 5,
-            pointHoverRadius: 7,
-            pointBackgroundColor: '#06d6a0',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
             order: 1
         }
     ];
     
-    // Add ghost benchmark if provided
-    if (ghostData.length > 0 && ghostData.some(v => v !== null)) {
+    // Add Ghost Benchmark if available
+    if (ghostData.some(v => v !== null)) {
         datasets.push({
             label: 'Ghost Benchmark',
             data: ghostData,
@@ -1329,18 +1337,21 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
             borderWidth: 1.5,
             borderDash: [4, 2],
             fill: false,
-            tension: 0.3,
+            tension: 0.2,
             pointRadius: 0,
-            pointHoverRadius: 3,
+            pointHoverRadius: 0,
             order: 3
         });
     }
     
-    // Create new chart with year-based X-axis
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 6: Create chart
+    // ═══════════════════════════════════════════════════════════════════
+    
     performanceChart = new Chart(perfCtx.getContext('2d'), {
         type: 'line',
         data: {
-            labels: yearLabels,
+            labels: labels,
             datasets: datasets
         },
         options: {
@@ -1358,7 +1369,11 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
                         color: '#94a3b8',
                         usePointStyle: true,
                         padding: 15,
-                        font: { size: 11 }
+                        font: { size: 11 },
+                        filter: function(legendItem) {
+                            // Only show items with data
+                            return legendItem.text !== '';
+                        }
                     }
                 },
                 tooltip: {
@@ -1369,6 +1384,10 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
                     padding: 12,
                     cornerRadius: 8,
                     callbacks: {
+                        title: function(context) {
+                            const idx = context[0].dataIndex;
+                            return allDates[idx] || '';
+                        },
                         label: function(context) {
                             const value = context.raw;
                             if (value == null) return '';
@@ -1380,10 +1399,10 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
                     annotations: {
                         inceptionLine: {
                             type: 'line',
-                            xMin: inceptionYearIndex,
-                            xMax: inceptionYearIndex,
-                            borderColor: 'rgba(255, 255, 255, 0.4)',
-                            borderWidth: 2,
+                            xMin: inceptionIdx,
+                            xMax: inceptionIdx,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            borderWidth: 1.5,
                             borderDash: [4, 4],
                             label: {
                                 display: true,
@@ -1391,7 +1410,7 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
                                 position: 'start',
                                 backgroundColor: 'rgba(15, 23, 42, 0.8)',
                                 color: '#94a3b8',
-                                font: { size: 10 }
+                                font: { size: 9 }
                             }
                         }
                     }
@@ -1400,12 +1419,29 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
             scales: {
                 x: {
                     grid: {
-                        color: 'rgba(255, 255, 255, 0.08)',
-                        lineWidth: 1
+                        color: function(context) {
+                            // Year boundaries more visible
+                            if (yearBoundaryIndices.includes(context.index)) {
+                                return 'rgba(255, 255, 255, 0.15)';
+                            }
+                            return 'rgba(255, 255, 255, 0.02)';
+                        },
+                        lineWidth: function(context) {
+                            if (yearBoundaryIndices.includes(context.index)) {
+                                return 1;
+                            }
+                            return 0;
+                        }
                     },
                     ticks: {
                         color: '#94a3b8',
-                        font: { size: 12, weight: 'bold' }
+                        font: { size: 11, weight: 'bold' },
+                        maxRotation: 0,
+                        autoSkip: false,
+                        callback: function(value, index) {
+                            // Only show year labels
+                            return labels[index] || '';
+                        }
                     }
                 },
                 y: {
@@ -1432,20 +1468,19 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
     });
     
     console.log("📊 Hypothetical chart created:", {
-        yearLabels,
-        hypotheticalData,
-        actualPortfolioData,
-        scaleFactor: scaleFactor.toFixed(4),
-        hypoStats: hypothetical.stats,
-        hasGhost: ghostData.length > 0
+        totalPoints,
+        inceptionIdx,
+        actualPointsMapped: actualPortfolioData.filter(v => v !== null).length,
+        ghostPointsMapped: ghostData.filter(v => v !== null).length,
+        hypoStats: hypothetical.stats
     });
 }
 
 /**
  * Store reference to refresh function for restoring original chart
- * Called from app.js after main chart is created
  */
 function setPerformanceChartRefreshCallback(callback) {
     window._refreshPerformanceChart = callback;
 }
+
 

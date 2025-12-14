@@ -774,61 +774,45 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
         // Calculate Delta (Portfolio DD - SPY DD): positive = outperforming (less loss)
         const deltaDrawdowns = portfolioDrawdowns.map((portDD, idx) => portDD - spyDrawdowns[idx]);
 
+        // Build underwater datasets - SPY is conditional
+        const underwaterDatasets = [
+            {
+                label: 'Portfolio DD',
+                data: portfolioDrawdowns,
+                borderColor: '#06d6a0',
+                backgroundColor: 'rgba(6, 214, 160, 0.08)',
+                fill: false,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 2,
+                order: 1  // Draw on top
+            }
+        ];
+        
+        // Add SPY DD only if toggle is ON
+        if (window._showSPY !== false) {
+            underwaterDatasets.push({
+                label: 'SPY DD',
+                data: spyDrawdowns,
+                borderColor: 'rgba(239, 71, 111, 0.7)',
+                backgroundColor: 'rgba(239, 71, 111, 0.0)',
+                fill: false,
+                tension: 0.3,
+                pointRadius: 0,
+                pointHoverRadius: 4,
+                borderWidth: 1.5,
+                order: 2  // Draw below
+            });
+        }
+
         underwaterChart = new Chart(underwaterCtx.getContext('2d'), {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [
-                    {
-                        label: 'Delta (P-SPY)',
-                        data: deltaDrawdowns,
-                        borderColor: 'rgba(6, 182, 212, 0.0)',  // Invisible border
-                        backgroundColor: function(context) {
-                            const chart = context.chart;
-                            const { ctx, chartArea } = chart;
-                            if (!chartArea) return null;
-                            
-                            // Conditional fill based on value
-                            const value = context.raw;
-                            if (value >= 0) {
-                                return 'rgba(20, 184, 166, 0.25)'; // Teal for outperforming
-                            } else {
-                                return 'rgba(239, 71, 111, 0.15)'; // Light red for underperforming
-                            }
-                        },
-                        fill: 'origin',
-                        tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 0,
-                        borderWidth: 0,
-                        order: 3  // Draw at background
-                    },
-                    {
-                        label: 'Portfolio DD',
-                        data: portfolioDrawdowns,
-                        borderColor: '#06d6a0',
-                        backgroundColor: 'rgba(6, 214, 160, 0.08)',
-                        fill: false,
-                        tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                        borderWidth: 2,
-                        order: 1  // Draw on top
-                    },
-                    {
-                        label: 'SPY DD',
-                        data: spyDrawdowns,
-                        borderColor: 'rgba(239, 71, 111, 0.7)',
-                        backgroundColor: 'rgba(239, 71, 111, 0.0)',
-                        fill: false,
-                        tension: 0.3,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                        borderWidth: 1.5,
-                        order: 2  // Draw below
-                    }
-                ]
+                datasets: underwaterDatasets
             },
+
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -871,21 +855,19 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                             portEl.className = 'info-value ' + (portDD >= 0 ? '' : 'negative');
                         }
                         
-                        // SPY Drawdown
+                        // SPY Drawdown (only show if SPY toggle is ON)
                         const spyEl = document.getElementById('info-spy-dd');
-                        const spyDD = spyDrawdowns[idx];
-                        if (spyDD !== undefined) {
-                            spyEl.textContent = spyDD.toFixed(2) + '%';
-                            spyEl.className = 'info-value ' + (spyDD >= 0 ? '' : 'negative');
-                        }
-                        
-                        // Delta (Portfolio DD - SPY DD, positive means less loss = better)
-                        const deltaEl = document.getElementById('info-dd-delta');
-                        if (portDD !== undefined && spyDD !== undefined) {
-                            const delta = portDD - spyDD;
-                            const isPositive = delta >= 0;
-                            deltaEl.textContent = (isPositive ? '↑ +' : '↓ ') + Math.abs(delta).toFixed(2) + '%';
-                            deltaEl.className = 'info-value ' + (isPositive ? 'positive' : 'negative');
+                        if (spyEl) {
+                            if (window._showSPY !== false) {
+                                const spyDD = spyDrawdowns[idx];
+                                if (spyDD !== undefined) {
+                                    spyEl.textContent = spyDD.toFixed(2) + '%';
+                                    spyEl.className = 'info-value ' + (spyDD >= 0 ? '' : 'negative');
+                                }
+                                spyEl.parentElement.style.display = '';
+                            } else {
+                                spyEl.parentElement.style.display = 'none';
+                            }
                         }
                         
                         // Calmar Ratio at this point (Cumulative CAGR / MDD at this date)

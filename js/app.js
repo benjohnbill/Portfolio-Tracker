@@ -998,56 +998,8 @@ async function updateDashboard() {
   // Load in background so it's ready when user switches to Full History mode
   preloadHypotheticalData();
 
-  // 15. Apply Weekend Freeze Mode CSS classes
-  applyWeekendFreezeMode(wtdStatus);
 }
 
-/**
- * Apply Weekend Freeze Mode CSS classes to body
- * @param {Object} wtdStatus - WTD status object from Finance.getWTDStatus()
- */
-function applyWeekendFreezeMode(wtdStatus) {
-  // Skip automatic freeze application in simulation mode
-  // Note: Manual freeze via Ctrl+Shift+F still works (visual only)
-  if (isSimulationMode) {
-    // Don't remove existing freeze classes (might be manually set)
-    // Just skip automatic application based on wtdStatus
-    console.log(
-      "✨ [Sim] Auto freeze skipped - manual freeze toggle still available"
-    );
-    return;
-  }
-
-  // Skip if we're restoring from simulation (let the restoration handle it)
-  if (window._restoringFromSimulation) {
-    console.log("📦 Skipping freeze mode apply - restoration in progress");
-    return;
-  }
-
-  // Remove any existing freeze classes
-  document.body.classList.remove("weekend-freeze", "positive", "negative");
-
-  if (wtdStatus && wtdStatus.isFrozen) {
-    // Add base freeze class
-    document.body.classList.add("weekend-freeze");
-
-    // Add sentiment class based on return
-    if (wtdStatus.wtdReturn >= 0) {
-      document.body.classList.add("positive");
-      console.log("🌅 Weekend Freeze: Warm mode (positive return)");
-    } else {
-      document.body.classList.add("negative");
-      console.log("🧊 Weekend Freeze: Cold mode (negative return)");
-    }
-
-    // Update Friday indicator text
-    const fridayIndicator = document.getElementById("friday-indicator");
-    if (fridayIndicator) {
-      const icon = wtdStatus.wtdReturn >= 0 ? "🌅" : "❄️";
-      fridayIndicator.innerHTML = `<span>${icon}</span><span>WEEK CLOSED</span>`;
-    }
-  }
-}
 
 /**
  * Load Stress Test Data (Psychological Forensics)
@@ -2054,53 +2006,7 @@ function setupEventListeners() {
     });
   }
 
-  // Developer Shortcut: Ctrl+Shift+F to toggle Freeze mode
-  // Cycles: Normal → Warm → Cold → Normal
-  // NOTE: In Simulation Mode, this only toggles visual effects (no data impact)
-  document.addEventListener("keydown", (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "f") {
-      e.preventDefault(); // Prevent browser's find function
 
-      const body = document.body;
-      const hasFreeze = body.classList.contains("weekend-freeze");
-      const isPositive = body.classList.contains("positive");
-      const isNegative = body.classList.contains("negative");
-
-      // Determine current state and cycle to next
-      if (!hasFreeze) {
-        // Normal → Warm
-        body.classList.add("weekend-freeze", "positive");
-        if (isSimulationMode) {
-          UI.showToast("🌅 [SIM] Warm Freeze 시각 효과 (저장 영향 없음)");
-          console.log("✨ [Sim] Freeze Toggle: Normal → Warm (visual only)");
-        } else {
-          UI.showToast('<i data-lucide="sunrise" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px;"></i> DEV: Warm Freeze 활성화');
-          console.log("🎹 Freeze Toggle: Normal → Warm");
-        }
-      } else if (isPositive) {
-        // Warm → Cold
-        body.classList.remove("positive");
-        body.classList.add("negative");
-        if (isSimulationMode) {
-          UI.showToast("🧊 [SIM] Cold Freeze 시각 효과 (저장 영향 없음)");
-          console.log("✨ [Sim] Freeze Toggle: Warm → Cold (visual only)");
-        } else {
-          UI.showToast('<i data-lucide="snowflake" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px;"></i> DEV: Cold Freeze 활성화');
-          console.log("🎹 Freeze Toggle: Warm → Cold");
-        }
-      } else if (isNegative) {
-        // Cold → Normal
-        body.classList.remove("weekend-freeze", "negative");
-        if (isSimulationMode) {
-          UI.showToast("🔄 [SIM] Normal 모드 복귀");
-          console.log("✨ [Sim] Freeze Toggle: Cold → Normal (visual only)");
-        } else {
-          UI.showToast('<i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px;"></i> DEV: Normal 모드 복귀');
-          console.log("🎹 Freeze Toggle: Cold → Normal");
-        }
-      }
-    }
-  });
 
   // Sidebar: Page Navigation (Scroll)
   document.querySelectorAll(".nav-item[data-target]").forEach((item) => {

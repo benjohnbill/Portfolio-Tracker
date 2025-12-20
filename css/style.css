@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   /* High-End Quant Palette (Deep Space) */
   --bg-deep: #030508; /* Void Black */
   --bg-dark: #090c14; /* Panel Background */
@@ -20,10 +20,10 @@
   --font-body: "Inter", sans-serif;
   --font-mono: "Roboto Mono", monospace;
 
-  /* ═══════════════════════════════════════════════════════════════════════════
+  /* ???????????????????????????????????????????????????????????????????????????
      ZERO-SCROLL TERMINAL LAYOUT SYSTEM
      Bloomberg-style compact dashboard that fits in 100vh
-     ═══════════════════════════════════════════════════════════════════════════ */
+     ??????????????????????????????????????????????????????????????????????????? */
 
   /* Responsive Layout Dimensions */
   --ticker-height: clamp(40px, 5vh, 56px);
@@ -101,9 +101,9 @@ body {
 }
 
 /* 
-   ═══════════════════════════════════════════════════════════════════════════
+   ???????????????????????????????????????????????????????????????????????????
    TERMINAL WALL LAYOUT SYSTEM (Bloomberg Aesthetic)
-   ═══════════════════════════════════════════════════════════════════════════
+   ???????????????????????????????????????????????????????????????????????????
    Philosophy: Content dictates layout. Hero elements get full width.
    Modules separated by 1px borders, not gaps.
 */
@@ -192,20 +192,20 @@ body {
   grid-template-columns: 40fr 60fr;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    FLOW-STACK ARCHITECTURE: Dashboard vs Feed Mode
    Breakpoint: 1200px
-   - Dashboard Mode (≥1200px): Grid layout, compact, dense
+   - Dashboard Mode (��1200px): Grid layout, compact, dense
    - Feed Mode (<1200px): Vertical stack, generous heights, scroll
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
-/* Dashboard Mode (Default ≥1200px) - uses existing grid rules */
+/* Dashboard Mode (Default ��1200px) - uses existing grid rules */
 
 /* Feed Mode (<1200px) - Vertical Stack with Breathing Room */
 @media (max-width: 1200px) {
-  /* ═══════════════════════════════════════════════════════════════════════
+  /* ???????????????????????????????????????????????????????????????????????
        INFINITE CANVAS: Parent containers expand to fit content
-       ═══════════════════════════════════════════════════════════════════════ */
+       ??????????????????????????????????????????????????????????????????????? */
 
   /* Body: Enable global scroll, unlock height */
   body {
@@ -230,9 +230,9 @@ body {
     min-height: auto;
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════
+  /* ???????????????????????????????????????????????????????????????????????
        STICKY SIDEBAR: Always accessible navigation
-       ═══════════════════════════════════════════════════════════════════════ */
+       ??????????????????????????????????????????????????????????????????????? */
   .sidebar {
     position: sticky !important;
     top: 0;
@@ -243,9 +243,9 @@ body {
     flex-shrink: 0;
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════
+  /* ???????????????????????????????????????????????????????????????????????
        PAGE CONTAINERS: Content-driven height
-       ═══════════════════════════════════════════════════════════════════════ */
+       ??????????????????????????????????????????????????????????????????????? */
 
   /* Terminal section: Flex column, auto height */
   .terminal-section {
@@ -3708,7 +3708,7 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .vital-badge::before {
-  content: "●";
+  content: "��";
   font-size: 0.6rem;
 }
 
@@ -4150,27 +4150,27 @@ input[type="number"]::-webkit-inner-spin-button {
 .dashboard-container.sim-mode
   .nav-item[data-target="overview-section"]
   i::before {
-  content: "🎮";
+  content: "??";
 }
 
 .dashboard-container.sim-mode
   .nav-item[data-target="performance-section"]
   i::before {
-  content: "📈";
+  content: "??";
 }
 
 .dashboard-container.sim-mode
   .nav-item[data-target="attribution-section"]
   i::before {
-  content: "🧩";
+  content: "??";
 }
 
 .dashboard-container.sim-mode .nav-item[data-target="trade-section"] i::before {
-  content: "🔄";
+  content: "??";
 }
 
 .dashboard-container.sim-mode #nav-settings i::before {
-  content: "🛠️";
+  content: "???";
 }
 
 /* Hide Lucide icons in sim mode and show emoji */
@@ -4410,526 +4410,7 @@ input[type="number"]::-webkit-inner-spin-button {
   color: var(--text-primary);
 }
 
-/* ===================================
-   WEEKEND FREEZE MODE STYLES
-   Saturday 06:00 ~ Monday 08:59 KST
-   ENHANCED VERSION - More Visible Effects
-   =================================== */
-
-/* CSS Variables for Freeze Modes */
-:root {
-  --freeze-warm-primary: #fbbf24; /* Amber/Gold */
-  --freeze-warm-secondary: #f59e0b; /* Orange */
-  --freeze-warm-glow: rgba(251, 191, 36, 0.3);
-  --freeze-cold-primary: #22d3ee; /* Cyan/Ice */
-  --freeze-cold-secondary: #0ea5e9; /* Sky Blue */
-  --freeze-cold-glow: rgba(34, 211, 238, 0.3);
-}
-
-/* ===================================
-   FREEZE BASE EFFECT (Common to both)
-   =================================== */
-
-body.weekend-freeze {
-  transition: all 0.5s ease;
-}
-
-body.weekend-freeze .main-content {
-  position: relative;
-}
-
-/* Reduce animation activity during freeze */
-body.weekend-freeze .stat-card,
-body.weekend-freeze .vital-card {
-  animation: none !important;
-}
-
-/* ===================================
-   WARM FREEZE (Positive Return)
-   "성공적인 한 주의 포근한 마무리"
-   강화된 따뜻한 효과
-   =================================== */
-
-/* Full screen warm vignette overlay */
-body.weekend-freeze.positive::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(
-      ellipse at top right,
-      rgba(251, 191, 36, 0.15) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at bottom left,
-      rgba(245, 158, 11, 0.1) 0%,
-      transparent 40%
-    ),
-    linear-gradient(180deg, rgba(251, 191, 36, 0.08) 0%, transparent 30%);
-  pointer-events: none;
-  z-index: 998;
-  animation: warm-pulse-overlay 4s ease-in-out infinite;
-}
-
-@keyframes warm-pulse-overlay {
-  0%,
-  100% {
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* Main content warm tint */
-body.weekend-freeze.positive .main-content {
-  background: linear-gradient(
-    135deg,
-    rgba(251, 191, 36, 0.05) 0%,
-    rgba(245, 158, 11, 0.03) 50%,
-    transparent 100%
-  );
-}
-
-/* Sidebar warm accent */
-body.weekend-freeze.positive .sidebar {
-  border-right: 2px solid rgba(251, 191, 36, 0.3) !important;
-  background: linear-gradient(
-      180deg,
-      rgba(251, 191, 36, 0.05) 0%,
-      transparent 30%
-    ),
-    var(--card-bg);
-}
-
-body.weekend-freeze.positive .sidebar-header h1 {
-  color: var(--freeze-warm-primary);
-  text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
-}
-
-/* Stat cards - prominent warm glow */
-body.weekend-freeze.positive .stat-card {
-  border: 1px solid rgba(251, 191, 36, 0.3) !important;
-  box-shadow: 0 0 30px rgba(251, 191, 36, 0.15),
-    inset 0 0 20px rgba(251, 191, 36, 0.05);
-  background: linear-gradient(
-    135deg,
-    rgba(251, 191, 36, 0.08) 0%,
-    transparent 50%
-  ) !important;
-  animation: warm-card-glow 3s ease-in-out infinite !important;
-}
-
-body.weekend-freeze.positive .stat-card:nth-child(2) {
-  animation-delay: 0.5s !important;
-}
-body.weekend-freeze.positive .stat-card:nth-child(3) {
-  animation-delay: 1s !important;
-}
-body.weekend-freeze.positive .stat-card:nth-child(4) {
-  animation-delay: 1.5s !important;
-}
-
-@keyframes warm-card-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 25px rgba(251, 191, 36, 0.1),
-      inset 0 0 15px rgba(251, 191, 36, 0.03);
-    transform: translateY(0);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(251, 191, 36, 0.2),
-      inset 0 0 25px rgba(251, 191, 36, 0.06);
-    transform: translateY(-2px);
-  }
-}
-
-body.weekend-freeze.positive .stat-label {
-  color: var(--freeze-warm-primary) !important;
-  text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
-}
-
-/* WTD Return - Golden warmth with strong glow */
-body.weekend-freeze.positive #weekly-pnl {
-  color: var(--freeze-warm-primary) !important;
-  text-shadow: 0 0 20px rgba(251, 191, 36, 0.6),
-    0 0 40px rgba(251, 191, 36, 0.3);
-  animation: warm-value-pulse 2s ease-in-out infinite;
-}
-
-@keyframes warm-value-pulse {
-  0%,
-  100% {
-    text-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
-  }
-  50% {
-    text-shadow: 0 0 30px rgba(251, 191, 36, 0.8),
-      0 0 50px rgba(251, 191, 36, 0.4);
-  }
-}
-
-/* Glass elements - warm tint */
-body.weekend-freeze.positive .glass {
-  border-color: rgba(251, 191, 36, 0.2) !important;
-  background: rgba(251, 191, 36, 0.03) !important;
-}
-
-/* Vital cards - warm undertone */
-body.weekend-freeze.positive .vital-card {
-  border-right-color: rgba(251, 191, 36, 0.2) !important;
-}
-
-body.weekend-freeze.positive .vital-label {
-  color: rgba(251, 191, 36, 0.8) !important;
-}
-
-body.weekend-freeze.positive .vital-value {
-  text-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
-}
-
-/* Section labels - warm gold */
-body.weekend-freeze.positive .section-label {
-  color: var(--freeze-warm-primary) !important;
-  text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
-}
-
-body.weekend-freeze.positive .card-title {
-  color: var(--freeze-warm-primary) !important;
-}
-
-/* Performance metrics */
-body.weekend-freeze.positive .perf-metric .metric-label {
-  color: rgba(251, 191, 36, 0.7) !important;
-}
-
-/* System status - cozy amber */
-body.weekend-freeze.positive #sys-status-text {
-  color: var(--freeze-warm-primary) !important;
-  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
-}
-
-body.weekend-freeze.positive .status-dot {
-  background: var(--freeze-warm-primary) !important;
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.8);
-  animation: warm-dot-pulse 2s ease-in-out infinite;
-}
-
-@keyframes warm-dot-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(251, 191, 36, 1);
-  }
-}
-
-/* Friday indicator - warm */
-body.weekend-freeze.positive .friday-indicator {
-  border-color: var(--freeze-warm-primary) !important;
-  color: var(--freeze-warm-primary) !important;
-  background: rgba(251, 191, 36, 0.1);
-  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
-}
-
-/* Chart containers */
-body.weekend-freeze.positive .chart-container-main,
-body.weekend-freeze.positive .chart-container-sub,
-body.weekend-freeze.positive .chart-container-underwater,
-body.weekend-freeze.positive .sub-chart-wrapper {
-  border: 1px solid rgba(251, 191, 36, 0.2) !important;
-  box-shadow: 0 0 20px rgba(251, 191, 36, 0.05);
-}
-
-/* ===================================
-   COLD FREEZE (Negative Return)
-   "차가운 손실의 얼음 결정"
-   강화된 차가운 효과
-   =================================== */
-
-/* Full screen icy vignette overlay */
-body.weekend-freeze.negative::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(
-      ellipse at top left,
-      rgba(34, 211, 238, 0.2) 0%,
-      transparent 40%
-    ),
-    radial-gradient(
-      ellipse at bottom right,
-      rgba(14, 165, 233, 0.15) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at center,
-      transparent 30%,
-      rgba(34, 211, 238, 0.05) 100%
-    );
-  pointer-events: none;
-  z-index: 998;
-  animation: cold-pulse-overlay 3s ease-in-out infinite;
-}
-
-@keyframes cold-pulse-overlay {
-  0%,
-  100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* Frost line effect */
-body.weekend-freeze.negative::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(34, 211, 238, 0.03) 3px,
-    rgba(34, 211, 238, 0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 997;
-  animation: frost-scan 8s linear infinite;
-}
-
-@keyframes frost-scan {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 0 100px;
-  }
-}
-
-/* Main content cold tint with desaturation */
-body.weekend-freeze.negative .main-content {
-  background: linear-gradient(
-    135deg,
-    rgba(34, 211, 238, 0.08) 0%,
-    rgba(14, 165, 233, 0.04) 50%,
-    transparent 100%
-  );
-  filter: saturate(0.8) brightness(0.95);
-}
-
-/* Sidebar icy accent */
-body.weekend-freeze.negative .sidebar {
-  border-right: 2px solid rgba(34, 211, 238, 0.4) !important;
-  background: linear-gradient(
-      180deg,
-      rgba(34, 211, 238, 0.08) 0%,
-      transparent 30%
-    ),
-    var(--card-bg);
-}
-
-body.weekend-freeze.negative .sidebar-header h1 {
-  color: var(--freeze-cold-primary);
-  text-shadow: 0 0 20px rgba(34, 211, 238, 0.6);
-}
-
-/* Stat cards - prominent icy glow */
-body.weekend-freeze.negative .stat-card {
-  border: 1px solid rgba(34, 211, 238, 0.4) !important;
-  box-shadow: 0 0 30px rgba(34, 211, 238, 0.15),
-    inset 0 0 30px rgba(34, 211, 238, 0.05);
-  background: linear-gradient(
-    135deg,
-    rgba(34, 211, 238, 0.1) 0%,
-    transparent 50%
-  ) !important;
-  animation: cold-card-shimmer 2.5s ease-in-out infinite !important;
-}
-
-body.weekend-freeze.negative .stat-card:nth-child(2) {
-  animation-delay: 0.4s !important;
-}
-body.weekend-freeze.negative .stat-card:nth-child(3) {
-  animation-delay: 0.8s !important;
-}
-body.weekend-freeze.negative .stat-card:nth-child(4) {
-  animation-delay: 1.2s !important;
-}
-
-@keyframes cold-card-shimmer {
-  0%,
-  100% {
-    box-shadow: 0 0 25px rgba(34, 211, 238, 0.1),
-      inset 0 0 20px rgba(34, 211, 238, 0.03);
-    border-color: rgba(34, 211, 238, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 45px rgba(34, 211, 238, 0.25),
-      inset 0 0 35px rgba(34, 211, 238, 0.08);
-    border-color: rgba(34, 211, 238, 0.5);
-  }
-}
-
-body.weekend-freeze.negative .stat-label {
-  color: var(--freeze-cold-primary) !important;
-  text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
-}
-
-/* WTD Return - Icy cold with harsh glow */
-body.weekend-freeze.negative #weekly-pnl {
-  color: var(--freeze-cold-primary) !important;
-  text-shadow: 0 0 20px rgba(34, 211, 238, 0.8),
-    0 0 40px rgba(34, 211, 238, 0.4);
-  animation: cold-value-pulse 2s ease-in-out infinite;
-}
-
-@keyframes cold-value-pulse {
-  0%,
-  100% {
-    text-shadow: 0 0 20px rgba(34, 211, 238, 0.7);
-    opacity: 1;
-  }
-  50% {
-    text-shadow: 0 0 35px rgba(34, 211, 238, 1),
-      0 0 60px rgba(34, 211, 238, 0.5);
-    opacity: 0.9;
-  }
-}
-
-/* Glass elements - ice crystal effect */
-body.weekend-freeze.negative .glass {
-  border-color: rgba(34, 211, 238, 0.25) !important;
-  background: rgba(34, 211, 238, 0.04) !important;
-  backdrop-filter: blur(12px) saturate(0.85);
-}
-
-/* Vital cards - icy dividers */
-body.weekend-freeze.negative .vital-card {
-  border-right-color: rgba(34, 211, 238, 0.25) !important;
-}
-
-body.weekend-freeze.negative .vital-label {
-  color: rgba(34, 211, 238, 0.8) !important;
-}
-
-body.weekend-freeze.negative .vital-value {
-  text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
-}
-
-/* Section labels - cold blue */
-body.weekend-freeze.negative .section-label {
-  color: var(--freeze-cold-primary) !important;
-  text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
-}
-
-body.weekend-freeze.negative .card-title {
-  color: var(--freeze-cold-primary) !important;
-}
-
-/* Performance metrics */
-body.weekend-freeze.negative .perf-metric .metric-label {
-  color: rgba(34, 211, 238, 0.7) !important;
-}
-
-/* System status - frozen cyan */
-body.weekend-freeze.negative #sys-status-text {
-  color: var(--freeze-cold-primary) !important;
-  text-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
-}
-
-body.weekend-freeze.negative .status-dot {
-  background: var(--freeze-cold-primary) !important;
-  box-shadow: 0 0 15px rgba(34, 211, 238, 0.9);
-  animation: cold-dot-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes cold-dot-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 10px rgba(34, 211, 238, 0.7);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(34, 211, 238, 1);
-    transform: scale(1.2);
-  }
-}
-
-/* Friday indicator - icy */
-body.weekend-freeze.negative .friday-indicator {
-  border-color: var(--freeze-cold-primary) !important;
-  color: var(--freeze-cold-primary) !important;
-  background: rgba(34, 211, 238, 0.1);
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
-}
-
-/* Chart containers - frozen crystal */
-body.weekend-freeze.negative .chart-container-main,
-body.weekend-freeze.negative .chart-container-sub,
-body.weekend-freeze.negative .chart-container-underwater,
-body.weekend-freeze.negative .sub-chart-wrapper {
-  border: 1px solid rgba(34, 211, 238, 0.25) !important;
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.08);
-}
-
-/* ===================================
-   FREEZE MODE - BANNER INDICATOR
-   =================================== */
-
-/* Add a noticeable top banner during freeze */
-body.weekend-freeze .main-content::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 220px;
-  right: 0;
-  height: 3px;
-  z-index: 1001;
-  animation: freeze-banner-scan 2s linear infinite;
-}
-
-body.weekend-freeze.positive .main-content::after {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--freeze-warm-primary),
-    transparent
-  );
-}
-
-body.weekend-freeze.negative .main-content::after {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--freeze-cold-primary),
-    transparent
-  );
-}
-
-@keyframes freeze-banner-scan {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-/* Sidebar collapsed adjustment */
-.sidebar.collapsed ~ .main-content::after {
-  left: 72px;
-}
+/* Weekend Freeze Mode Visual Effects - REMOVED */
 
 /* ===================================
    PERFORMANCE VITALS TOOLTIP
@@ -5138,7 +4619,7 @@ body.weekend-freeze.negative .main-content::after {
 }
 
 .ghost-marker::before {
-  content: "▼";
+  content: "��";
 }
 
 /* The fill bar - bidirectional from center */
@@ -5218,7 +4699,7 @@ body.weekend-freeze.negative .main-content::after {
   box-shadow: 0 0 8px #ffffff, 0 0 16px rgba(255, 255, 255, 0.5);
 }
 
-/* Outlier pulse animation (beyond ±2σ) - Intense energy */
+/* Outlier pulse animation (beyond ��2��) - Intense energy */
 .gauge-fill.outlier {
   animation: plasma-pulse 1.2s ease-in-out infinite;
 }
@@ -6017,7 +5498,7 @@ body.weekend-freeze.negative .main-content::after {
    =================================== */
 
 @media (max-width: 900px) {
-  /* Allocation Grid: Side by side → Vertical */
+  /* Allocation Grid: Side by side �� Vertical */
   .allocation-grid {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -6036,7 +5517,7 @@ body.weekend-freeze.negative .main-content::after {
     min-height: auto;
   }
 
-  /* Trade Grid: Side by side → Vertical */
+  /* Trade Grid: Side by side �� Vertical */
   .trade-grid {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -6046,7 +5527,7 @@ body.weekend-freeze.negative .main-content::after {
     grid-row: auto;
   }
 
-  /* Diagnostics grid: 2 columns → 1 column on medium screens */
+  /* Diagnostics grid: 2 columns �� 1 column on medium screens */
   .condition-grid {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -8220,9 +7701,9 @@ body.weekend-freeze.negative .main-content::after {
   border-color: rgba(251, 191, 36, 0.3);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    TIME GAP INSIGHT - Projection Mode Header
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .time-gap-insight {
   display: flex;
@@ -8279,9 +7760,9 @@ body.weekend-freeze.negative .main-content::after {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    MODE-SPECIFIC INFO HEADERS
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 /* All mode headers share base chart-info-bar styles */
 #info-header-default,
@@ -8365,9 +7846,9 @@ body.weekend-freeze.negative .main-content::after {
   color: #fb923c !important;
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????
    DASHBOARD 2.0: NEW COMPONENTS
-   ═══════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????? */
 
 /* Global ROTI Badge (Header) */
 .roti-global-badge {
@@ -9552,14 +9033,14 @@ h4,
 }
 
 .alert-header h3::before {
-  content: "● ";
+  content: "�� ";
   color: #10b981; /* Live green dot */
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    ZERO-SCROLL TERMINAL - ACTION REQUIRED COMPONENT
    Replaces "System Logs" with actionable checkbox list
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .action-required-container {
   display: flex;
@@ -9730,10 +9211,10 @@ h4,
   height: 12px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    SLEEP SCORE IN TICKER TAPE
    Compact sleep score indicator for the header
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .ticker-sleep-score {
   display: flex;
@@ -9768,10 +9249,10 @@ h4,
   color: var(--neon-red);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    SQUASH MODE (800px - 1200px)
    Keep grid structure, reduce all spacing and fonts
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 @media (min-width: 800px) and (max-width: 1200px) {
   :root {
@@ -9875,10 +9356,10 @@ h4,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    MOBILE FALLBACK (< 800px)
    Allow scrolling, stack vertically
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 @media (max-width: 799px) {
   .scrollable-sections {
@@ -9910,10 +9391,10 @@ h4,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    ATTRIBUTION PAGE 2x2 GRID
    Split into 4 equal quadrants
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 #attribution .terminal-row-split {
   height: 100%;
@@ -9964,10 +9445,10 @@ h4,
   letter-spacing: 1px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    SCROLL-FADE GRADIENT
    Visual hint that more content exists below (when scrolling is enabled)
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .terminal-section.has-scroll::after {
   content: "";
@@ -9995,10 +9476,10 @@ h4,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    CHART CONTAINER MIN-HEIGHT PROTECTION
    Ensure charts never collapse to unreadable sizes
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .chart-container-main {
   min-height: 300px !important;
@@ -10011,10 +9492,10 @@ h4,
   flex: 1 0 auto;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    ALLOCATION TABLE MINI-BARS
    Visual bars for WTD Return and Contribution columns
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .return-cell-wrapper,
 .contrib-cell-wrapper {
@@ -10053,10 +9534,10 @@ h4,
   background: rgba(100, 116, 139, 0.5);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ???????????????????????????????????????????????????????????????????????????
    SIGMA GAUGE ZONE (Weekly Pulse)
-   -2σ to +2σ range bar with WTD Return marker and Expectation arrow
-   ═══════════════════════════════════════════════════════════════════════════ */
+   -2�� to +2�� range bar with WTD Return marker and Expectation arrow
+   ??????????????????????????????????????????????????????????????????????????? */
 
 .sigma-zone-container {
   margin-top: 16px;
@@ -10078,7 +9559,7 @@ h4,
 }
 
 .sigma-zone-label::before {
-  content: "Σ";
+  content: "��";
   font-weight: 700;
   color: #8b5cf6;
 }
@@ -10099,10 +9580,10 @@ h4,
   background: linear-gradient(
     90deg,
     rgba(239, 68, 68, 0.3) 0%,
-    /* -2σ red zone */ rgba(251, 191, 36, 0.2) 25%,
-    /* -1σ yellow zone */ rgba(16, 185, 129, 0.3) 50%,
+    /* -2�� red zone */ rgba(251, 191, 36, 0.2) 25%,
+    /* -1�� yellow zone */ rgba(16, 185, 129, 0.3) 50%,
     /* mean green zone */ rgba(251, 191, 36, 0.2) 75%,
-    /* +1σ yellow zone */ rgba(239, 68, 68, 0.3) 100% /* +2σ red zone */
+    /* +1�� yellow zone */ rgba(239, 68, 68, 0.3) 100% /* +2�� red zone */
   );
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -10152,7 +9633,7 @@ h4,
   white-space: nowrap;
 }
 
-/* Mean marker (μ) */
+/* Mean marker (��) */
 .sigma-mean-marker {
   position: absolute;
   top: 50%;
@@ -10209,7 +9690,7 @@ h4,
 }
 
 .sigma-expectation-marker::before {
-  content: "▼";
+  content: "��";
   font-size: 10px;
   color: #fbbf24;
   text-shadow: 0 0 4px rgba(251, 191, 36, 0.6);

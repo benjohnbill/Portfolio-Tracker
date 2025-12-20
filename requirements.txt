@@ -6,3 +6,4 @@ yfinance
 finance-datareader
 beautifulsoup4
 requests
+gunicorn

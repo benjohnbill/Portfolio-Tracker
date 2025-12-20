@@ -3,7 +3,9 @@
  * Handles portfolio state and market data fetching (Mock/Simulated for now)
  */
 
-const API_BASE_URL = 'https://portfolio-tracker-5i1z.onrender.com';
+const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8080'
+    : 'https://portfolio-tracker-5i1z.onrender.com';
 
 const PortfolioDefaults = [
     { id: 'nasdaq', ticker: 'QQQ', name: 'KODEX Nasdaq100 TR', targetWeight: 0.30, type: 'GROWTH', shares: 100, price: 0, currency: 'KRW' },

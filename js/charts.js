@@ -11,6 +11,131 @@ let alphaCurveChart = null;
 let underwaterChart = null;
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CHART STATE MANAGER
+ * Central state management for all chart toggles and modes
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const ChartState = {
+    // Layer 1: Timeline Mode (mutually exclusive)
+    // 'default' = 2024.03.12~today, 'hypothetical' = 2020.08.11~today, 'projection' = today~target
+    timelineMode: 'default',
+    
+    // Layer 2: Overlays (independent, can be combined)
+    // Default: both OFF for clean initial view
+    overlays: {
+        spy: false,     // SPY benchmark (OFF by default)
+        static: false   // Static rebalancing strategy (OFF by default)
+    },
+    
+    // Projection mode settings
+    projectionTarget: null,  // Target amount for projection
+    
+    // Cached data for efficient updates
+    cache: {
+        defaultData: null,      // 2024.03.12~ data
+        hypotheticalData: null, // 2020.08.11~ data
+        staticData: null        // Static calculation data
+    },
+    
+    /**
+     * Get date range based on current timeline mode
+     * @returns {Object} { start: string, end: string }
+     */
+    getDateRange() {
+        switch (this.timelineMode) {
+            case 'hypothetical':
+                return { start: '2020-08-11', end: 'today' };
+            case 'projection':
+                return { start: 'today', end: 'target' };
+            default:
+                return { start: '2024-03-12', end: 'today' };
+        }
+    },
+    
+    /**
+     * Save state to localStorage
+     */
+    save() {
+        const state = {
+            timelineMode: this.timelineMode,
+            overlays: this.overlays,
+            projectionTarget: this.projectionTarget
+        };
+        try {
+            localStorage.setItem('chartState', JSON.stringify(state));
+            console.log('💾 ChartState saved:', state);
+        } catch (e) {
+            console.warn('Failed to save ChartState:', e);
+        }
+    },
+    
+    /**
+     * Load state from localStorage
+     */
+    load() {
+        // DESIGN DECISION: Always start with clean state (Default timeline, overlays OFF)
+        // Only restore projectionTarget for user convenience
+        try {
+            const saved = localStorage.getItem('chartState');
+            if (saved) {
+                const state = JSON.parse(saved);
+                // Keep projectionTarget only
+                this.projectionTarget = state.projectionTarget || null;
+                console.log('📂 ChartState: Using default view (projectionTarget restored)');
+            }
+        } catch (e) {
+            console.warn('Failed to load ChartState:', e);
+        }
+        // Timeline and overlays always start at default
+        this.timelineMode = 'default';
+        this.overlays = { spy: false, static: false };
+    },
+    
+    /**
+     * Reset to default state
+     */
+    reset() {
+        this.timelineMode = 'default';
+        this.overlays = { spy: false, static: false };
+        this.projectionTarget = null;
+        this.cache = { defaultData: null, hypotheticalData: null, staticData: null };
+        this.save();
+        console.log('🔄 ChartState reset to default');
+    },
+    
+    /**
+     * Set timeline mode (triggers chart rebuild)
+     * @param {string} mode - 'default' | 'hypothetical' | 'projection'
+     */
+    setTimelineMode(mode) {
+        if (['default', 'hypothetical', 'projection'].includes(mode)) {
+            const prevMode = this.timelineMode;
+            this.timelineMode = mode;
+            this.save();
+            console.log(`📊 Timeline Mode: ${prevMode} → ${mode}`);
+            return true;
+        }
+        return false;
+    },
+    
+    /**
+     * Toggle overlay visibility
+     * @param {string} overlay - 'spy' | 'static'
+     * @param {boolean} visible
+     */
+    setOverlay(overlay, visible) {
+        if (this.overlays.hasOwnProperty(overlay)) {
+            this.overlays[overlay] = visible;
+            this.save();
+            console.log(`📊 Overlay ${overlay}: ${visible ? 'ON' : 'OFF'}`);
+            return true;
+        }
+        return false;
+    }
+};
+
+/**
  * Toggle SPY benchmark visibility on performance and underwater charts
  * Uses Chart.js dataset visibility (no chart recreation needed)
  * @param {boolean} visible - Whether to show SPY
@@ -38,9 +163,98 @@ function toggleSPYVisibility(visible) {
         }
     }
     
+    // Toggle Info Bar SPY item visibility
+    const mainInfoSpy = document.querySelector('#main-chart-info .info-item[data-field="spy"]');
+    const underwaterInfoSpy = document.querySelector('#underwater-chart-info .info-item[data-field="spy"]');
+    if (mainInfoSpy) mainInfoSpy.style.display = visible ? '' : 'none';
+    if (underwaterInfoSpy) underwaterInfoSpy.style.display = visible ? '' : 'none';
+    
     console.log("📊 SPY visibility:", visible ? 'ON' : 'OFF');
 }
 
+/**
+ * Toggle Static Strategy visibility on performance and underwater charts
+ * Uses Chart.js dataset visibility (no chart recreation needed)
+ * @param {boolean} visible - Whether to show Static
+ */
+function toggleStaticVisibility(visible) {
+    // Performance Chart
+    if (performanceChart && performanceChart.data.datasets.length > 0) {
+        const staticDatasetIndex = performanceChart.data.datasets.findIndex(
+            ds => ds.label && ds.label.includes('Static')
+        );
+        if (staticDatasetIndex !== -1) {
+            performanceChart.setDatasetVisibility(staticDatasetIndex, visible);
+            performanceChart.update('none');
+        }
+    }
+    
+    // Underwater Chart
+    if (underwaterChart && underwaterChart.data.datasets.length > 0) {
+        const staticDatasetIndex = underwaterChart.data.datasets.findIndex(
+            ds => ds.label && ds.label.includes('Static')
+        );
+        if (staticDatasetIndex !== -1) {
+            underwaterChart.setDatasetVisibility(staticDatasetIndex, visible);
+            underwaterChart.update('none');
+        }
+    }
+    
+    // Toggle Info Bar Static item visibility
+    const mainInfoStatic = document.querySelector('#main-chart-info .info-item[data-field="static"]');
+    const underwaterInfoStatic = document.querySelector('#underwater-chart-info .info-item[data-field="static"]');
+    if (mainInfoStatic) mainInfoStatic.style.display = visible ? '' : 'none';
+    if (underwaterInfoStatic) underwaterInfoStatic.style.display = visible ? '' : 'none';
+    
+    console.log("📊 Static visibility:", visible ? 'ON' : 'OFF');
+}
+
+/**
+ * Refresh Static data in chart (called when Static toggle is turned ON)
+ * Updates the Static dataset with current hypothetical cache data
+ * ONLY for Default mode - Full History/Projection already have correct data
+ */
+function refreshStaticDataInChart() {
+    if (!performanceChart || !performanceChart.data.datasets) {
+        console.warn('📊 Static refresh: No chart available');
+        return;
+    }
+    
+    // Only refresh data in Default mode
+    // Full History and Projection modes already have correct Static data built-in
+    const currentMode = typeof ChartState !== 'undefined' ? ChartState.timelineMode : 'default';
+    if (currentMode !== 'default') {
+        console.log(`📊 Static refresh: Skipped (mode=${currentMode})`);
+        return;  // Don't overwrite data in other modes
+    }
+    
+    // Find Static dataset
+    const staticDatasetIndex = performanceChart.data.datasets.findIndex(
+        ds => ds.label && ds.label.includes('Static')
+    );
+    
+    if (staticDatasetIndex === -1) {
+        console.warn('📊 Static refresh: No Static dataset in chart');
+        return;
+    }
+    
+    // Get current aumHistory from global
+    const aumHistory = window._globalAumHistory;
+    if (!aumHistory) {
+        console.warn('📊 Static refresh: No AUM history available');
+        return;
+    }
+    
+    // Calculate Static data (Default mode only)
+    const staticData = getStaticDataForDefault(aumHistory);
+    
+    // Update dataset
+    performanceChart.data.datasets[staticDatasetIndex].data = staticData;
+    performanceChart.data.datasets[staticDatasetIndex].hidden = false;
+    performanceChart.update('none');
+    
+    console.log('📊 Static data refreshed in chart (Default mode)');
+}
 
 /**
  * Initialize the basic Allocation Chart (Doughnut)
@@ -110,6 +324,378 @@ function initChart() {
                         label: function(context) {
                             return `${context.label}: ${parseFloat(context.raw).toFixed(1)}%`;
                         }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Get Static Strategy data for Default mode (2024.03.12 ~ present)
+ * Extracts from Hypothetical cache and normalizes to portfolio inception value
+ * @param {Array} aumHistory - Portfolio AUM history
+ * @returns {Array} - Static values aligned with aumHistory dates
+ */
+function getStaticDataForDefault(aumHistory) {
+    const hypothetical = window._hypotheticalCache;
+    if (!hypothetical || !hypothetical.dates || !hypothetical.values) {
+        console.warn('📊 Static: No hypothetical cache available');
+        return new Array(aumHistory.length).fill(null);
+    }
+    
+    const INCEPTION_DATE = '2024-03-12';
+    const inceptionIdx = hypothetical.dates.findIndex(d => d >= INCEPTION_DATE);
+    
+    if (inceptionIdx === -1) {
+        console.warn('📊 Static: Inception date not found in hypothetical data');
+        return new Array(aumHistory.length).fill(null);
+    }
+    
+    // Get portfolio inception value for normalization
+    const portfolioInceptionValue = aumHistory[0]?.totalValue || 17400000;
+    const hypoValueAtInception = hypothetical.values[inceptionIdx];
+    const scaleFactor = portfolioInceptionValue / hypoValueAtInception;
+    
+    // Build date -> scaled value map
+    const staticMap = {};
+    for (let i = inceptionIdx; i < hypothetical.dates.length; i++) {
+        staticMap[hypothetical.dates[i]] = hypothetical.values[i] * scaleFactor;
+    }
+    
+    // Map to aumHistory dates
+    const staticValues = aumHistory.map(item => {
+        return staticMap[item.date] || null;
+    });
+    
+    console.log(`📊 Static: ${staticValues.filter(v => v !== null).length} data points mapped`);
+    return staticValues;
+}
+
+/**
+ * Update ONLY the Main Performance Chart and Underwater Chart
+ * ULTRA-FAST: Reuses existing chart instance, only updates data
+ * @param {Array} aumHistory - Portfolio AUM history
+ * @param {Array} spyNormalized - Normalized SPY benchmark
+ * @param {Array} ma60Data - 60-day moving average data
+ */
+function updateMainChartOnly(aumHistory, spyNormalized, ma60Data) {
+    const perfCtx = document.getElementById('perfChart');
+    if (!perfCtx) {
+        console.warn("Performance chart canvas not found");
+        return;
+    }
+    
+    const startTime = performance.now();
+    
+    // Prepare labels with month markers
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let lastMonth = -1;
+    const labels = aumHistory.map((item) => {
+        const date = new Date(item.date);
+        const month = date.getMonth();
+        if (month !== lastMonth) {
+            lastMonth = month;
+            return monthNames[month];
+        }
+        return '';
+    });
+
+    const aumValues = aumHistory.map(item => item.totalValue);
+    const ma60Values = ma60Data.map(item => item.ma);
+    
+    // Check if chart exists and can be reused
+    if (performanceChart && performanceChart.canvas && performanceChart.data.datasets.length >= 4) {
+        // FAST PATH: Reuse existing chart, just update data
+        performanceChart.data.labels = labels;
+        performanceChart.data.datasets[0].data = aumValues;
+        performanceChart.data.datasets[1].data = ma60Values;
+        performanceChart.data.datasets[2].data = spyNormalized;
+        performanceChart.data.datasets[2].hidden = !ChartState.overlays.spy;
+        // Update Static dataset
+        performanceChart.data.datasets[3].data = getStaticDataForDefault(aumHistory);
+        performanceChart.data.datasets[3].hidden = !ChartState.overlays.static;
+        performanceChart.update('none'); // No animation for speed
+        
+        console.log(`📊 Fast update (reuse): ${(performance.now() - startTime).toFixed(0)}ms`);
+    } else {
+        // SLOW PATH: Create new chart (first time only)
+        createMainPerformanceChart(perfCtx, labels, aumValues, ma60Values, spyNormalized, aumHistory);
+        console.log(`📊 Full chart creation: ${(performance.now() - startTime).toFixed(0)}ms`);
+    }
+    
+    // Also update Underwater chart
+    updateUnderwaterChartFast(aumHistory, spyNormalized, labels);
+}
+
+/**
+ * Create Main Performance Chart (only called on first load)
+ */
+function createMainPerformanceChart(perfCtx, labels, aumValues, ma60Values, spyNormalized, aumHistory) {
+    // Track month boundaries for grid
+    const monthBoundaryIndices = [];
+    let lastMonth = -1;
+    aumHistory.forEach((item, index) => {
+        const date = new Date(item.date);
+        const month = date.getMonth();
+        if (month !== lastMonth) {
+            monthBoundaryIndices.push(index);
+            lastMonth = month;
+        }
+    });
+
+    if (performanceChart) {
+        performanceChart.destroy();
+        performanceChart = null;
+    }
+
+    performanceChart = new Chart(perfCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Portfolio AUM',
+                    data: aumValues,
+                    borderColor: '#06d6a0',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    borderWidth: 2
+                },
+                {
+                    label: '60-Day MA',
+                    data: ma60Values,
+                    borderColor: 'rgba(161, 161, 170, 0.9)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 0.8
+                },
+                {
+                    label: 'SPY (Benchmark)',
+                    data: spyNormalized,
+                    borderColor: '#ef476f',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false
+                },
+                {
+                    label: 'Static Strategy',
+                    data: getStaticDataForDefault(aumHistory),
+                    borderColor: '#8b5cf6',  // Purple color
+                    borderDash: [4, 2],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false, // Disable animation for faster updates
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            onHover: createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNormalized, performanceChart?.data?.datasets?.[3]?.data || getStaticDataForDefault(aumHistory)),
+            scales: {
+                x: {
+                    grid: {
+                        color: (ctx) => monthBoundaryIndices.includes(ctx.index) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.01)',
+                        lineWidth: (ctx) => monthBoundaryIndices.includes(ctx.index) ? 0.5 : 0
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        font: { size: 10, weight: 'bold' },
+                        maxRotation: 0,
+                        autoSkip: false,
+                        callback: (value, index) => labels[index] || ''
+                    }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.02)' },
+                    ticks: {
+                        color: '#64748b',
+                        callback: (value) => {
+                            if (value >= 1000000) return '₩' + (value / 1000000).toFixed(2) + 'M';
+                            if (value >= 1000) return '₩' + (value / 1000).toFixed(0) + 'K';
+                            return '₩' + value;
+                        },
+                        font: { size: 10 }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Create hover handler for main chart (closure to capture data)
+ * @param {Array} staticData - Static strategy values (optional)
+ */
+function createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNormalized, staticData) {
+    return function(event, elements, chart) {
+        const infoBar = document.getElementById('main-chart-info');
+        if (!infoBar || elements.length === 0) return;
+        
+        const idx = elements[0].index;
+        const item = aumHistory[idx];
+        if (!item) return;
+        
+        const date = new Date(item.date);
+        const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
+        });
+        infoBar.querySelector('.info-date').textContent = dateStr;
+        
+        document.getElementById('info-aum').textContent = '₩' + Math.round(aumValues[idx]).toLocaleString();
+        document.getElementById('info-ma').textContent = ma60Values[idx] ? '₩' + Math.round(ma60Values[idx]).toLocaleString() : '--';
+        document.getElementById('info-spy').textContent = spyNormalized[idx] ? '₩' + Math.round(spyNormalized[idx]).toLocaleString() : '--';
+        
+        // Static value - get from chart dataset directly for accurate data
+        const staticVal = chart?.data?.datasets?.[3]?.data?.[idx] || (staticData && staticData[idx]);
+        const infoStatic = document.getElementById('info-static');
+        if (infoStatic) {
+            infoStatic.textContent = staticVal ? '₩' + Math.round(staticVal).toLocaleString() : '--';
+        }
+        
+        if (spyNormalized[idx] && aumValues[idx]) {
+            const alpha = ((aumValues[idx] - spyNormalized[idx]) / spyNormalized[idx] * 100).toFixed(2);
+            const alphaEl = document.getElementById('info-alpha');
+            alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
+            alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
+        }
+        
+        if (idx > 0 && aumValues[idx - 1]) {
+            const dailyReturn = ((aumValues[idx] - aumValues[idx - 1]) / aumValues[idx - 1] * 100).toFixed(2);
+            const dailyEl = document.getElementById('info-daily');
+            dailyEl.textContent = (dailyReturn > 0 ? '+' : '') + dailyReturn + '%';
+            dailyEl.className = 'info-value ' + (dailyReturn >= 0 ? 'positive' : 'negative');
+        }
+    };
+}
+
+/**
+ * Update Underwater Chart - Fast path with instance reuse
+ */
+function updateUnderwaterChartFast(aumHistory, spyNormalized, labels) {
+    const underwaterCtx = document.getElementById('underwaterChart');
+    if (!underwaterCtx) return;
+
+    // Calculate drawdowns
+    const portfolioDrawdowns = [];
+    const spyDrawdowns = [];
+    let portfolioHWM = 0;
+    let spyHWM = 0;
+
+    aumHistory.forEach((item, index) => {
+        const portfolioValue = item.totalValue || 0;
+        if (portfolioValue > portfolioHWM) portfolioHWM = portfolioValue;
+        portfolioDrawdowns.push(portfolioHWM > 0 ? ((portfolioValue - portfolioHWM) / portfolioHWM) * 100 : 0);
+
+        const spyValue = spyNormalized[index] || 100;
+        if (spyValue > spyHWM) spyHWM = spyValue;
+        spyDrawdowns.push(spyHWM > 0 ? ((spyValue - spyHWM) / spyHWM) * 100 : 0);
+    });
+
+    // Check if chart exists and can be reused
+    if (underwaterChart && underwaterChart.canvas) {
+        // FAST PATH: Reuse existing chart
+        underwaterChart.data.labels = labels;
+        underwaterChart.data.datasets[0].data = portfolioDrawdowns;
+        if (underwaterChart.data.datasets[1]) {
+            underwaterChart.data.datasets[1].data = spyDrawdowns;
+            underwaterChart.data.datasets[1].hidden = typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false;
+        }
+        underwaterChart.update('none');
+    } else {
+        // SLOW PATH: Create new chart
+        rebuildUnderwaterChart(aumHistory, spyNormalized, labels);
+    }
+}
+
+/**
+ * Rebuild only the Underwater Chart
+ */
+function rebuildUnderwaterChart(aumHistory, spyNormalized, labels) {
+    const underwaterCtx = document.getElementById('underwaterChart');
+    if (!underwaterCtx) return;
+    
+    if (underwaterChart) {
+        underwaterChart.destroy();
+        underwaterChart = null;
+    }
+
+    // Calculate drawdowns
+    const portfolioDrawdowns = [];
+    const spyDrawdowns = [];
+    let portfolioHWM = 0;
+    let spyHWM = 0;
+
+    aumHistory.forEach((item, index) => {
+        const portfolioValue = item.totalValue || 0;
+        if (portfolioValue > portfolioHWM) portfolioHWM = portfolioValue;
+        portfolioDrawdowns.push(portfolioHWM > 0 ? ((portfolioValue - portfolioHWM) / portfolioHWM) * 100 : 0);
+
+        const spyValue = spyNormalized[index] || 100;
+        if (spyValue > spyHWM) spyHWM = spyValue;
+        spyDrawdowns.push(spyHWM > 0 ? ((spyValue - spyHWM) / spyHWM) * 100 : 0);
+    });
+
+    underwaterChart = new Chart(underwaterCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Portfolio DD',
+                    data: portfolioDrawdowns,
+                    borderColor: '#06d6a0',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2
+                },
+                {
+                    label: 'SPY DD',
+                    data: spyDrawdowns,
+                    borderColor: 'rgba(239, 71, 111, 0.7)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    hidden: !ChartState.overlays.spy
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 12, padding: 8, color: '#94a3b8', font: { size: 9 } } },
+                tooltip: { enabled: false }
+            },
+            scales: {
+                x: { display: true, grid: { display: false }, ticks: { display: false } },
+                y: {
+                    position: 'right',
+                    suggestedMax: 0.5,
+                    grid: {
+                        color: (ctx) => ctx.tick.value === 0 ? '#06b6d4' : 'rgba(255, 255, 255, 0.08)',
+                        lineWidth: (ctx) => ctx.tick.value === 0 ? 2 : 0.5
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        font: { size: 9 },
+                        callback: (value) => value.toFixed(0) + '%'
                     }
                 }
             }
@@ -381,7 +967,19 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                     fill: false,
                     tension: 0.3,
                     pointRadius: 0,
-                    borderWidth: 1.5
+                    borderWidth: 1.5,
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false
+                },
+                {
+                    label: 'Static Strategy',
+                    data: getStaticDataForDefault(aumHistory),
+                    borderColor: '#8b5cf6',  // Purple
+                    borderDash: [4, 2],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true
                 }
             ]
         },
@@ -1036,8 +1634,31 @@ function updatePerformanceChartProjection(cvData) {
         performanceChart.destroy();
     }
 
-    // Build datasets - SPY is conditional based on toggle state
+    // Build datasets - SPY and Static ALWAYS included, visibility controlled by hidden property
+    const showSPY = typeof ChartState !== 'undefined' ? ChartState.overlays.spy : true;
+    const showStatic = typeof ChartState !== 'undefined' ? ChartState.overlays.static : false;
+    const hypotheticalCache = window._hypotheticalCache;
+    
+    // Build Static projection data (use hypo CAGR if available, else portfolio CAGR)
+    const staticCAGR = (hypotheticalCache?.stats?.cagr) 
+        ? parseFloat(hypotheticalCache.stats.cagr) / 100  // Convert from percentage
+        : portfolioCAGR;
+    
+    const staticData = [];
+    for (let i = 0; i < yearLabels.length; i++) {
+        const year = inceptionYear + i;
+        
+        if (year <= currentYear) {
+            staticData.push(portfolioData[i]);
+        } else {
+            const yearsFromNow = year - currentYear;
+            const staticProjected = currentAUM * Math.pow(1 + staticCAGR, yearsFromNow);
+            staticData.push(staticProjected);
+        }
+    }
+    
     const projectionDatasets = [
+        // 0: Portfolio (always visible)
         {
             label: 'Portfolio',
             data: portfolioData,
@@ -1052,12 +1673,9 @@ function updatePerformanceChartProjection(cvData) {
                 borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
                 borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(20, 184, 166, 0.8)' : '#06d6a0'
             }
-        }
-    ];
-    
-    // Add SPY only if toggle is ON
-    if (window._showSPY !== false) {
-        projectionDatasets.push({
+        },
+        // 1: SPY Benchmark (toggle controlled)
+        {
             label: 'SPY Benchmark',
             data: spyData,
             borderColor: '#ef476f',
@@ -1066,25 +1684,56 @@ function updatePerformanceChartProjection(cvData) {
             pointRadius: 3,
             pointHoverRadius: 5,
             borderWidth: 1.5,
+            hidden: !showSPY,
             segment: {
                 borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
                 borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(239, 71, 111, 0.7)' : '#ef476f'
             }
-        });
-    }
+        },
+        // 2: Static Strategy (toggle controlled)
+        {
+            label: 'Static Strategy',
+            data: staticData,
+            borderColor: '#8b5cf6',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 1.5,
+            borderDash: [4, 2],
+            hidden: !showStatic,
+            segment: {
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [4, 2] : [],
+                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(139, 92, 246, 0.7)' : '#8b5cf6'
+            }
+        },
+        // 3: Target Goal (always visible)
+        {
+            label: 'Target Goal',
+            data: targetLineData,
+            borderColor: 'rgba(250, 204, 21, 0.7)',
+            borderWidth: 2,
+            borderDash: [8, 4],
+            fill: false,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 0
+        }
+    ];
     
-    // Add Target Goal line
-    projectionDatasets.push({
-        label: 'Target Goal',
-        data: targetLineData,
-        borderColor: 'rgba(250, 204, 21, 0.7)',
-        borderWidth: 2,
-        borderDash: [8, 4],
-        fill: false,
-        tension: 0,
-        pointRadius: 0,
-        pointHoverRadius: 0
+    console.log(`📊 Projection datasets: SPY=${showSPY}, Static=${showStatic}, StaticCAGR=${(staticCAGR * 100).toFixed(2)}%`);
+    
+    // Calculate Y-axis range based on all datasets
+    const projAllValues = [];
+    projectionDatasets.forEach(ds => {
+        ds.data.forEach(v => {
+            if (v !== null && v !== undefined && !isNaN(v)) {
+                projAllValues.push(v);
+            }
+        });
     });
+    const projYMin = projAllValues.length > 0 ? Math.min(...projAllValues) * 0.95 : 0;
+    const projYMax = projAllValues.length > 0 ? Math.max(...projAllValues) * 1.05 : 100;
 
     // Create new chart with year-based X-axis
     performanceChart = new Chart(perfCtx.getContext('2d'), {
@@ -1196,7 +1845,9 @@ function updatePerformanceChartProjection(cvData) {
                             return '₩' + value.toLocaleString();
                         },
                         font: { size: 10 }
-                    }
+                    },
+                    min: projYMin,
+                    max: projYMax
                 }
             }
         }
@@ -1219,10 +1870,9 @@ function updatePerformanceChartProjection(cvData) {
  * Uses DAILY data points with sparse year-based X-axis labels
  * 
  * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
- * @param {Object} ghostBenchmark - Ghost benchmark { dates: [], values: [] } for slope comparison
  * @param {Object} actualData - Actual portfolio data { dates: [], values: [] }
  */
-function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, actualData) {
+function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
     const perfCtx = document.getElementById('perfChart');
     if (!perfCtx) {
         console.warn("Performance chart canvas not found");
@@ -1306,25 +1956,7 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
         console.log(`📊 Actual portfolio: ${actualData.dates.length} data points mapped`);
     }
     
-    // Ghost Benchmark: null before inception, rebased hypothetical after
-    let ghostData = new Array(totalPoints).fill(null);
-    
-    if (ghostBenchmark && ghostBenchmark.values && ghostBenchmark.values.length > 0) {
-        // Build date -> value map for ghost
-        const ghostMap = {};
-        ghostBenchmark.dates.forEach((date, i) => {
-            ghostMap[date] = ghostBenchmark.values[i];
-        });
-        
-        // Fill in ghost values where dates match
-        allDates.forEach((date, i) => {
-            if (ghostMap[date] !== undefined) {
-                ghostData[i] = ghostMap[date];
-            }
-        });
-        
-        console.log(`📊 Ghost benchmark: ${ghostBenchmark.dates.length} data points mapped`);
-    }
+
     
     // ═══════════════════════════════════════════════════════════════════
     // STEP 4: Create sparse X-axis labels (show year markers only)
@@ -1350,23 +1982,53 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
     console.log(`📊 Year boundaries at indices:`, yearBoundaryIndices);
     
     // ═══════════════════════════════════════════════════════════════════
-    // STEP 5: Build datasets
+    // STEP 5: Build datasets - ALL overlays always included, hidden controls visibility
     // ═══════════════════════════════════════════════════════════════════
     
+    const showSPY = typeof ChartState !== 'undefined' ? ChartState.overlays.spy : true;
+    const showStatic = typeof ChartState !== 'undefined' ? ChartState.overlays.static : true;
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // Build SPY data for full history - normalized to Actual inception AUM
+    // ═══════════════════════════════════════════════════════════════════
+    
+    let spyFullHistoryData = new Array(totalPoints).fill(null);
+    
+    // Get SPY data from hypothetical cache (if available)
+    const hypoCache = window._hypotheticalCache;
+    const hypoRawData = window._hypotheticalRawData; // Raw asset data from API
+    
+    if (hypoRawData && hypoRawData.assets && hypoRawData.assets.SPY) {
+        const spyAsset = hypoRawData.assets.SPY;
+        
+        // Build date -> price map
+        const spyPriceMap = {};
+        spyAsset.dates.forEach((date, i) => {
+            spyPriceMap[date] = spyAsset.prices[i];
+        });
+        
+        // Find SPY price at inception date
+        const spyPriceAtInception = spyPriceMap[INCEPTION_DATE];
+        
+        if (spyPriceAtInception && actualStartValue) {
+            // Scale factor: Actual inception AUM / SPY price at inception
+            const spyScaleFactor = actualStartValue / spyPriceAtInception;
+            
+            // Map SPY prices to allDates array
+            allDates.forEach((date, i) => {
+                if (spyPriceMap[date]) {
+                    spyFullHistoryData[i] = spyPriceMap[date] * spyScaleFactor;
+                }
+            });
+            
+            console.log(`📊 SPY normalized: scaleFactor=${spyScaleFactor.toFixed(2)}, inception price=${spyPriceAtInception.toFixed(2)}`);
+        }
+    } else {
+        console.warn('📊 SPY data not available in hypothetical cache');
+    }
+    
     const datasets = [
-        {
-            label: 'Hypothetical Strategy',
-            data: hypotheticalData,
-            borderColor: 'rgba(20, 184, 166, 0.7)',
-            backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            borderDash: [6, 3],
-            fill: false,
-            tension: 0.2,
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            order: 2
-        },
+        // 0: Actual Portfolio (always visible)
         {
             label: 'Actual Portfolio',
             data: actualPortfolioData,
@@ -1378,26 +2040,68 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
             pointRadius: 0,
             pointHoverRadius: 4,
             order: 1
-        }
-    ];
-    
-    // Add Ghost Benchmark if available
-    if (ghostData.some(v => v !== null)) {
-        datasets.push({
-            label: 'Ghost Benchmark',
-            data: ghostData,
-            borderColor: 'rgba(251, 191, 36, 0.5)',
+        },
+        // 1: SPY Benchmark (toggle controlled)
+        {
+            label: 'SPY Benchmark',
+            data: spyFullHistoryData,
+            borderColor: '#ef476f',
             backgroundColor: 'transparent',
             borderWidth: 1.5,
-            borderDash: [4, 2],
             fill: false,
             tension: 0.2,
             pointRadius: 0,
-            pointHoverRadius: 0,
-            order: 3
-        });
-    }
+            pointHoverRadius: 3,
+            order: 3,
+            hidden: !showSPY
+        },
+        // 2: Static Strategy (toggle controlled)
+        {
+            label: 'Static Strategy',
+            data: hypotheticalData,
+            borderColor: '#8b5cf6',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [6, 3],
+            fill: false,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            order: 2,
+            hidden: !showStatic
+        }
+    ];
     
+    console.log(`📊 Full History datasets: SPY=${showSPY}, Static=${showStatic}`);
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP 5.5: Calculate Y-axis range based on ALL visible datasets
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // Collect all non-null values from all datasets
+    const allValues = [];
+    datasets.forEach(ds => {
+        if (!ds.hidden) {
+            ds.data.forEach(v => {
+                if (v !== null && v !== undefined && !isNaN(v)) {
+                    allValues.push(v);
+                }
+            });
+        }
+    });
+    
+    // Always include hypotheticalData even if Static is hidden (for scale reference)
+    hypotheticalData.forEach(v => {
+        if (v !== null && v !== undefined && !isNaN(v)) {
+            allValues.push(v);
+        }
+    });
+    
+    const yMin = allValues.length > 0 ? Math.min(...allValues) * 0.95 : 0;  // 5% padding
+    const yMax = allValues.length > 0 ? Math.max(...allValues) * 1.05 : 100;  // 5% padding
+    
+    console.log(`📊 Y-axis range: min=${yMin.toLocaleString()}, max=${yMax.toLocaleString()}`);
+
     // ═══════════════════════════════════════════════════════════════════
     // STEP 6: Create chart
     // ═══════════════════════════════════════════════════════════════════
@@ -1515,7 +2219,9 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
                             return '₩' + value.toLocaleString();
                         },
                         font: { size: 10 }
-                    }
+                    },
+                    min: yMin,
+                    max: yMax
                 }
             }
         }
@@ -1525,7 +2231,6 @@ function updatePerformanceChartWithHypothetical(hypothetical, ghostBenchmark, ac
         totalPoints,
         inceptionIdx,
         actualPointsMapped: actualPortfolioData.filter(v => v !== null).length,
-        ghostPointsMapped: ghostData.filter(v => v !== null).length,
         hypoStats: hypothetical.stats
     });
 }

@@ -31,12 +31,49 @@ function generateMockHistory(basePrice, days = 300) {
 
 const DataService = {
     /**
+     * Ticker migration map: deprecated tickers -> new tickers
+     * Add new migrations here as needed
+     */
+    TICKER_MIGRATIONS: {
+        'CTA': 'DBMF'
+    },
+
+    /**
+     * Migrate deprecated tickers to new ones
+     * @param {Array} portfolio - Portfolio array
+     * @returns {Array} - Migrated portfolio
+     */
+    migratePortfolio: (portfolio) => {
+        let migrated = false;
+        const result = portfolio.map(asset => {
+            const newTicker = DataService.TICKER_MIGRATIONS[asset.ticker];
+            if (newTicker) {
+                console.log(`🔄 Ticker migrated: ${asset.ticker} → ${newTicker}`);
+                migrated = true;
+                return { ...asset, ticker: newTicker };
+            }
+            return asset;
+        });
+        
+        if (migrated) {
+            // Save migrated portfolio back
+            DataService.savePortfolio(result);
+            console.log('✅ Portfolio migration completed and saved');
+        }
+        
+        return result;
+    },
+
+    /**
      * Load portfolio holdings from LocalStorage or Defaults
+     * Automatically migrates deprecated tickers
      */
     loadPortfolio: () => {
         const stored = localStorage.getItem('jg_portfolio');
         if (stored) {
-            return JSON.parse(stored);
+            const portfolio = JSON.parse(stored);
+            // Apply ticker migrations
+            return DataService.migratePortfolio(portfolio);
         }
         return JSON.parse(JSON.stringify(PortfolioDefaults));
     },
@@ -156,10 +193,37 @@ const DataService = {
 
     /**
      * Load daily snapshots from localStorage
+     * Automatically migrates deprecated tickers in holdings
      */
     loadSnapshots: () => {
         const stored = localStorage.getItem('jg_snapshots');
-        return stored ? JSON.parse(stored) : [];
+        if (!stored) return [];
+        
+        let snapshots = JSON.parse(stored);
+        let migrated = false;
+        
+        // Migrate tickers in each snapshot's holdings
+        snapshots = snapshots.map(snapshot => {
+            if (snapshot.holdings && Array.isArray(snapshot.holdings)) {
+                const migratedHoldings = snapshot.holdings.map(holding => {
+                    const newTicker = DataService.TICKER_MIGRATIONS[holding.ticker];
+                    if (newTicker) {
+                        migrated = true;
+                        return { ...holding, ticker: newTicker };
+                    }
+                    return holding;
+                });
+                return { ...snapshot, holdings: migratedHoldings };
+            }
+            return snapshot;
+        });
+        
+        if (migrated) {
+            DataService.saveSnapshots(snapshots);
+            console.log('✅ Snapshots ticker migration completed');
+        }
+        
+        return snapshots;
     },
 
     /**

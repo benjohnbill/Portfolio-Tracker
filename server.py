@@ -665,6 +665,7 @@ def get_hypothetical_data():
         'TLT': 'TLT',      # US TLT as proxy for Korean TLT ETF
         'MSTR': 'MSTR',    # Direct
         'CSI300': 'ASHR',  # ASHR as proxy for CSI300 (better US-traded liquidity)
+        'SPY': 'SPY',      # Benchmark for Full History comparison
     }
     
     # Target weights for simulation

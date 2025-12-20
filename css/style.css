@@ -7540,3 +7540,104 @@ body.weekend-freeze.negative .main-content::after {
   border-color: rgba(168, 85, 247, 0.3);
   color: var(--sim-primary);
 }
+
+/* ===================================
+   REFACTORED CHART TOGGLE SYSTEM
+   Hierarchical Toggle Controls
+   =================================== */
+
+/* Overlay Toggles Section */
+.cv-overlay-toggles {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cv-section-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  min-width: 50px;
+}
+
+.cv-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Timeline Selector Section */
+.cv-timeline-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Static Toggle - Purple color to distinguish */
+#cv-static-toggle:checked + .toggle-slider {
+  background: #8b5cf6;
+}
+
+/* Static color in legend/charts */
+.legend-color.static {
+  background: #8b5cf6;
+}
+
+/* Info Bar field visibility transitions */
+.chart-info-bar .info-item[data-field] {
+  transition: opacity 0.2s ease, display 0s;
+}
+
+.chart-info-bar .info-item[data-field].hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Static value color in info bar */
+#info-static,
+#info-static-dd {
+  color: #a78bfa;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .cv-chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .cv-overlay-toggles,
+  .cv-timeline-selector {
+    justify-content: flex-start;
+  }
+  
+  .cv-section-label {
+    min-width: 55px;
+  }
+}
+
+/* Timeline mode active states - enhanced styling */
+.cv-radio input[type="radio"]:checked + .cv-radio-text {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.2) 0%, rgba(6, 182, 212, 0.15) 100%);
+  color: #14b8a6;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  font-weight: 600;
+}
+
+/* Hypothetical mode - distinct styling */
+.cv-radio input[value="hypothetical"]:checked + .cv-radio-text {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.15) 100%);
+  color: #a78bfa;
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Projection mode - distinct styling */
+.cv-radio input[value="projection"]:checked + .cv-radio-text {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(245, 158, 11, 0.15) 100%);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}

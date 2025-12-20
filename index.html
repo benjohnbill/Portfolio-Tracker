@@ -338,23 +338,23 @@
               <!-- Main NAV Chart -->
               <div class="chart-info-bar" id="main-chart-info">
                 <span class="info-date">--</span>
-                <span class="info-item"
+                <span class="info-item" data-field="aum"
                   ><span class="info-label">AUM</span
                   ><span class="info-value" id="info-aum">--</span></span
                 >
-                <span class="info-item"
-                  ><span class="info-label">60MA</span
-                  ><span class="info-value" id="info-ma">--</span></span
-                >
-                <span class="info-item"
+                <span class="info-item" data-field="spy" style="display: none;"
                   ><span class="info-label">SPY</span
                   ><span class="info-value" id="info-spy">--</span></span
                 >
-                <span class="info-item"
+                <span class="info-item" data-field="static" style="display: none;"
+                  ><span class="info-label">Static</span
+                  ><span class="info-value" id="info-static">--</span></span
+                >
+                <span class="info-item" data-field="alpha"
                   ><span class="info-label">Alpha</span
                   ><span class="info-value" id="info-alpha">--</span></span
                 >
-                <span class="info-item"
+                <span class="info-item" data-field="daily"
                   ><span class="info-label">Daily</span
                   ><span class="info-value" id="info-daily">--</span></span
                 >
@@ -369,19 +369,23 @@
                 id="underwater-chart-info"
               >
                 <span class="info-date">--</span>
-                <span class="info-item"
+                <span class="info-item" data-field="portfolio"
                   ><span class="info-label">Portfolio</span
                   ><span class="info-value" id="info-drawdown">--</span></span
                 >
-                <span class="info-item"
+                <span class="info-item" data-field="spy" style="display: none;"
                   ><span class="info-label">SPY</span
                   ><span class="info-value" id="info-spy-dd">--</span></span
                 >
-                <span class="info-item"
+                <span class="info-item" data-field="static" style="display: none;"
+                  ><span class="info-label">Static</span
+                  ><span class="info-value" id="info-static-dd">--</span></span
+                >
+                <span class="info-item" data-field="delta"
                   ><span class="info-label">Delta</span
                   ><span class="info-value" id="info-dd-delta">--</span></span
                 >
-                <span class="info-item"
+                <span class="info-item" data-field="calmar"
                   ><span class="info-label">Calmar</span
                   ><span class="info-value" id="info-calmar">--</span></span
                 >
@@ -426,41 +430,44 @@
                   </div>
                 </div>
 
-                <!-- Chart Control Toggles -->
+                <!-- Chart Control Toggles (Refactored) -->
                 <div class="cv-chart-controls">
-                  <!-- Left: Line Visibility Toggles -->
-                  <div class="cv-line-toggles">
-                    <div class="cv-toggle">
-                      <label class="toggle-switch">
-                        <input type="checkbox" id="cv-spy-toggle" checked>
-                        <span class="toggle-slider"></span>
-                      </label>
-                      <span class="toggle-label">SPY</span>
-                    </div>
-                    <div class="cv-toggle">
-                      <label class="toggle-switch">
-                        <input type="checkbox" id="cv-projection-toggle">
-                        <span class="toggle-slider"></span>
-                      </label>
-                      <span class="toggle-label">Projection</span>
+                  <!-- Left: Overlay Toggles (Independent) -->
+                  <div class="cv-overlay-toggles">
+                    <span class="cv-section-label">Overlay</span>
+                    <div class="cv-toggle-group">
+                      <div class="cv-toggle">
+                        <label class="toggle-switch">
+                          <input type="checkbox" id="cv-spy-toggle">
+                          <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">SPY</span>
+                      </div>
+                      <div class="cv-toggle">
+                        <label class="toggle-switch">
+                          <input type="checkbox" id="cv-static-toggle">
+                          <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">Static</span>
+                      </div>
                     </div>
                   </div>
                   
-                  <!-- Right: Hypothetical View Selector (Radio) -->
-                  <div class="cv-hypo-selector">
-                    <span class="cv-hypo-label">Hypothetical:</span>
+                  <!-- Right: Timeline Mode Selector (Mutually Exclusive) -->
+                  <div class="cv-timeline-selector">
+                    <span class="cv-section-label">Timeline</span>
                     <div class="cv-radio-group">
                       <label class="cv-radio">
-                        <input type="radio" name="hypo-view" value="off" checked>
-                        <span class="cv-radio-text">Off</span>
+                        <input type="radio" name="timeline-mode" value="default" checked>
+                        <span class="cv-radio-text">Default</span>
                       </label>
                       <label class="cv-radio">
-                        <input type="radio" name="hypo-view" value="full">
-                        <span class="cv-radio-text">Full</span>
+                        <input type="radio" name="timeline-mode" value="hypothetical">
+                        <span class="cv-radio-text">Full History</span>
                       </label>
                       <label class="cv-radio">
-                        <input type="radio" name="hypo-view" value="slope">
-                        <span class="cv-radio-text">Slope</span>
+                        <input type="radio" name="timeline-mode" value="projection">
+                        <span class="cv-radio-text">Projection</span>
                       </label>
                     </div>
                   </div>

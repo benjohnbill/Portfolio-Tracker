@@ -430,6 +430,10 @@ async function updateDashboard() {
   const benchmarkMDD = perfMetrics.spyMdd || 0;
   initCompoundVision(totalValue, perfMetrics.cagr, benchmarkCAGR, portfolioMDD, benchmarkMDD);
 
+  // 14.9 PRELOAD Hypothetical Data for fast mode switching
+  // Load in background so it's ready when user switches to Full History mode
+  preloadHypotheticalData();
+
   // 15. Apply Weekend Freeze Mode CSS classes
   applyWeekendFreezeMode(wtdStatus);
 }
@@ -860,6 +864,432 @@ function setupCompoundVisionListeners() {
       
       console.log("📊 Expected Result:", showResult ? 'ON' : 'OFF');
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW CHART TOGGLE SYSTEM - Using ChartState
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Load saved ChartState
+  if (typeof ChartState !== 'undefined') {
+    ChartState.load();
+    restoreChartToggleUIState();
+  }
+  
+  // Timeline Mode Radio Buttons (Default / Hypothetical / Projection)
+  document.querySelectorAll('input[name="timeline-mode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      handleTimelineModeChange(e.target.value);
+    });
+  });
+  
+  // SPY Overlay Toggle
+  const spyToggle = document.getElementById('cv-spy-toggle');
+  if (spyToggle) {
+    spyToggle.addEventListener('change', (e) => {
+      handleOverlayToggle('spy', e.target.checked);
+    });
+  }
+  
+  // Static Overlay Toggle
+  const staticToggle = document.getElementById('cv-static-toggle');
+  if (staticToggle) {
+    staticToggle.addEventListener('change', (e) => {
+      handleOverlayToggle('static', e.target.checked);
+    });
+  }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CHART TOGGLE HANDLERS
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Handle Timeline Mode Change
+ * @param {string} mode - 'default' | 'hypothetical' | 'projection'
+ */
+function handleTimelineModeChange(mode) {
+  if (typeof ChartState === 'undefined') {
+    console.warn('ChartState not available');
+    return;
+  }
+  
+  const prevMode = ChartState.timelineMode;
+  ChartState.setTimelineMode(mode);
+  
+  // Update Info Bar visibility
+  updateInfoBarFields();
+  
+  // Rebuild charts based on new mode
+  rebuildChartsForMode(mode);
+  
+  console.log(`📊 Timeline Mode Changed: ${prevMode} → ${mode}`);
+}
+
+/**
+ * Handle Overlay Toggle (SPY / Static)
+ * @param {string} overlay - 'spy' | 'static'
+ * @param {boolean} visible
+ */
+function handleOverlayToggle(overlay, visible) {
+  if (typeof ChartState === 'undefined') {
+    console.warn('ChartState not available');
+    return;
+  }
+  
+  ChartState.setOverlay(overlay, visible);
+  
+  // For Static toggle: need to refresh chart data if hypothetical cache is available
+  if (overlay === 'static' && visible) {
+    // Check if Static data needs to be loaded into chart
+    if (typeof refreshStaticDataInChart === 'function') {
+      refreshStaticDataInChart();
+    }
+  }
+  
+  // Update chart visibility
+  updateChartOverlays();
+  
+  // Update Info Bar visibility
+  updateInfoBarFields();
+  
+  // Update Execution Alpha badge if Static toggle changed
+  if (overlay === 'static') {
+    updateExecutionAlphaBadge(visible);
+  }
+  
+  console.log(`📊 Overlay ${overlay}: ${visible ? 'ON' : 'OFF'}`);
+}
+
+/**
+ * Restore UI toggle states from ChartState
+ */
+function restoreChartToggleUIState() {
+  if (typeof ChartState === 'undefined') return;
+  
+  // Timeline Mode
+  const modeRadio = document.querySelector(`input[name="timeline-mode"][value="${ChartState.timelineMode}"]`);
+  if (modeRadio) modeRadio.checked = true;
+  
+  // SPY Toggle
+  const spyToggle = document.getElementById('cv-spy-toggle');
+  if (spyToggle) spyToggle.checked = ChartState.overlays.spy;
+  
+  // Static Toggle
+  const staticToggle = document.getElementById('cv-static-toggle');
+  if (staticToggle) staticToggle.checked = ChartState.overlays.static;
+  
+  // Target Input (for Projection mode)
+  const targetInput = document.getElementById('cv-target-input');
+  if (targetInput && ChartState.projectionTarget) {
+    targetInput.value = ChartState.projectionTarget.toLocaleString();
+  }
+  
+  // Update Info Bar visibility
+  updateInfoBarFields();
+  
+  console.log('📂 Chart Toggle UI restored from saved state');
+}
+
+/**
+ * Update Info Bar field visibility based on ChartState
+ */
+function updateInfoBarFields() {
+  if (typeof ChartState === 'undefined') return;
+  
+  const overlays = ChartState.overlays;
+  
+  // Main Chart Info Bar
+  const mainInfoBar = document.getElementById('main-chart-info');
+  if (mainInfoBar) {
+    // SPY field
+    const spyField = mainInfoBar.querySelector('[data-field="spy"]');
+    if (spyField) {
+      spyField.style.display = overlays.spy ? '' : 'none';
+    }
+    
+    // Static field
+    const staticField = mainInfoBar.querySelector('[data-field="static"]');
+    if (staticField) {
+      staticField.style.display = overlays.static ? '' : 'none';
+    }
+  }
+  
+  // Underwater Chart Info Bar
+  const uwInfoBar = document.getElementById('underwater-chart-info');
+  if (uwInfoBar) {
+    // SPY DD field
+    const spyDdField = uwInfoBar.querySelector('[data-field="spy"]');
+    if (spyDdField) {
+      spyDdField.style.display = overlays.spy ? '' : 'none';
+    }
+    
+    // Static DD field
+    const staticDdField = uwInfoBar.querySelector('[data-field="static"]');
+    if (staticDdField) {
+      staticDdField.style.display = overlays.static ? '' : 'none';
+    }
+  }
+}
+
+/**
+ * Update chart dataset visibility (efficient, no rebuild)
+ */
+function updateChartOverlays() {
+  if (typeof ChartState === 'undefined') return;
+  if (typeof toggleSPYVisibility === 'function') {
+    toggleSPYVisibility(ChartState.overlays.spy);
+  }
+  
+  // Static visibility (similar logic)
+  if (typeof toggleStaticVisibility === 'function') {
+    toggleStaticVisibility(ChartState.overlays.static);
+  }
+  
+  // Update window._showSPY for backward compatibility
+  window._showSPY = ChartState.overlays.spy;
+  window._showStatic = ChartState.overlays.static;
+}
+
+/**
+ * Rebuild charts based on timeline mode
+ * OPTIMIZED: Only updates Main + Underwater charts, skips Histogram/Alpha
+ * @param {string} mode - 'default' | 'hypothetical' | 'projection'
+ */
+function rebuildChartsForMode(mode) {
+  const startTime = performance.now();
+  console.log(`📊 Switching to ${mode} mode...`);
+  
+  // Show loading state
+  const loadingEl = showChartLoadingState();
+  
+  // Use setTimeout to allow UI to update before heavy computation
+  setTimeout(() => {
+    try {
+      switch (mode) {
+        case 'hypothetical':
+          rebuildHypotheticalMode();
+          break;
+          
+        case 'projection':
+          rebuildProjectionMode();
+          break;
+          
+        default: // 'default' mode
+          rebuildDefaultMode();
+          break;
+      }
+    } finally {
+      hideChartLoadingState(loadingEl);
+      const endTime = performance.now();
+      console.log(`📊 Mode switch completed in ${(endTime - startTime).toFixed(0)}ms`);
+    }
+  }, 10); // Small delay to allow loading state to render
+}
+
+/**
+ * Rebuild Hypothetical Full mode
+ */
+function rebuildHypotheticalMode() {
+  if (window._hypotheticalCache && typeof updatePerformanceChartWithHypothetical === 'function') {
+    const hypothetical = window._hypotheticalCache;
+    const actualData = {
+      dates: window._globalAumHistory?.map(h => h.date) || [],
+      values: window._globalAumHistory?.map(h => h.totalValue) || []
+    };
+    
+    updatePerformanceChartWithHypothetical(hypothetical, actualData);
+    console.log('📊 Hypothetical Full mode activated');
+  } else {
+    console.warn('Hypothetical data not available. Loading...');
+    loadHypotheticalData();
+  }
+}
+
+/**
+ * Rebuild Projection mode
+ */
+function rebuildProjectionMode() {
+  const targetInput = document.getElementById('cv-target-input');
+  const targetValue = targetInput ? parseFloat(targetInput.value.replace(/,/g, '')) : 0;
+  const currentAUM = window._cvCurrentAUM || 0;
+  
+  if (targetValue > currentAUM) {
+    _cvProjectionEnabled = true;
+    calculateAndDisplayCompoundVision(targetValue);
+    updateChartWithProjection(_compoundVisionData);
+    console.log('📊 Projection mode activated');
+  } else {
+    console.warn('⚠️ Target must be greater than current AUM for Projection mode');
+    // Reset to default mode
+    ChartState.setTimelineMode('default');
+    const defaultRadio = document.querySelector('input[name="timeline-mode"][value="default"]');
+    if (defaultRadio) defaultRadio.checked = true;
+    rebuildDefaultMode();
+  }
+}
+
+/**
+ * Rebuild Default mode
+ * ALWAYS uses full chart rebuild to avoid state mixing from other modes
+ */
+function rebuildDefaultMode() {
+  _cvProjectionEnabled = false;
+  window._cvProjectionData = null;
+  
+  if (window._globalAumHistory && window._globalSpyNormalized && window._globalMa60Data) {
+    // ALWAYS use full rebuild when switching modes to reset chart structure
+    updatePerformanceChart(
+      window._globalAumHistory,
+      window._globalSpyNormalized,
+      window._globalMa60Data,
+      window._globalDailyReturns || [],
+      window._globalPerfMetrics || {},
+      window._globalBenchmarkReturns || []
+    );
+    console.log('📊 Default mode activated (full rebuild)');
+  }
+}
+
+/**
+ * Preload Hypothetical Data in background
+ * Called on app initialization for fast mode switching
+ */
+async function preloadHypotheticalData() {
+  // Skip if already cached
+  if (window._hypotheticalCache) {
+    console.log('📊 Hypothetical data already cached');
+    return;
+  }
+  
+  console.log('📊 Preloading hypothetical data in background...');
+  
+  try {
+    const response = await fetch('/api/hypothetical-data');
+    if (response.ok) {
+      const data = await response.json();
+      // Save raw data for SPY access in Full History mode
+      window._hypotheticalRawData = data;
+      
+      if (typeof Finance !== 'undefined' && Finance.calculateHypotheticalTrajectory) {
+        const startTime = performance.now();
+        window._hypotheticalCache = Finance.calculateHypotheticalTrajectory(data);
+        const endTime = performance.now();
+        console.log(`📊 Hypothetical data preloaded (${(endTime - startTime).toFixed(0)}ms)`);
+      }
+    }
+  } catch (err) {
+    console.warn('Hypothetical preload failed (will retry on demand):', err);
+  }
+}
+
+/**
+ * Load hypothetical data from server (on-demand fallback)
+ * Optimized with caching and loading state
+ */
+async function loadHypotheticalData() {
+  // Check cache first
+  if (window._hypotheticalCache) {
+    console.log('📊 Using cached hypothetical data');
+    if (ChartState.timelineMode === 'hypothetical') {
+      rebuildChartsForMode('hypothetical');
+    }
+    return;
+  }
+  
+  // Show loading indicator
+  const loadingIndicator = showChartLoadingState();
+  
+  try {
+    const response = await fetch('/api/hypothetical-data');
+    if (response.ok) {
+      const data = await response.json();
+      // Save raw data for SPY access in Full History mode
+      window._hypotheticalRawData = data;
+      
+      if (typeof Finance !== 'undefined' && Finance.calculateHypotheticalTrajectory) {
+        const startTime = performance.now();
+        window._hypotheticalCache = Finance.calculateHypotheticalTrajectory(data);
+        const endTime = performance.now();
+        console.log(`📊 Hypothetical data loaded (${(endTime - startTime).toFixed(0)}ms)`);
+        
+        // Retry hypothetical mode
+        if (ChartState.timelineMode === 'hypothetical') {
+          rebuildChartsForMode('hypothetical');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load hypothetical data:', err);
+  } finally {
+    hideChartLoadingState(loadingIndicator);
+  }
+}
+
+/**
+ * Show loading state on chart
+ */
+function showChartLoadingState() {
+  const chartContainer = document.querySelector('.chart-container-main');
+  if (chartContainer) {
+    chartContainer.style.opacity = '0.5';
+    chartContainer.style.pointerEvents = 'none';
+  }
+  return chartContainer;
+}
+
+/**
+ * Hide loading state on chart
+ */
+function hideChartLoadingState(container) {
+  if (container) {
+    container.style.opacity = '';
+    container.style.pointerEvents = '';
+  }
+}
+
+/**
+ * Update Execution Alpha badge visibility
+ * @param {boolean} showStatic
+ */
+function updateExecutionAlphaBadge(showStatic) {
+  const badge = document.getElementById('execution-alpha-badge');
+  if (!badge) return;
+  
+  if (showStatic && window._hypotheticalCache) {
+    badge.classList.remove('hidden');
+    
+    // Calculate execution alpha if data available
+    if (typeof Finance !== 'undefined' && Finance.calculateExecutionAlpha) {
+      const actualData = {
+        dates: window._globalAumHistory?.map(h => h.date) || [],
+        values: window._globalAumHistory?.map(h => h.totalValue) || []
+      };
+      
+      try {
+        const alphaResult = Finance.calculateExecutionAlpha(window._hypotheticalCache, actualData);
+        
+        // Check if alphaResult has valid alpha value (number)
+        if (alphaResult && typeof alphaResult.alpha === 'number' && !isNaN(alphaResult.alpha)) {
+          const alphaValue = document.getElementById('alpha-value');
+          if (alphaValue) {
+            alphaValue.textContent = alphaResult.alpha.toFixed(2);
+          }
+          badge.classList.toggle('positive', alphaResult.alpha > 0);
+          badge.classList.toggle('negative', alphaResult.alpha < 0);
+        } else {
+          console.warn('Execution Alpha calculation returned invalid result:', alphaResult);
+          badge.classList.add('hidden');
+        }
+      } catch (err) {
+        console.warn('Execution Alpha calculation failed:', err);
+        badge.classList.add('hidden');
+      }
+    }
+  } else {
+    badge.classList.add('hidden');
   }
 }
 

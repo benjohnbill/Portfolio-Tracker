@@ -31,12 +31,16 @@ def index():
 @app.route('/css/<path:filename>')
 def serve_css(filename):
     """Serve CSS files"""
-    return send_from_directory(os.path.join(BASE_DIR, 'css'), filename)
+    response = send_from_directory(os.path.join(BASE_DIR, 'css'), filename)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 @app.route('/js/<path:filename>')
 def serve_js(filename):
     """Serve JavaScript files"""
-    return send_from_directory(os.path.join(BASE_DIR, 'js'), filename)
+    response = send_from_directory(os.path.join(BASE_DIR, 'js'), filename)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 @app.route('/img/<path:filename>')
 def serve_img(filename):
@@ -200,6 +204,7 @@ def calculate_technical_indicators(series):
 DATA_CACHE = {}
 PRICE_HISTORY_FILE = os.path.join(BASE_DIR, "price_history.json")
 PRICE_HISTORY_OLD_FILE = os.path.join(BASE_DIR, "price_history_old.json")
+MACRO_CACHE_FILE = os.path.join(BASE_DIR, "macro_history.json")
 INCEPTION_DATE = datetime.datetime(2024, 3, 12)
 
 
@@ -465,6 +470,207 @@ def update_cache():
     logger.info(f"Cache built with {len(DATA_CACHE)} assets")
 
 
+# --- Macro Vitals Logic ---
+
+def load_macro_history():
+    """Load macro data from JSON file."""
+    if not os.path.exists(MACRO_CACHE_FILE):
+        return {}
+    try:
+        with open(MACRO_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading macro history: {e}")
+        return {}
+
+def save_macro_history(data):
+    """Save macro data to JSON file."""
+    try:
+        with open(MACRO_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        logger.info("Macro history saved.")
+    except Exception as e:
+        logger.error(f"Error saving macro history: {e}")
+
+def fetch_fred_series(series_id, start_date):
+    """
+    Fetch a single series from FRED via FinanceDataReader.
+    """
+    try:
+        # FinanceDataReader supports 'FRED:...' syntax
+        df = fdr.DataReader(f'FRED:{series_id}', start_date)
+        if df is None:
+            return None
+        # Usually returns a DF with the series_id as column, or similar.
+        # We safely take the first column.
+        return df.iloc[:, 0]
+    except Exception as e:
+        logger.error(f"FRED fetch error for {series_id}: {e}")
+        return None
+
+def update_macro_cache():
+    """
+    Background task to update macro market vitals (Net Liquidity, Real Yield).
+    Logic:
+      1. Load existing cache.
+      2. Check if update is needed (daily).
+      3. Fetch FRED data (Net Liquidity components + Real Yield).
+      4. Calculate metrics.
+      5. Update cache.
+    """
+    logger.info("Starting macro data update...")
+    
+    # 1. Load Cache
+    cache = load_macro_history()
+    last_updated = cache.get('last_updated', '')
+    today_str = datetime.datetime.now().strftime('%Y-%m-%d')
+    
+    # Simple check: if already updated today, skip (unless force needed, but simple is best)
+    # But FRED data comes late, so we might want to check if we have data up to T-1.
+    # For now, let's run it every startup or daily.
+    
+    # Fetch range: Last 60 days to ensure we have enough for trend calculation (T vs T-1)
+    start_date = datetime.datetime.now() - datetime.timedelta(days=60)
+    
+    # 2. Fetch Data
+    # Metric 1: Net Liquidity = WALCL (Mil) - WDTGAL (Mil) - RRPONTSYD (Bil)
+    # Metric 2: Real Yield = DFII10 (%)
+    
+    try:
+        s_walcl = fetch_fred_series('WALCL', start_date)      # Weekly (Wed), Millions
+        s_wdtgal = fetch_fred_series('WDTGAL', start_date)    # Weekly (Wed), Millions
+        s_rrp = fetch_fred_series('RRPONTSYD', start_date)    # Daily, Billions
+        s_real_yield = fetch_fred_series('DFII10', start_date) # Daily, Percent
+        
+        if s_walcl is None or s_wdtgal is None or s_rrp is None or s_real_yield is None:
+            logger.warning("One or more FRED series failed to fetch. Skipping macro update.")
+            return
+
+        # 3. Process & Merge
+        # Create a common date index from start_date to today
+        # We use the union of all indices to be safe
+        all_dates = sorted(list(set(s_walcl.index) | set(s_wdtgal.index) | set(s_rrp.index) | set(s_real_yield.index)))
+        df = pd.DataFrame(index=all_dates)
+        
+        df['WALCL'] = s_walcl
+        df['WDTGAL'] = s_wdtgal
+        df['RRP'] = s_rrp
+        df['REAL_YIELD'] = s_real_yield
+        
+        # Forward fill to propagate weekly values to daily
+        df = df.ffill()
+        
+        # Drop rows where we have NO data at all (start of period lag)
+        # But allow if we have at least Net Liq components
+        df.dropna(subset=['WALCL', 'WDTGAL', 'RRP'], inplace=True)
+        
+        if df.empty:
+            logger.warning("Macro data empty after processing.")
+            return
+
+        # 4. Calculate Net Liquidity (Trillions)
+        df['Net_Liquidity'] = (df['WALCL'] / 1_000_000) - (df['WDTGAL'] / 1_000_000) - (df['RRP'] / 1_000)
+        
+        # 5. Dynamic Threshold Calibration (5-Year Window)
+        # We use the entire 5Y loaded history for percentiles
+        
+        # --- Net Liquidity Thresholds ---
+        # Logic: Red < 10th%ile (max $5.0T), Green > 80th%ile
+        liq_series = df['Net_Liquidity'].dropna()
+        if liq_series.empty: return
+
+        liq_p10 = np.percentile(liq_series, 10)
+        liq_p80 = np.percentile(liq_series, 80)
+        
+        # Hard Floor Application
+        # Danger Threshold (Red Start): Max(10th, 5.0). If 10th is 4.8, we use 5.0. If 10th is 5.2, we use 5.2.
+        liq_red_threshold = max(liq_p10, 5.0)
+        liq_green_threshold = liq_p80
+        
+        # --- Real Yield Thresholds ---
+        # Logic: Red > 90th%ile (max means lower bound of red zone is high), Green < 20th%ile
+        # Floor: Red zone must start at least at 1.5%
+        ry_series = df['REAL_YIELD'].dropna()
+        if ry_series.empty: return
+
+        ry_p90 = np.percentile(ry_series, 90)
+        ry_p20 = np.percentile(ry_series, 20)
+        
+        # Hard Floor: Red Threshold must be >= 1.5.
+        ry_red_threshold = max(ry_p90, 1.5) 
+        ry_green_threshold = ry_p20
+
+        # 6. Extract Latest Values, Trends, and States
+        latest_valid_idx = df['Net_Liquidity'].last_valid_index()
+        latest = df.loc[latest_valid_idx]
+        
+        # --- Net Liquidity State & Trend ---
+        nl_val = latest['Net_Liquidity']
+        
+        # Trend: MA20 Cross
+        # Calculate MA20 for Net Liquidity
+        liq_ma20 = df['Net_Liquidity'].rolling(window=20).mean().iloc[-1]
+        nl_change = "up" if nl_val > liq_ma20 else "down"
+        
+        # State: Red/Yellow/Green
+        if nl_val < liq_red_threshold:
+            nl_state = "danger"  # Red
+        elif nl_val > liq_green_threshold:
+            nl_state = "safe"    # Green
+        else:
+            nl_state = "neutral" # Yellow
+
+        # --- Real Yield State & Trend ---
+        latest_ry_idx = df['REAL_YIELD'].last_valid_index()
+        latest_ry = df.loc[latest_ry_idx]
+        ry_val = latest_ry['REAL_YIELD']
+        
+        # Trend: MA20 Cross
+        ry_ma20 = df['REAL_YIELD'].rolling(window=20).mean().iloc[-1]
+        ry_change = "up" if ry_val > ry_ma20 else "down" # Rate UP = Technically Bullish momentum for Yield (but Bearish for Assets)
+        
+        # State: Red/Yellow/Green
+        if ry_val > ry_red_threshold:
+            ry_state = "danger" # Red (High Yield)
+        elif ry_val < ry_green_threshold:
+            ry_state = "safe"   # Green (Low Yield)
+        else:
+            ry_state = "neutral" # Yellow
+
+        result_data = {
+            "last_updated": today_str,
+            "net_liquidity": {
+                "value": round(nl_val, 3), # Trillions
+                "unit": "T",
+                "trend": nl_change, # 'up' means > MA20
+                "state": nl_state,  # 'danger', 'neutral', 'safe'
+                "thresholds": {
+                    "red": round(liq_red_threshold, 2),
+                    "green": round(liq_green_threshold, 2)
+                },
+                "date": latest.name.strftime('%Y-%m-%d')
+            },
+            "real_yield": {
+                "value": round(ry_val, 2), # Percent
+                "unit": "%",
+                "trend": ry_change, # 'up' means > MA20
+                "state": ry_state,  # 'danger', 'neutral', 'safe'
+                "thresholds": {
+                    "red": round(ry_red_threshold, 2),
+                    "green": round(ry_green_threshold, 2)
+                },
+                "date": latest_ry_idx.strftime('%Y-%m-%d')
+            }
+        }
+        
+        save_macro_history(result_data)
+        logger.info(f"Macro 5Y Updated: Liq={nl_val:.2f}T({nl_state}), Yield={ry_val:.2f}%({ry_state})")
+        
+    except Exception as e:
+        logger.error(f"Macro update logic failed: {e}")
+
+
+
 def migrate_old_backup():
     """
     Migrate old price_backup.json to new price_history.json format if exists.
@@ -547,7 +753,7 @@ def get_stress_test_data():
                 'QQQ': 'QQQ',
                 'TLT': 'TLT',
                 'GLDM': 'GLD',  # GLDM proxy to GLD (older, more data)
-                'CSI300': '000300.SS',  # CSI 300 Index
+                'CSI300': 'ASHR',  # ASHR as proxy for CSI300 (US-traded)
                 'MSTR': 'BTC-USD',  # Bitcoin spot as MSTR proxy
                 'DBMF': 'DBMF',  # DBMF direct
                 'SPY': 'SPY'  # Benchmark
@@ -768,6 +974,18 @@ def get_exchange_rate():
         "timestamp": ""
     })
 
+@app.route('/api/macro-vitals', methods=['GET'])
+def get_macro_vitals():
+    """
+    Returns Net Liquidity and Real Yield data from cache.
+    """
+    data = load_macro_history()
+    # Return empty/default if no data yet (Client handles 'Loading...')
+    if not data:
+        return jsonify({"status": "loading"})
+    return jsonify(data)
+
+
 # --- Initialization ---
 # Load ASSET_MAP first, then start background fetch
 ASSET_MAP = load_asset_map()
@@ -791,6 +1009,7 @@ else:
 
 # Start background data fetch after ASSET_MAP is loaded (for incremental updates)
 threading.Thread(target=update_cache, daemon=True).start()
+threading.Thread(target=update_macro_cache, daemon=True).start()
 
 if __name__ == '__main__':
     logger.info("Starting Portfolio Server on port 8080...")

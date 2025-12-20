@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>진근 Index Fund | OS</title>
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;500;700&family=Roboto+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="css/style.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   </head>
 
@@ -39,7 +41,7 @@
         <ul class="nav-menu">
           <li
             class="nav-item active"
-            data-target="overview-section"
+            data-target="overview"
             title="Overview"
           >
             <i data-lucide="layout-dashboard"></i>
@@ -47,7 +49,7 @@
           </li>
           <li
             class="nav-item"
-            data-target="performance-section"
+            data-target="track-record"
             title="Track Record"
           >
             <i data-lucide="trending-up"></i>
@@ -55,15 +57,11 @@
           </li>
           <li
             class="nav-item"
-            data-target="attribution-section"
+            data-target="attribution"
             title="Attribution"
           >
             <i data-lucide="pie-chart"></i>
             <span class="label">ATTRIBUTION</span>
-          </li>
-          <li class="nav-item" data-target="trade-section" title="Trade Deck">
-            <i data-lucide="arrow-left-right"></i>
-            <span class="label">TRADE DECK</span>
           </li>
           <li class="nav-item no-highlight" id="nav-settings" title="Settings">
             <i data-lucide="settings"></i>
@@ -105,612 +103,326 @@
           </button>
         </div>
 
-        <!-- Header -->
-        <header class="top-bar">
-          <div id="friday-indicator" class="friday-indicator not-friday">
-            <i data-lucide="calendar-x"></i>
-            <span>Not Friday</span>
+      <!-- Main Content Container (Scrollable) -->
+      <main class="main-content scrollable-sections">
+        <!-- Simulation Mode Banner (hidden by default) -->
+        <div id="sim-mode-banner" class="sim-mode-banner hidden">
+          <div class="sim-banner-content">
+            <i data-lucide="flask-conical"></i>
+            <span class="sim-title">🧪 SANDBOX MODE</span>
+            <span class="sim-desc">Changes won't affect real data</span>
           </div>
-          <!-- Rebalancing Countdown Timer -->
-          <div id="rebalancing-timer" class="rebalancing-timer">
-            <i data-lucide="lock" class="timer-icon"></i>
-            <span id="timer-display" class="timer-display"
-              >NEXT OP: --D --H --M</span
-            >
-          </div>
-        </header>
+          <button id="exit-sim-mode" class="sim-exit-btn">
+            <i data-lucide="x"></i>
+            <span>EXIT</span>
+          </button>
+        </div>
 
-        <!-- SECTION 1: OVERVIEW -->
-        <section id="overview-section" class="dashboard-section">
-          <!-- ═══════════════════════════════════════════════════════════
-               SECTION 1: IDENTITY (Long-term, Static & Heavy)
-               ═══════════════════════════════════════════════════════════ -->
-          <div class="identity-grid">
-            <div class="stat-card glass identity-card">
-              <div class="stat-label">TOTAL AUM</div>
-              <div class="stat-value-row">
-                <span id="total-value" class="stat-value">₩0</span>
-                <span id="aum-wow-delta" class="wow-delta"></span>
-              </div>
+        <!-- Ticker Tape (Global Header for all sections) -->
+        <div class="ticker-tape sticky-top">
+            <!-- Global Status / ROTI -->
+            <div class="ticker-item" style="border-right: 1px solid var(--border-color); padding-right: 16px; margin-right: 16px;">
+                 <div id="friday-indicator" class="friday-indicator not-friday" style="background:transparent; border:none; padding:0;">
+                    <i data-lucide="calendar-x"></i>
+                    <span>Not Friday</span>
+                 </div>
             </div>
-            <div class="stat-card glass identity-card">
-              <div class="stat-label">CAGR (Est.)</div>
-              <div class="stat-value-row">
-                <span id="risk-cagr" class="stat-value">--%</span>
-                <span id="cagr-wow-delta" class="wow-delta"></span>
-              </div>
+            <!-- Identity Metrics -->
+            <div class="ticker-item">
+                <span class="ticker-label">AUM</span>
+                <span class="ticker-value" id="total-value">₩0</span>
+                <span class="ticker-delta" id="aum-wow-delta"></span>
             </div>
-            <div class="stat-card glass identity-card">
-              <div class="stat-label">RISK (StdDev)</div>
-              <div class="stat-value-row">
-                <span id="risk-std" class="stat-value">--%</span>
-                <span id="risk-wow-delta" class="wow-delta"></span>
-              </div>
+            <div class="ticker-item">
+                <span class="ticker-label">CAGR</span>
+                <span class="ticker-value" id="risk-cagr">--%</span>
+                <span class="ticker-delta" id="cagr-wow-delta"></span>
             </div>
-            <div class="stat-card glass identity-card">
-              <div class="stat-label">CALMAR RATIO</div>
-              <div class="stat-value-row">
-                <span id="identity-calmar" class="stat-value">--</span>
-                <span id="calmar-wow-delta" class="wow-delta"></span>
-              </div>
+             <div class="ticker-item">
+                <span class="ticker-label">RISK</span>
+                <span class="ticker-value" id="risk-std">--%</span>
+                <span class="ticker-delta" id="risk-wow-delta"></span>
+            </div>
+             <div class="ticker-item">
+                <span class="ticker-label">CALMAR</span>
+                <span class="ticker-value" id="identity-calmar">--</span>
+                <span class="ticker-delta" id="calmar-wow-delta"></span>
             </div>
 
-            <!-- ROTI Badge (Return On Time Invested) -->
-            <div id="roti-badge-container" class="roti-badge-container">
-              <!-- JS Populated: Hourly Alpha Badge -->
-              <div class="roti-badge roti-loading">
-                <span class="roti-icon">💰</span>
-                <span class="roti-label">Loading...</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- ═══════════════════════════════════════════════════════════
-               SECTION 2: WEEKLY PULSE (Short-term, Dynamic & Active)
-               ═══════════════════════════════════════════════════════════ -->
-          <div class="weekly-pulse-section">
-            <div class="section-label pulse-label">
-              <i data-lucide="activity"></i> WEEKLY PULSE
-            </div>
-            <div class="weekly-pulse-grid">
-              <!-- WTD Return -->
-              <div class="pulse-card glass">
-                <div class="pulse-label">WTD RETURN</div>
-                <div id="weekly-pnl" class="pulse-value">--%</div>
-              </div>
-              <!-- Expectancy (NEW) -->
-              <div class="pulse-card glass expandable" data-expanded="false">
-                <div class="pulse-main">
-                  <div class="pulse-label">EXPECTANCY</div>
-                  <div id="vital-expectancy" class="pulse-value">--%</div>
-                </div>
-                <div class="pulse-expand-indicator">
-                  <i data-lucide="chevron-down" class="expand-icon"></i>
-                </div>
-                <!-- Expandable Content -->
-                <div class="pulse-details">
-                  <div class="detail-formula">
-                    (WinRate × AvgWin) - ((1-WinRate) × AvgLoss)
-                  </div>
-                  <div class="detail-thresholds">
-                    <span class="threshold-tag green">🟢 > 0.2%</span>
-                    <span class="threshold-tag yellow">🟡 0~0.2%</span>
-                    <span class="threshold-tag red">🔴 < 0</span>
-                  </div>
-                </div>
-              </div>
-              <!-- Gain/Loss Ratio -->
-              <div class="pulse-card glass expandable" data-expanded="false">
-                <div class="pulse-main">
-                  <div class="pulse-label">GAIN/LOSS</div>
-                  <div id="vital-gainloss" class="pulse-value">--</div>
-                  <div id="vital-gainloss-badge" class="vital-badge"></div>
-                </div>
-                <div class="pulse-expand-indicator">
-                  <i data-lucide="chevron-down" class="expand-icon"></i>
-                </div>
-                <!-- Expandable Content -->
-                <div class="pulse-details">
-                  <div class="detail-formula">
-                    Avg Win % / Avg Loss % (Weekly)
-                  </div>
-                  <div class="detail-thresholds">
-                    <span class="threshold-tag green">🟢 > 1.2</span>
-                    <span class="threshold-tag yellow">🟡 0.8~1.2</span>
-                    <span class="threshold-tag red">🔴 < 0.8</span>
-                  </div>
-                </div>
-              </div>
-              <!-- Win Rate -->
-              <div class="pulse-card glass expandable" data-expanded="false">
-                <div class="pulse-main">
-                  <div class="pulse-label">WIN RATE</div>
-                  <div id="vital-winrate" class="pulse-value">--%</div>
-                  <div id="vital-winrate-badge" class="vital-badge"></div>
-                </div>
-                <div class="pulse-expand-indicator">
-                  <i data-lucide="chevron-down" class="expand-icon"></i>
-                </div>
-                <!-- Expandable Content -->
-                <div class="pulse-details">
-                  <div class="detail-formula">Winning Weeks / Total Weeks</div>
-                  <div class="detail-thresholds">
-                    <span class="threshold-tag green">🟢 > 55%</span>
-                    <span class="threshold-tag yellow">🟡 45~55%</span>
-                    <span class="threshold-tag red">🔴 < 45%</span>
-                  </div>
-                </div>
-              </div>
+            <!-- Sleep Score (moved from Overview) -->
+            <div class="ticker-item ticker-sleep-score" id="ticker-sleep-score">
+                <span class="ticker-sleep-icon">💤</span>
+                <span class="ticker-sleep-value" id="ticker-sleep-value">--</span>
             </div>
 
-            <!-- ═══════════════════════════════════════════════════════════
-                 SECTION 3: SIGMA GAUGE (Visual Anchor / Summary Bar)
-                 ═══════════════════════════════════════════════════════════ -->
-            <div class="sigma-gauge-wrapper">
-              <div class="sigma-gauge" id="sigma-gauge">
-                <!-- Background track -->
-                <div class="sigma-track">
-                  <!-- Sigma tick marks -->
-                  <div class="sigma-tick tick-neg2" data-label="-2σ"></div>
-                  <div class="sigma-tick tick-neg1" data-label="-1σ"></div>
-                  <div class="sigma-tick tick-center" data-label="0%"></div>
-                  <div class="sigma-tick tick-pos1" data-label="+1σ"></div>
-                  <div class="sigma-tick tick-pos2" data-label="+2σ"></div>
-
-                  <!-- Ghost marker (Expectancy) -->
-                  <div
-                    class="ghost-marker"
-                    id="ghost-marker"
-                    title="Expectancy"
-                  ></div>
-
-                  <!-- Fill bar (starts from center) -->
-                  <div class="gauge-fill" id="gauge-fill"></div>
-                </div>
-
-                <!-- Tooltip (shown on hover) -->
-                <div class="sigma-tooltip" id="sigma-tooltip">
-                  <div class="sigma-tooltip-header">WEEKLY MOMENTUM</div>
-                  <div class="sigma-tooltip-row primary">
-                    <span class="tooltip-label">Current:</span>
-                    <span id="tooltip-wtd" class="tooltip-value">--%</span>
-                  </div>
-                  <div class="sigma-tooltip-row">
-                    <span class="tooltip-label">Expectancy:</span>
-                    <span id="tooltip-avg" class="tooltip-value">--%</span>
-                  </div>
-                  <div class="sigma-tooltip-row muted">
-                    <span class="tooltip-label">Vol (2σ):</span>
-                    <span id="tooltip-sigma" class="tooltip-value">±--%</span>
-                  </div>
-                </div>
-              </div>
+             <!-- Rebalancing Timer (Float Right) -->
+            <div id="rebalancing-timer" class="rebalancing-timer" style="margin-left:auto;">
+                <i data-lucide="lock" class="timer-icon"></i>
+                <span id="timer-display" class="timer-display">NEXT OP: --D --H --M</span>
             </div>
-          </div>
+        </div>
 
-          <!-- Allocation Grid -->
-          <div class="allocation-grid">
-            <!-- Doughnut Chart -->
-            <div class="chart-card glass">
-              <h3 class="card-title">ASSET ALLOCATION</h3>
-              <div class="chart-wrapper">
-                <canvas id="allocationChart"></canvas>
-              </div>
-            </div>
-
-            <!-- Resource Allocation (Bars) -->
-            <div class="resource-card glass">
-              <div class="resource-card-header">
-                <h3 class="card-title">RESOURCE ALLOCATION</h3>
-                <div class="view-toggle" id="allocation-view-toggle">
-                  <button class="toggle-btn active" data-view="1w">1W</button>
-                  <button class="toggle-btn" data-view="ytd">YTD</button>
-                  <button class="toggle-btn" data-view="total">Total</button>
+        <!-- 
+           SECTION 1: OVERVIEW 
+           Includes: Macro Vitals, Weekly Pulse, Allocation
+        -->
+        <section id="overview" class="dashboard-section terminal-section">
+            <!-- ROW 1: Composition (40%) | Allocation (60%) -->
+            <div class="terminal-row-split split-40-60">
+                <!-- LEFT: Composition (Donut Chart) -->
+                <div class="terminal-cell">
+                    <div class="section-label">COMPOSITION</div>
+                    <div class="chart-wrapper" style="flex:1; min-height:0;">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
                 </div>
-              </div>
-              <div class="allocation-table-wrapper">
-                <table class="allocation-table compact">
-                  <thead>
-                    <tr>
-                      <th>ASSET</th>
-                      <th class="text-center">TARGET</th>
-                      <th class="text-right">VALUE</th>
-                      <th class="text-right" id="alloc-col4-header">WTD Δ</th>
-                      <th class="text-center" id="alloc-col5-header">CONTRIB.</th>
-                    </tr>
-                  </thead>
-                  <tbody id="allocation-body">
-                    <!-- JS Populated -->
-                  </tbody>
-                </table>
-              </div>
+                <!-- RIGHT: Allocation Table -->
+                <div class="terminal-cell">
+                    <div class="header-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div class="section-label" style="margin-bottom:0;">ALLOCATION</div>
+                        <div class="view-toggle" id="allocation-view-toggle">
+                             <button class="toggle-btn active" data-view="1w">1W</button>
+                             <button class="toggle-btn" data-view="ytd">YTD</button>
+                             <button class="toggle-btn" data-view="total">Total</button>
+                        </div>
+                    </div>
+                    <div class="allocation-table-wrapper" style="flex:1; overflow-y:auto; overflow-x:hidden;">
+                        <table class="allocation-table compact">
+                            <thead>
+                              <tr>
+                                <th>ASSET</th>
+                                <th class="text-center">TARGET</th>
+                                <th class="text-right">VAL</th>
+                                <th class="text-right" id="alloc-col4-header">WTD Δ</th>
+                                <th class="text-center" id="alloc-col5-header">CONTRIB.</th>
+                              </tr>
+                            </thead>
+                            <tbody id="allocation-body">
+                              <!-- JS Populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-          </div>
+            
+            <!-- ROW 2: Weekly Pulse | Market Conditions (40:60) -->
+            <div class="terminal-row-split split-40-60">
+                <!-- LEFT: Weekly Pulse (Merged with Macro Vitals) -->
+                <div class="terminal-cell">
+                    <div class="section-label">WEEKLY PULSE</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border-color); margin-top:8px; flex:1;">
+                        <!-- Row 1 -->
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">WTD RETURN</span>
+                            <span class="pulse-value" id="weekly-pnl">--%</span>
+                        </div>
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">WIN RATE</span>
+                            <span class="pulse-value" id="vital-winrate">--%</span>
+                        </div>
+                        <!-- Row 2 -->
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">EXPECTANCY</span>
+                            <span class="pulse-value" id="vital-expectancy">--%</span>
+                        </div>
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">GAIN/LOSS</span>
+                            <span class="pulse-value" id="vital-gainloss">--</span>
+                        </div>
+                        <!-- Row 3: Macro Vitals (with trend arrows) -->
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">Net Liquidity</span>
+                            <span style="display:flex; align-items:center; gap:4px;"><span class="pulse-value" id="macro-liquidity">--</span><span id="macro-liquidity-trend" style="font-size:10px;"></span></span>
+                        </div>
+                        <div style="background:var(--card-bg); padding:10px; display:flex; justify-content:space-between;">
+                            <span class="pulse-label">10Y Real Yield</span>
+                            <span style="display:flex; align-items:center; gap:4px;"><span class="pulse-value" id="macro-yield">--%</span><span id="macro-yield-trend" style="font-size:10px;"></span></span>
+                        </div>
+                    </div>
+                    <!-- Sigma Zone Gauge (JS populated) -->
+                    <div id="sigma-zone" class="sigma-zone-container" style="display:none;"></div>
+                </div>
+                <!-- RIGHT: Market Conditions -->
+                <div class="terminal-cell">
+                    <div class="section-label">MARKET CONDITIONS</div>
+                    <div id="condition-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:4px; overflow-y:auto; flex:1; margin-top:8px;">
+                        <!-- JS Populated -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ROW 3: ACTION REQUIRED | Stress Test (40:60) -->
+            <div class="terminal-row-split split-40-60">
+                <!-- LEFT: ACTION REQUIRED (replaces System Logs) -->
+                <div class="terminal-cell">
+                    <div class="action-required-container">
+                        <div class="action-required-header">
+                            <div class="action-required-title">
+                                <i data-lucide="zap"></i>
+                                <span>ACTION REQUIRED</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="action-required-status pending" id="action-status">0 PENDING</span>
+                                <button class="action-reset-btn" id="action-reset-btn" title="Reset all items">
+                                    <i data-lucide="rotate-ccw"></i>
+                                    <span>RESET</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="action-required-list" id="action-required-list">
+                            <!-- JS Populated -->
+                        </div>
+                    </div>
+                </div>
+                <!-- RIGHT: Stress Test (now full height) -->
+                <div class="terminal-cell">
+                    <div class="section-label">STRESS TEST</div>
+                    <div id="stress-test-container" style="flex:1; margin-top:4px; overflow-y:auto;">
+                        <!-- JS Populated -->
+                    </div>
+                </div>
+            </div>
         </section>
 
-        <!-- SECTION 2: TRACK RECORD (Main Charts) -->
-        <section id="performance-section" class="dashboard-section">
-          <div class="perf-card glass">
-            <!-- TRAJECTORY & RESILIENCE (Main Charts) -->
-            <div class="perf-section">
-              <div class="section-label">TRAJECTORY & RESILIENCE</div>
-
-              <!-- Main NAV Chart -->
-              <div class="chart-info-bar" id="main-chart-info">
-                <span class="info-date">--</span>
-                <span class="info-item" data-field="aum"
-                  ><span class="info-label">AUM</span
-                  ><span class="info-value" id="info-aum">--</span></span
-                >
-                <span class="info-item" data-field="spy" style="display: none;"
-                  ><span class="info-label">SPY</span
-                  ><span class="info-value" id="info-spy">--</span></span
-                >
-                <span class="info-item" data-field="static" style="display: none;"
-                  ><span class="info-label">Static</span
-                  ><span class="info-value" id="info-static">--</span></span
-                >
-                <span class="info-item" data-field="alpha"
-                  ><span class="info-label">Alpha</span
-                  ><span class="info-value" id="info-alpha">--</span></span
-                >
-                <span class="info-item" data-field="daily"
-                  ><span class="info-label">Daily</span
-                  ><span class="info-value" id="info-daily">--</span></span
-                >
-              </div>
-              <div class="chart-container-main">
-                <canvas id="perfChart"></canvas>
-              </div>
-
-              <!-- Underwater Plot (Drawdown) -->
-              <div
-                class="chart-info-bar chart-info-bar--small"
-                id="underwater-chart-info"
-              >
-                <span class="info-date">--</span>
-                <span class="info-item" data-field="portfolio"
-                  ><span class="info-label">Portfolio</span
-                  ><span class="info-value" id="info-drawdown">--</span></span
-                >
-                <span class="info-item" data-field="spy" style="display: none;"
-                  ><span class="info-label">SPY</span
-                  ><span class="info-value" id="info-spy-dd">--</span></span
-                >
-                <span class="info-item" data-field="static" style="display: none;"
-                  ><span class="info-label">Static</span
-                  ><span class="info-value" id="info-static-dd">--</span></span
-                >
-                <span class="info-item" data-field="delta"
-                  ><span class="info-label">Delta</span
-                  ><span class="info-value" id="info-dd-delta">--</span></span
-                >
-                <span class="info-item" data-field="calmar"
-                  ><span class="info-label">Calmar</span
-                  ><span class="info-value" id="info-calmar">--</span></span
-                >
-              </div>
-              <div class="chart-container-underwater">
-                <canvas id="underwaterChart"></canvas>
-              </div>
-
-              <!-- Chart Legend -->
-              <div class="chart-legend">
-                <div class="legend-item">
-                  <span class="legend-color" style="background: #06d6a0"></span>
-                  <span>Portfolio</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background: #ffd166"></span>
-                  <span>60-Day MA</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-color" style="background: #ef476f"></span>
-                  <span>SPY Benchmark</span>
-                </div>
-              </div>
-
-              <!-- Compound Vision Simulator -->
-              <div class="compound-vision-container" id="compound-vision">
-                <div class="cv-header">
-                  <h4 class="cv-title">
-                    <i data-lucide="target" style="width:14px;height:14px;"></i>
-                    Compound Vision
-                  </h4>
+        <!-- 
+           SECTION 2: TRACK RECORD 
+           Structure: Main Chart (Grid row 1) + Scorecard (Grid row auto)
+        -->
+        <section id="track-record" class="dashboard-section terminal-section">
+            <!-- ROW 1: Main Performance Chart -->
+            <div class="terminal-row-full">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
+                    <div class="section-label" style="margin-bottom:0;">PERFORMANCE TRAJECTORY</div>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <!-- Projection Target Input (visible when PROJ selected) -->
+                        <div id="projection-input-container" class="projection-input-container" style="display:none;">
+                            <label style="font-size:11px; color:var(--text-muted); margin-right:6px;">Goal:</label>
+                            <input type="text" id="projection-target-input" placeholder="₩100M" 
+                                   style="width:80px; padding:3px 6px; font-size:11px; background:var(--bg-color); border:1px solid var(--border-color); border-radius:4px; color:var(--text-color);">
+                        </div>
+                        <!-- Timeline Selector -->
+                        <div class="cv-timeline-selector" style="display:flex; gap:6px;">
+                            <label class="cv-radio"><input type="radio" name="timeline-mode" value="default" checked> <span class="cv-radio-text">ITD</span></label>
+                            <label class="cv-radio"><input type="radio" name="timeline-mode" value="hypothetical"> <span class="cv-radio-text">ALL</span></label>
+                            <label class="cv-radio"><input type="radio" name="timeline-mode" value="projection"> <span class="cv-radio-text">PROJ</span></label>
+                            
+                            <!-- Adaptive Trend Line Toggle -->
+                            <div style="width:1px; height:16px; background:rgba(255,255,255,0.1); margin:0 4px;"></div>
+                            <label class="cv-checkbox" style="display:flex; align-items:center; cursor:pointer;" title="Show Adaptive Trend Line (60MA/200MA)">
+                                <input type="checkbox" id="toggle-trend-line" style="accent-color:var(--primary-color);"> 
+                                <span class="cv-radio-text" style="margin-left:4px; font-size:0.65rem;">Trend</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="cv-controls">
-                  <div class="cv-input-group">
-                    <label for="cv-target-input">Set Financial Goal 🎯</label>
-                    <div class="cv-input-wrapper">
-                      <span class="cv-currency">₩</span>
-                      <input type="text" id="cv-target-input" placeholder="100,000,000" inputmode="numeric">
-                    </div>
-                    <span class="cv-suggested" id="cv-suggested-target">Suggested: ₩--</span>
-                  </div>
-                </div>
-
-                <!-- Chart Control Toggles (Refactored) -->
-                <div class="cv-chart-controls">
-                  <!-- Left: Overlay Toggles (Independent) -->
-                  <div class="cv-overlay-toggles">
-                    <span class="cv-section-label">Overlay</span>
-                    <div class="cv-toggle-group">
-                      <div class="cv-toggle">
-                        <label class="toggle-switch">
-                          <input type="checkbox" id="cv-spy-toggle">
-                          <span class="toggle-slider"></span>
-                        </label>
-                        <span class="toggle-label">SPY</span>
-                      </div>
-                      <div class="cv-toggle">
-                        <label class="toggle-switch">
-                          <input type="checkbox" id="cv-static-toggle">
-                          <span class="toggle-slider"></span>
-                        </label>
-                        <span class="toggle-label">Static</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Right: Timeline Mode Selector (Mutually Exclusive) -->
-                  <div class="cv-timeline-selector">
-                    <span class="cv-section-label">Timeline</span>
-                    <div class="cv-radio-group">
-                      <label class="cv-radio">
-                        <input type="radio" name="timeline-mode" value="default" checked>
-                        <span class="cv-radio-text">Default</span>
-                      </label>
-                      <label class="cv-radio">
-                        <input type="radio" name="timeline-mode" value="hypothetical">
-                        <span class="cv-radio-text">Full History</span>
-                      </label>
-                      <label class="cv-radio">
-                        <input type="radio" name="timeline-mode" value="projection">
-                        <span class="cv-radio-text">Projection</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Execution Alpha Badge (shown when hypothetical is on) -->
-                <div class="execution-alpha-badge hidden" id="execution-alpha-badge" title="CAGR difference: Your execution vs static model">
-                  ⚡ Execution Alpha: <span id="alpha-value">--</span>%p
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- SECTION 2.5: ATTRIBUTION (Sub Charts + Efficiency Profile) -->
-        <section id="attribution-section" class="dashboard-section">
-          <div class="perf-card glass">
-            <!-- RETURN FORENSICS (Sub Charts) -->
-            <div class="perf-section">
-              <div class="section-label">RETURN FORENSICS</div>
-              <div class="sub-charts-container">
-                <div class="sub-chart-wrapper">
-                  <h4 class="sub-chart-title">EXCESS RETURN DISTRIBUTION</h4>
-                  <div
-                    class="chart-info-bar chart-info-bar--small"
-                    id="histogram-chart-info"
-                  >
+                <div class="chart-info-bar" id="info-header-default" style="margin-bottom:4px;">
                     <span class="info-date">--</span>
-                    <span class="info-item"
-                      ><span class="info-label">Return</span
-                      ><span class="info-value" id="info-histogram"
-                        >--</span
-                      ></span
-                    >
-                  </div>
-                  <div class="chart-container-sub">
-                    <canvas id="histogramChart"></canvas>
-                  </div>
+                    <span class="info-item" data-field="aum"><span class="info-label">AUM</span><span class="info-value" id="info-default-aum">--</span></span>
+                    <span class="info-item" data-field="daily"><span class="info-label">Daily</span><span class="info-value" id="info-default-daily">--</span></span>
+                    <span class="info-item" data-field="alpha"><span class="info-label">Alpha</span><span class="info-value" id="info-default-alpha">--</span></span>
                 </div>
-                <div class="sub-chart-wrapper">
-                  <h4 class="sub-chart-title">CUMULATIVE ALPHA</h4>
-                  <div
-                    class="chart-info-bar chart-info-bar--small"
-                    id="alpha-chart-info"
-                  >
-                    <span class="info-date">--</span>
-                    <span class="info-item"
-                      ><span class="info-label">Alpha</span
-                      ><span class="info-value" id="info-cum-alpha"
-                        >--</span
-                      ></span
-                    >
-                  </div>
-                  <div class="chart-container-sub">
-                    <canvas id="alphaCurveChart"></canvas>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <!-- PERFORMANCE SCORECARD (2x3 Metric Grid) -->
-            <div class="perf-section">
-              <div class="section-label"><i data-lucide="target" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>PERFORMANCE SCORECARD</div>
-              <div class="scorecard-container" id="performance-scorecard">
-                <!-- 2x3 Metric Grid -->
-                <div class="scorecard-grid">
-                  <!-- Row 1: CAGR | MDD -->
-                  <div class="scorecard-cell">
-                    <span class="cell-label">CAGR</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-cagr">--%</span>
-                      <span class="cell-delta" id="sc-delta-cagr">--</span>
-                    </div>
-                  </div>
-                  <div class="scorecard-cell">
-                    <span class="cell-label">MDD</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-mdd">--%</span>
-                      <span class="cell-delta" id="sc-delta-mdd">--</span>
-                    </div>
-                  </div>
-                  
-                  <!-- Row 2: SHARPE | STDDEV -->
-                  <div class="scorecard-cell">
-                    <span class="cell-label">SHARPE</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-sharpe">--</span>
-                      <span class="cell-delta" id="sc-delta-sharpe">--</span>
-                    </div>
-                  </div>
-                  <div class="scorecard-cell">
-                    <span class="cell-label">STDDEV</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-std">--%</span>
-                      <span class="cell-delta" id="sc-delta-std">--</span>
-                    </div>
-                  </div>
-                  
-                  <!-- Row 3: SORTINO | CALMAR -->
-                  <div class="scorecard-cell">
-                    <span class="cell-label">SORTINO</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-sortino">--</span>
-                      <span class="cell-delta" id="sc-delta-sortino">--</span>
-                    </div>
-                  </div>
-                  <div class="scorecard-cell">
-                    <span class="cell-label">CALMAR</span>
-                    <div class="cell-value-row">
-                      <span class="cell-value" id="sc-calmar">--</span>
-                      <span class="cell-delta" id="sc-delta-calmar">--</span>
-                    </div>
-                  </div>
+                <!-- Info Header for HISTORY (Timeline) Mode -->
+                <div class="chart-info-bar hidden" id="info-header-history" style="margin-bottom:4px;">
+                    <span class="info-item"><span class="info-label" id="info-history-label">Simulated</span></span>
+                    <span class="info-item"><span class="info-label">AUM</span><span class="info-value" id="info-history-aum">--</span></span>
+                    <span class="info-item"><span class="info-label">Alpha</span><span class="info-value" id="info-history-alpha">--</span></span>
                 </div>
                 
-                <!-- Footer: Beta & Correlation -->
-                <div class="scorecard-footer">
-                  <div class="footer-metric">
-                    <span class="footer-label">BETA</span>
-                    <span class="footer-value" id="sc-beta">--</span>
-                  </div>
-                  <div class="footer-metric">
-                    <span class="footer-label">BM CORREL</span>
-                    <span class="footer-value" id="sc-correlation">--</span>
-                  </div>
+                <div class="chart-container-main">
+                    <canvas id="perfChart"></canvas>
                 </div>
-              </div>
+                
+                <div class="cv-overlay-toggles" style="display:flex; gap:12px; margin-top:4px; padding-top:4px; border-top:1px solid var(--border-color);">
+                    <div class="cv-toggle"><label class="toggle-switch"><input type="checkbox" id="cv-spy-toggle"><span class="toggle-slider"></span></label> <span class="toggle-label">SPY</span></div>
+                    <div class="cv-toggle"><label class="toggle-switch"><input type="checkbox" id="cv-static-toggle"><span class="toggle-slider"></span></label> <span class="toggle-label">Static</span></div>
+                </div>
             </div>
-
-            <!-- CORRELATION INTELLIGENCE (7:3 Layout) -->
-            <div class="perf-section">
-              <div class="section-header-with-toggle">
-                <div class="section-label"><i data-lucide="grid-3x3" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span id="corr-matrix-title">CORRELATION INTELLIGENCE</span></div>
-                <div class="view-toggle" id="correlation-view-toggle">
-                  <button class="toggle-btn" data-view="3m">3M</button>
-                  <button class="toggle-btn active" data-view="1y">1Y</button>
-                  <button class="toggle-btn" data-view="total">Total</button>
+            
+            <!-- ROW 2: Performance Scorecard (auto height) -->
+            <div class="terminal-row-full" style="padding:8px;">
+                <div class="section-label" style="margin-bottom:4px;">SCORECARD</div>
+                <div class="scorecard-container" id="performance-scorecard">
+                    <!-- JS Populated: 5 core metrics -->
                 </div>
-              </div>
-              <div class="correlation-intelligence">
-                <!-- 70% Heatmap -->
-                <div class="corr-heatmap-section">
-                  <div class="correlation-matrix" id="correlation-matrix">
-                    <!-- JS Populated: 6x6 Grid -->
-                  </div>
-                  <div class="correlation-legend">
-                    <span class="legend-item"><span class="legend-box optimal"></span>Optimal</span>
-                    <span class="legend-item"><span class="legend-box safe"></span>Safe</span>
-                    <span class="legend-item"><span class="legend-box neutral"></span>Neutral</span>
-                    <span class="legend-item"><span class="legend-box warning"></span>Warning</span>
-                    <span class="legend-item"><span class="legend-box risk"></span>Risk</span>
-                  </div>
-                </div>
-                <!-- 30% Risk Insights -->
-                <div class="risk-insights-panel" id="risk-insights-panel">
-                  <div class="insights-header">
-                    <i data-lucide="alert-triangle" style="width:14px;height:14px;"></i>
-                    <span>RISK INSIGHTS</span>
-                  </div>
-                  <div class="insights-content" id="risk-insights-content">
-                    <div class="insight-placeholder">
-                      <i data-lucide="scan-search" style="width:20px;height:20px;opacity:0.5;"></i>
-                      <span>Analyzing correlations...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
-
-            <!-- PSYCHOLOGICAL FORENSICS (Stress Test + Sleep Score) -->
-            <div class="perf-section psych-forensics-section">
-              <div class="section-label">
-                <i data-lucide="shield" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>PSYCHOLOGICAL FORENSICS
-              </div>
-              <div class="psych-forensics-grid">
-                <!-- LEFT: Stress Test Simulator (60%) -->
-                <div class="psych-module stress-test-module">
-                  <div class="module-header">
-                    <span class="module-title"><i data-lucide="activity" style="width:12px;height:12px;"></i> Stress Test</span>
-                  </div>
-                  <div class="stress-test-card" id="stress-test-container">
-                    <!-- JS Populated: Stress Test UI -->
-                    <div class="stress-test-loading">
-                      <i data-lucide="loader" class="spin"></i>
-                      <span>Loading crisis data...</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- RIGHT: Sleep Well Score (40%) -->
-                <div class="psych-module sleep-score-module">
-                  <div class="module-header">
-                    <span class="module-title"><i data-lucide="moon" style="width:12px;height:12px;"></i> Sleep Score</span>
-                  </div>
-                  <div class="sleep-score-card" id="sleep-score-container">
-                    <!-- JS Populated: Sleep Score UI -->
-                    <div class="sleep-score-loading">
-                      <i data-lucide="loader" class="spin"></i>
-                      <span>Calculating quality...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </section>
 
-        <!-- SECTION 3: TRADE OPERATIONS -->
-        <section id="trade-section" class="dashboard-section">
-          <div class="trade-grid">
-            <!-- Diagnostics (Market Conditions) -->
-            <div class="diag-card glass">
-              <h3 class="card-title">DIAGNOSTICS</h3>
-              <div id="condition-grid" class="condition-grid">
-                <!-- JS Populated -->
-              </div>
-            </div>
-
-            <!-- System Alerts (Signals) -->
-            <div class="alerts-card glass">
-              <div class="card-header-row">
-                <h3 class="card-title">SYSTEM ALERTS</h3>
-                <span id="signal-status-badge" class="badge">SCANNING...</span>
-              </div>
-
-              <div class="alert-group">
-                <h4 class="alert-type">SELL SIGNALS</h4>
-                <ul id="sell-signals-list" class="signal-list"></ul>
-              </div>
-              <div class="alert-group">
-                <h4 class="alert-type">BUY SIGNALS</h4>
-                <ul id="buy-signals-list" class="signal-list"></ul>
-              </div>
-              <div class="alert-group">
-                <h4 class="alert-type">REBALANCING PROTOCOL</h4>
-                <div id="rebalance-advice" class="advice-box">
-                  System Balanced.
+        <!-- 
+           SECTION 3: ATTRIBUTION 
+           Structure: 2x2 Grid (Drawdown | Alpha, Histogram | Reserved)
+        -->
+        <section id="attribution" class="dashboard-section terminal-section">
+            <!-- ROW 1: Drawdown | Alpha Generation (50:50) -->
+            <div class="terminal-row-full">
+                <!-- Drawdown Chart -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <div class="section-label" style="margin-bottom:0;">DRAWDOWN</div>
+                        <div class="chart-info-bar chart-info-bar--small" id="underwater-chart-info" style="margin-bottom:0;">
+                            <span class="info-date">--</span>
+                            <span class="info-item"><span class="info-label">DD</span><span class="info-value" id="info-drawdown">--</span></span>
+                            <span class="info-item"><span class="info-label">SPY</span><span class="info-value" id="info-spy-dd">--</span></span>
+                            <span class="info-item"><span class="info-label">Δ</span><span class="info-value" id="info-dd-delta">--</span></span>
+                        </div>
+                    </div>
+                    <div class="chart-container-underwater">
+                        <canvas id="underwaterChart"></canvas>
+                    </div>
                 </div>
-              </div>
+                <!-- Alpha Generation Chart -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <div class="section-label" style="margin-bottom:0;">ALPHA GENERATION</div>
+                        <div class="chart-info-bar chart-info-bar--small" id="alpha-chart-info" style="margin-bottom:0;">
+                            <span class="info-date">--</span>
+                            <span class="info-item"><span class="info-label">Cumulative α</span><span class="info-value" id="info-cum-alpha">--</span></span>
+                        </div>
+                    </div>
+                    <div class="chart-container-sub">
+                        <canvas id="alphaCurveChart"></canvas>
+                    </div>
+                </div>
             </div>
-          </div>
+            
+            <!-- ROW 2: Return Profile | Reserved (50:50) -->
+            <div class="terminal-row-full">
+                <!-- Return Profile (Histogram) -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <div class="section-label" style="margin-bottom:0;">RETURN PROFILE</div>
+                        <div class="chart-info-bar chart-info-bar--small" id="histogram-chart-info" style="margin-bottom:0;">
+                            <span class="info-item"><span class="info-label">Bin</span><span class="info-value" id="info-histogram-bin">--</span></span>
+                            <span class="info-item"><span class="info-label">Days</span><span class="info-value" id="info-histogram-days">--</span></span>
+                        </div>
+                    </div>
+                    <div class="chart-container-sub">
+                        <canvas id="histogramChart"></canvas>
+                    </div>
+                </div>
+                <!-- CTR (Contribution to Return) Chart -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <div class="section-label" style="display:flex; align-items:center; gap:8px; margin-bottom:0;">
+                            ASSET CONTRIBUTION
+                            <div class="toggle-group toggle-group--tiny" id="ctr-view-toggle">
+                                <button class="toggle-btn active" data-view="total">Total</button>
+                                <button class="toggle-btn" data-view="ytd">YTD</button>
+                                <button class="toggle-btn" data-view="1w">1W</button>
+                            </div>
+                        </div>
+                        <div class="chart-info-bar chart-info-bar--small" id="ctr-chart-info" style="margin-bottom:0;">
+                            <span class="info-item"><span class="info-label" id="info-ctr-label">Total Impact</span><span class="info-value" id="info-ctr-value">--</span></span>
+                        </div>
+                    </div>
+                    <div class="chart-container-sub">
+                        <canvas id="ctrChart"></canvas>
+                    </div>
+                </div>
+            </div>
         </section>
+
       </main>
     </div>
 
@@ -848,11 +560,11 @@
     <button id="edit-allocation-btn" style="display: none"></button>
     <!-- Triggered via Nav -->
 
-    <script src="js/finance.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/strategy.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/finance.js?v=4.0"></script>
+    <script src="js/data.js?v=4.0"></script>
+    <script src="js/strategy.js?v=4.0"></script>
+    <script src="js/ui.js?v=4.0"></script>
+    <script src="js/charts.js?v=4.0"></script>
+    <script src="js/app.js?v=4.0"></script>
   </body>
 </html>

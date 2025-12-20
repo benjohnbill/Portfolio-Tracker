@@ -468,21 +468,58 @@ const UI = {
         grid.innerHTML += renderAssetCard('MSTR', 'Crypto', marketData?.MSTR, 'USD');
 
         // 2. Gauge Widgets for MNAV and Z-Score
-        const renderGaugeWidget = (id, title, url, minVal, maxVal, buyThreshold, sellThreshold) => {
-            // Calculate zone percentages for gradient
+        // MNAV uses 3-zone (Green-Yellow-Red), Z-Score uses 5-zone (Blue-Green-Yellow-Orange-Red)
+        const renderGaugeWidget = (id, title, url, minVal, maxVal, buyThreshold, sellThreshold, is5Zone = false) => {
             const range = maxVal - minVal;
-            const buyPercent = ((buyThreshold - minVal) / range * 100).toFixed(1);
-            const sellPercent = ((sellThreshold - minVal) / range * 100).toFixed(1);
+            let gradientStyle;
+            let labelsHtml;
             
-            // 3-zone gradient: Green (Buy) -> Yellow (Hold) -> Red (Sell)
-            // Using full opacity colors to match RSI bar brightness
-            const gradientStyle = `linear-gradient(to right, 
-                #10b981 0%, 
-                #10b981 ${buyPercent}%, 
-                #eab308 ${buyPercent}%, 
-                #eab308 ${sellPercent}%, 
-                #ef4444 ${sellPercent}%, 
-                #ef4444 100%)`;
+            if (is5Zone) {
+                // 5-Zone Z-Score Logic (Fixed thresholds: 0, 1.5, 2.0, 3.5)
+                // Blue(<0) → Green(0-1.5) → Yellow(1.5-2.0) → Orange(2.0-3.5) → Red(>3.5)
+                const zonePercents = {
+                    blue: ((0 - minVal) / range * 100).toFixed(1),      // Z = 0
+                    green: ((1.5 - minVal) / range * 100).toFixed(1),   // Z = 1.5
+                    yellow: ((2.0 - minVal) / range * 100).toFixed(1),  // Z = 2.0
+                    orange: ((3.5 - minVal) / range * 100).toFixed(1)   // Z = 3.5
+                };
+                
+                gradientStyle = `linear-gradient(to right, 
+                    #3b82f6 0%, 
+                    #3b82f6 ${zonePercents.blue}%, 
+                    #10b981 ${zonePercents.blue}%, 
+                    #10b981 ${zonePercents.green}%, 
+                    #eab308 ${zonePercents.green}%, 
+                    #eab308 ${zonePercents.yellow}%, 
+                    #f97316 ${zonePercents.yellow}%, 
+                    #f97316 ${zonePercents.orange}%, 
+                    #ef4444 ${zonePercents.orange}%, 
+                    #ef4444 100%)`;
+                
+                labelsHtml = `
+                    <span class="gauge-zone-label" style="color:#3b82f6;">🔵 <0</span>
+                    <span class="gauge-zone-label" style="color:#10b981;">🟢 0~1.5</span>
+                    <span class="gauge-zone-label" style="color:#eab308;">🟡 1.5~2</span>
+                    <span class="gauge-zone-label" style="color:#f97316;">🟠 2~3.5</span>
+                    <span class="gauge-zone-label" style="color:#ef4444;">🔴 >3.5</span>`;
+            } else {
+                // 3-Zone MNAV Logic (Green-Yellow-Red)
+                const buyPercent = ((buyThreshold - minVal) / range * 100).toFixed(1);
+                const sellPercent = ((sellThreshold - minVal) / range * 100).toFixed(1);
+                
+                gradientStyle = `linear-gradient(to right, 
+                    #10b981 0%, 
+                    #10b981 ${buyPercent}%, 
+                    #eab308 ${buyPercent}%, 
+                    #eab308 ${sellPercent}%, 
+                    #ef4444 ${sellPercent}%, 
+                    #ef4444 100%)`;
+                
+                labelsHtml = `
+                    <span class="gauge-zone-label buy">BUY < ${buyThreshold}</span>
+                    <span class="gauge-zone-label hold">HOLD</span>
+                    <span class="gauge-zone-label sell">SELL > ${sellThreshold}</span>`;
+            }
             
             return `
             <div class="gauge-widget" id="${id}-widget">
@@ -501,25 +538,24 @@ const UI = {
                            data-min="${minVal}"
                            data-max="${maxVal}"
                            data-buy="${buyThreshold}"
-                           data-sell="${sellThreshold}">
+                           data-sell="${sellThreshold}"
+                           data-is5zone="${is5Zone}">
                     <span class="gauge-value" id="${id}-value">--</span>
                 </div>
                 <div class="gauge-track" id="${id}-track" style="background: ${gradientStyle};">
                     <div class="gauge-marker" id="${id}-marker" style="left: 50%;"></div>
                 </div>
-                <div class="gauge-labels">
-                    <span class="gauge-zone-label buy">BUY < ${buyThreshold}</span>
-                    <span class="gauge-zone-label hold">HOLD</span>
-                    <span class="gauge-zone-label sell">SELL > ${sellThreshold}</span>
+                <div class="gauge-labels" style="${is5Zone ? 'font-size:0.55rem; gap:2px;' : ''}">
+                    ${labelsHtml}
                 </div>
             </div>`;
         };
 
-        // MNAV: Buy < 1.3, Sell > 2.8 (Range: 1.3-0.5 to 2.8+0.5 = 0.8 to 3.3)
-        grid.innerHTML += renderGaugeWidget('mnav', 'MSTR MNAV', 'https://www.strategy.com/', 0.8, 3.3, 1.3, 2.8);
+        // MNAV: Buy < 1.3, Sell > 2.8 (3-zone)
+        grid.innerHTML += renderGaugeWidget('mnav', 'MSTR MNAV', 'https://www.strategy.com/', 0.8, 3.3, 1.3, 2.8, false);
         
-        // Z-Score: Buy < 0.5, Sell > 4.5 (Range: 0.5-0.5 to 4.5+0.5 = 0.0 to 5.0)
-        grid.innerHTML += renderGaugeWidget('zscore', 'BTC MVRV Z-Score', 'https://coinank.com/ko/chart/indicator/mvrv-z-score', 0.0, 5.0, 0.5, 4.5);
+        // Z-Score: 5-zone system (Range: -1 to 5 for visual coverage)
+        grid.innerHTML += renderGaugeWidget('zscore', 'BTC MVRV Z-Score', 'https://coinank.com/ko/chart/indicator/mvrv-z-score', -1.0, 5.0, 0, 3.5, true);
 
         // Re-render Lucide icons
         if (typeof lucide !== 'undefined') {
@@ -565,12 +601,32 @@ const UI = {
                 // Update value display with color
                 if (valueEl) {
                     valueEl.textContent = value.toFixed(2);
-                    if (value < buyThreshold) {
-                        valueEl.style.color = 'var(--neon-green)';
-                    } else if (value > sellThreshold) {
-                        valueEl.style.color = 'var(--neon-red)';
+                    
+                    // Check if this is a 5-zone gauge (Z-Score)
+                    const is5Zone = input.dataset.is5zone === 'true';
+                    
+                    if (is5Zone) {
+                        // 5-Zone Z-Score coloring
+                        if (value < 0) {
+                            valueEl.style.color = '#3b82f6'; // Blue (Strong Buy)
+                        } else if (value <= 1.5) {
+                            valueEl.style.color = '#10b981'; // Green (Fair Value)
+                        } else if (value <= 2.0) {
+                            valueEl.style.color = '#eab308'; // Yellow (Buffer)
+                        } else if (value <= 3.5) {
+                            valueEl.style.color = '#f97316'; // Orange (Profit Lock)
+                        } else {
+                            valueEl.style.color = '#ef4444'; // Red (Hard Exit)
+                        }
                     } else {
-                        valueEl.style.color = '#fbbf24';
+                        // 3-Zone MNAV coloring
+                        if (value < buyThreshold) {
+                            valueEl.style.color = 'var(--neon-green)';
+                        } else if (value > sellThreshold) {
+                            valueEl.style.color = 'var(--neon-red)';
+                        } else {
+                            valueEl.style.color = '#fbbf24';
+                        }
                     }
                 }
                 
@@ -1733,6 +1789,29 @@ const UI = {
      * @param {Function} onPeriodChange - Callback when period toggle is clicked
      */
     renderSleepScore: (sleepData, activePeriod = 'total', onPeriodChange = null) => {
+        // ALWAYS update Ticker Tape Sleep Score (even if panel container doesn't exist)
+        const tickerSleepValue = document.getElementById('ticker-sleep-value');
+        if (tickerSleepValue && sleepData && sleepData.portfolio) {
+            const score = sleepData.portfolio.score;
+            tickerSleepValue.textContent = score.toFixed(0);
+            
+            // Color based on grade
+            if (score >= 90) {
+                tickerSleepValue.className = 'ticker-sleep-value good';
+                tickerSleepValue.style.color = '#14b8a6'; // Deep Sleep (Teal)
+            } else if (score >= 70) {
+                tickerSleepValue.className = 'ticker-sleep-value good';
+                tickerSleepValue.style.color = '#22c55e'; // Light Sleep (Green)
+            } else if (score >= 50) {
+                tickerSleepValue.className = 'ticker-sleep-value warning';
+                tickerSleepValue.style.color = '#f97316'; // Restless (Orange)
+            } else {
+                tickerSleepValue.className = 'ticker-sleep-value danger';
+                tickerSleepValue.style.color = '#ef4444'; // Insomnia (Red)
+            }
+        }
+
+        // Panel container rendering (optional - may not exist in current HTML)
         const container = document.getElementById('sleep-score-container');
         if (!container) return;
 

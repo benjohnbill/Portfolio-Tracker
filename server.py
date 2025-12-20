@@ -1012,5 +1012,7 @@ threading.Thread(target=update_cache, daemon=True).start()
 threading.Thread(target=update_macro_cache, daemon=True).start()
 
 if __name__ == '__main__':
-    logger.info("Starting Portfolio Server on port 8080...")
-    app.run(port=8080, debug=True)
+    import os
+    port = int(os.environ.get('PORT', 8080))
+    logger.info(f"Starting Portfolio Server on port {port}...")
+    app.run(host='0.0.0.0', port=port, debug=False)

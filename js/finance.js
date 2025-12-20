@@ -20,6 +20,105 @@ const Finance = {
     },
 
     /**
+     * Calculate MA Series (full array of MA values)
+     * @param {number[]} prices - Array of prices
+     * @param {number} period - MA period
+     * @returns {number[]} - Array of MA values (null for insufficient data)
+     */
+    calculateMASeries: (prices, period) => {
+        if (!prices || prices.length < period) return [];
+        const result = [];
+        for (let i = 0; i < prices.length; i++) {
+            if (i < period - 1) {
+                result.push(null);
+            } else {
+                let sum = 0;
+                for (let j = 0; j < period; j++) {
+                    sum += prices[i - j];
+                }
+                result.push(sum / period);
+            }
+        }
+        return result;
+    },
+
+    /**
+     * Detect Golden Cross (50MA crosses above 250MA)
+     * @param {number[]} ma50History - Recent 50MA values (at least 2)
+     * @param {number[]} ma250History - Recent 250MA values (at least 2)
+     * @returns {boolean}
+     */
+    detectGoldenCross: (ma50History, ma250History) => {
+        if (!ma50History || !ma250History || ma50History.length < 2 || ma250History.length < 2) {
+            return false;
+        }
+        const prev50 = ma50History[ma50History.length - 2];
+        const prev250 = ma250History[ma250History.length - 2];
+        const curr50 = ma50History[ma50History.length - 1];
+        const curr250 = ma250History[ma250History.length - 1];
+        
+        // Golden Cross: 50MA was below 250MA, now above
+        return prev50 < prev250 && curr50 > curr250;
+    },
+
+    /**
+     * Detect Death Cross (50MA crosses below 250MA)
+     * @param {number[]} ma50History - Recent 50MA values
+     * @param {number[]} ma250History - Recent 250MA values
+     * @returns {boolean}
+     */
+    detectDeathCross: (ma50History, ma250History) => {
+        if (!ma50History || !ma250History || ma50History.length < 2 || ma250History.length < 2) {
+            return false;
+        }
+        const prev50 = ma50History[ma50History.length - 2];
+        const prev250 = ma250History[ma250History.length - 2];
+        const curr50 = ma50History[ma50History.length - 1];
+        const curr250 = ma250History[ma250History.length - 1];
+        
+        // Death Cross: 50MA was above 250MA, now below
+        return prev50 > prev250 && curr50 < curr250;
+    },
+
+    /**
+     * Get MA Status string for display (e.g., "250MA < 50MA < MP")
+     * @param {number} price - Current market price
+     * @param {number} ma20 - 20-day MA (optional)
+     * @param {number} ma50 - 50-day MA
+     * @param {number} ma250 - 250-day MA
+     * @returns {Object} - { status: string, trend: 'bullish'|'bearish'|'neutral' }
+     */
+    getMAStatus: (price, ma50, ma250, ma20 = null) => {
+        if (ma50 === null || ma250 === null || price === null) {
+            return { status: '--', trend: 'neutral' };
+        }
+
+        const values = [];
+        const labels = [];
+
+        // Sort: 250MA, 50MA, 20MA (if exists), MP
+        if (ma250 !== null) { values.push({ val: ma250, label: '250MA' }); }
+        if (ma50 !== null) { values.push({ val: ma50, label: '50MA' }); }
+        if (ma20 !== null) { values.push({ val: ma20, label: '20MA' }); }
+        values.push({ val: price, label: 'MP' });
+
+        // Sort by value ascending
+        values.sort((a, b) => a.val - b.val);
+
+        const status = values.map(v => v.label).join(' < ');
+        
+        // Trend determination
+        let trend = 'neutral';
+        if (price > ma50 && ma50 > ma250) {
+            trend = 'bullish';  // Price above all MAs, MAs aligned upward
+        } else if (price < ma50 && ma50 < ma250) {
+            trend = 'bearish'; // Price below all MAs, MAs aligned downward
+        }
+
+        return { status, trend };
+    },
+
+    /**
      * Calculate RSI (Relative Strength Index)
      * @param {number[]} prices 
      * @param {number} period - Standard is 14
@@ -1723,8 +1822,8 @@ const Finance = {
         if (!weeklyReturns || weeklyReturns.length < 2) {
             return { 
                 mean: 0, 
-                stdDev: 0, 
-                twoSigma: 0.05, // Default 5% if not enough data
+                stdDev: 0.02, // Default 2% for single data point 
+                twoSigma: 0.04, // Default 4% if not enough data
                 dataCount: 0,
                 min: -0.05,
                 max: 0.05
@@ -1741,7 +1840,11 @@ const Finance = {
         // Calculate Variance and Standard Deviation (σ)
         const squaredDiffs = returns.map(r => Math.pow(r - mean, 2));
         const variance = squaredDiffs.reduce((sum, sq) => sum + sq, 0) / (n - 1); // Sample variance
-        const stdDev = Math.sqrt(variance);
+        let stdDev = Math.sqrt(variance);
+        
+        // Floor stdDev to prevent extreme sigma values
+        // Minimum 0.5% (0.005) weekly volatility is reasonable for any portfolio
+        stdDev = Math.max(stdDev, 0.005);
 
         // Two-sigma range
         const twoSigma = stdDev * 2;
@@ -1752,7 +1855,7 @@ const Finance = {
 
         return {
             mean,           // Historical average (decimal)
-            stdDev,         // Standard deviation (decimal)
+            stdDev,         // Standard deviation (decimal, min 0.5%)
             twoSigma,       // 2σ range (decimal)
             dataCount: n,   // Number of weeks analyzed
             min,            // Worst week

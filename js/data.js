@@ -145,6 +145,26 @@ const DataService = {
         }
     },
 
+    /**
+     * Fetch Macro Vitals (Net Liquidity & Real Yield) from server
+     */
+    fetchMacroVitals: async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/macro-vitals`, {
+                mode: 'cors',
+                method: 'GET',
+                cache: 'no-store'
+            });
+            if (!response.ok) {
+                return null;
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("Failed to fetch macro vitals:", error);
+            return null;
+        }
+    },
+
     generateMockData: async () => {
         // SIMULATION: Generate random market movements to verify logic
         // ... (Keep existing mock logic here as fallback or for testing without server)
@@ -309,10 +329,16 @@ const DataService = {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
-        const dateStr = new Date().toISOString().split('T')[0];
+        // Format date as YYMMDD
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yy}${mm}${dd}`;
+        
         const filename = isSimulation 
-            ? `[SIMULATION]_portfolio_backup_${dateStr}.json`
-            : `portfolio_backup_${dateStr}.json`;
+            ? `${dateStr}_Portfolio_Backup_SIM.json`
+            : `${dateStr}_Portfolio_Backup.json`;
 
         const a = document.createElement('a');
         a.href = url;

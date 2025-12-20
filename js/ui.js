@@ -62,6 +62,16 @@ const UI = {
      * @param {Object} assetReturns - { ticker: { wtd, total, contribution, isGhost } }
      * @param {string} viewMode - '1w' or 'total'
      */
+    /**
+     * Render Asset Allocation Table and Chart
+     * Columns: Asset | Target% | Value | Return | Contrib.
+     * Supports toggle between 1W and Total view
+     * In Total view: Shows Cumulative Attribution and Ghost rows for past holdings
+     * @param {Array} portfolio - Portfolio with asset data
+     * @param {Object} chartInstance - Chart.js instance
+     * @param {Object} assetReturns - { ticker: { wtd, total, contribution, isGhost } }
+     * @param {string} viewMode - '1w' or 'total'
+     */
     renderAllocation: (portfolio, chartInstance, assetReturns = {}, viewMode = '1w') => {
         const tbody = document.getElementById('allocation-body');
         if (!tbody) return;
@@ -71,13 +81,14 @@ const UI = {
         // Update column headers based on viewMode
         const col4Header = document.getElementById('alloc-col4-header');
         const col5Header = document.getElementById('alloc-col5-header');
+
         if (col4Header && col5Header) {
             if (viewMode === 'total') {
-                col4Header.textContent = 'INCEP Δ';  // Since Inception Return
-                col5Header.textContent = 'Contrib.'; // Total Contribution
+                col4Header.textContent = 'INCEP Δ';
+                col5Header.textContent = 'Contrib.';
             } else if (viewMode === 'ytd') {
-                col4Header.textContent = 'YTD Δ';    // Year-to-Date Return
-                col5Header.textContent = 'Contrib.'; // YTD Contribution
+                col4Header.textContent = 'YTD Δ';
+                col5Header.textContent = 'Contrib.';
             } else {
                 col4Header.textContent = 'WTD Δ';
                 col5Header.textContent = 'CONTRIB.';
@@ -89,7 +100,7 @@ const UI = {
             totalValue += asset.value || 0;
         });
 
-        // Helper to format large numbers with K/M suffix
+        // Helper to format large numbers
         const formatLargeNumber = (num, currency = '₩') => {
             if (num >= 1000000) {
                 return currency + (num / 1000000).toFixed(2) + 'M';
@@ -99,7 +110,7 @@ const UI = {
             return currency + Math.round(num).toLocaleString();
         };
 
-        // Update Total AUM Display
+        // Update Total AUM Display (Ticker Tape)
         const totalEl = document.getElementById('total-value');
         if (totalEl) {
             totalEl.innerText = formatLargeNumber(totalValue, '₩');
@@ -109,163 +120,274 @@ const UI = {
         const data = [];
         const backgroundColors = [];
 
-        // Find max contribution for bar scaling
-        // In Total view, use cumulative attribution; in YTD view, use YTD attribution; in 1W view, use weight × return
+        // Predefine colors for consistency
+        const colorPalette = [
+            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+            '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
+        ];
+
+        // Find max contribution AND max return for bar scaling (normalization)
         let maxContrib = 0;
-        
+        let maxReturn = 0;
         if (viewMode === 'total') {
-            Object.values(assetReturns).forEach(ret => {
+             Object.values(assetReturns).forEach(ret => {
                 const contrib = ret.contribution || 0;
                 maxContrib = Math.max(maxContrib, Math.abs(contrib * 100));
+                maxReturn = Math.max(maxReturn, Math.abs((ret.total || 0) * 100));
             });
         } else if (viewMode === 'ytd') {
-            Object.values(assetReturns).forEach(ret => {
-                const contrib = ret.ytdContrib || 0;
-                maxContrib = Math.max(maxContrib, Math.abs(contrib * 100));
+            // YTD mode: Use YTD returns and YTD contribution
+            portfolio.forEach(asset => {
+                const returns = assetReturns[asset.ticker] || { ytd: 0, ytdContrib: 0 };
+                const contrib = (returns.ytdContrib || 0) * 100;
+                maxContrib = Math.max(maxContrib, Math.abs(contrib));
+                maxReturn = Math.max(maxReturn, Math.abs((returns.ytd || 0) * 100));
             });
         } else {
-            portfolio.forEach(asset => {
+            // WTD (1w) mode: Use WTD returns and weight-based contribution
+             portfolio.forEach(asset => {
                 const actualWeight = totalValue > 0 ? (asset.value / totalValue) : 0;
                 const returns = assetReturns[asset.ticker] || { wtd: 0 };
                 const contrib = actualWeight * returns.wtd * 100;
                 maxContrib = Math.max(maxContrib, Math.abs(contrib));
+                maxReturn = Math.max(maxReturn, Math.abs((returns.wtd || 0) * 100));
             });
         }
-        if (maxContrib < 0.1) maxContrib = 0.5;
+        if (maxContrib < 0.1) maxContrib = 0.5; // Avoid div by zero or huge bars for tiny movements
+        if (maxReturn < 0.5) maxReturn = 2; // Min 2% scale for return bars
 
-        // Collect ghost assets for Total view (past holdings)
-        const ghostAssets = [];
-        if (viewMode === 'total') {
-            Object.keys(assetReturns).forEach(ticker => {
-                const ret = assetReturns[ticker];
-                if (ret.isGhost && ret.contribution !== 0) {
-                    ghostAssets.push(ticker);
-                }
-            });
-        }
-
-        // Render current portfolio assets
-        portfolio.forEach(asset => {
+        // Render Rows
+        portfolio.forEach((asset, index) => {
             const actualWeight = totalValue > 0 ? (asset.value / totalValue) : 0;
-
-            // Skip if no value and not showing in total view
-            if (actualWeight === 0 && (asset.value || 0) === 0) {
-                return;
-            }
+            
+            // Skip empty
+            if (actualWeight === 0 && (asset.value || 0) === 0) return;
 
             const valueDisplay = formatLargeNumber(asset.value || 0, '₩');
+            const weightDisplay = (actualWeight * 100).toFixed(1) + '%';
 
             // Get return data
-            const returns = assetReturns[asset.ticker] || { wtd: 0, ytd: 0, total: 0, contribution: 0, ytdContrib: 0 };
-            
-            // In 1W view: show WTD return and WTD contribution (weight × return)
-            // In YTD view: show YTD market return and YTD attribution
-            // In Total view: show Since Inception market return and cumulative attribution
+            const returns = assetReturns[asset.ticker] || { wtd: 0, ytd: 0, total: 0, contribution: 0 };
             let returnVal, contribVal;
-            
+
             if (viewMode === 'total') {
                 returnVal = returns.total;
-                contribVal = (returns.contribution || 0) * 100; // Cumulative attribution in %
+                contribVal = (returns.contribution || 0) * 100;
             } else if (viewMode === 'ytd') {
                 returnVal = returns.ytd;
-                contribVal = (returns.ytdContrib || 0) * 100; // YTD attribution in %
+                contribVal = (returns.ytdContrib || 0) * 100;
             } else {
                 returnVal = returns.wtd;
-                contribVal = actualWeight * returns.wtd * 100; // WTD contribution
+                // WTD Contribution = Weight * WTD Return
+                contribVal = actualWeight * returns.wtd * 100;
             }
-            
+
             const returnClass = returnVal > 0.001 ? 'positive' : (returnVal < -0.001 ? 'negative' : 'neutral');
             const returnDisplay = returnVal !== 0 
                 ? (returnVal > 0 ? '+' : '') + (returnVal * 100).toFixed(2) + '%'
-                : '--';
-
-            const contribClass = contribVal > 0.001 ? 'positive' : (contribVal < -0.001 ? 'negative' : '');
-            const contribDisplay = contribVal !== 0
-                ? (contribVal > 0 ? '+' : '') + contribVal.toFixed(3) + '%'
-                : '0';
+                : '-';
             
-            const barWidth = Math.min(50, (Math.abs(contribVal) / maxContrib) * 50);
+            // Return bar width
+            const returnBarWidth = Math.min(100, (Math.abs(returnVal * 100) / maxReturn) * 100);
+
+            const contribClass = contribVal > 0.0001 ? 'positive' : (contribVal < -0.0001 ? 'negative' : 'neutral');
+            const contribDisplay = contribVal !== 0
+                ? (contribVal > 0 ? '+' : '') + contribVal.toFixed(2) + '%'
+                : '-';
+            
+            // Contrib bar width relative to max impact
+            const contribBarWidth = Math.min(100, (Math.abs(contribVal) / maxContrib) * 100);
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="asset-cell"><strong>${asset.ticker}</strong></td>
-                <td class="num-cell">${(asset.targetWeight * 100).toFixed(0)}%</td>
-                <td class="num-cell">${valueDisplay}</td>
-                <td class="num-cell wtd-cell ${returnClass}">${returnDisplay}</td>
-                <td class="contrib-cell">
-                    <div class="contrib-bar-wrapper">
-                        <div class="contrib-bar ${contribClass}" style="width: ${barWidth}%;"></div>
-                        <span class="contrib-value">${contribDisplay}</span>
+                <td>
+                    <div class="asset-cell">
+                        <span class="asset-icon" style="background-color: ${colorPalette[index % colorPalette.length]}"></span>
+                        <span class="asset-ticker">${asset.ticker}</span>
+                    </div>
+                </td>
+                <td class="text-center"><span class="table-sub-val">${weightDisplay}</span></td>
+                <td class="text-right">${valueDisplay}</td>
+                <td class="text-right">
+                    <div class="return-cell-wrapper">
+                         <span class="${returnClass}" style="font-size:0.8rem;">${returnDisplay}</span>
+                         <div class="mini-bar-container">
+                             <div class="mini-bar ${returnClass}" style="width:${returnBarWidth}%"></div>
+                         </div>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <div class="contrib-cell-wrapper">
+                         <span class="${contribClass}" style="font-size:0.8rem;">${contribDisplay}</span>
+                         <div class="mini-bar-container">
+                             <div class="mini-bar ${contribClass}" style="width:${contribBarWidth}%"></div>
+                         </div>
                     </div>
                 </td>
             `;
             tbody.appendChild(tr);
 
+            // Chart Data
             labels.push(asset.ticker);
             data.push((actualWeight * 100).toFixed(2));
-
-            const colors = {
-                'QQQ': '#3b82f6', 'DBMF': '#8b5cf6', 'CSI300': '#ef4444',
-                'TLT': '#10b981', 'GLDM': '#eab308', 'MSTR': '#f97316',
-                'NIFTY': '#06b6d4', 'BIL': '#a855f7', 'PFIX': '#ec4899', 'VBIL': '#84cc16'
-            };
-            backgroundColors.push(colors[asset.ticker] || '#64748b');
+            backgroundColors.push(colorPalette[index % colorPalette.length]);
         });
 
-        // Render ghost assets (past holdings) - Only in Total view
-        if (viewMode === 'total' && ghostAssets.length > 0) {
-            // Add separator row
-            const separatorRow = document.createElement('tr');
-            separatorRow.className = 'ghost-separator';
-            separatorRow.innerHTML = `
-                <td colspan="5" class="ghost-separator-cell">
-                    <span class="ghost-separator-text">⏱️ PAST HOLDINGS (Realized)</span>
-                </td>
-            `;
-            tbody.appendChild(separatorRow);
-
-            // Render each ghost asset
-            ghostAssets.forEach(ticker => {
-                const returns = assetReturns[ticker];
-                const returnVal = returns.total;
-                const contribVal = (returns.contribution || 0) * 100;
-
-                const returnClass = returnVal > 0.001 ? 'positive' : (returnVal < -0.001 ? 'negative' : 'neutral');
-                const returnDisplay = returnVal !== 0 
-                    ? (returnVal > 0 ? '+' : '') + (returnVal * 100).toFixed(2) + '%'
-                    : '--';
-
-                const contribClass = contribVal > 0.001 ? 'positive' : (contribVal < -0.001 ? 'negative' : '');
-                const contribDisplay = contribVal !== 0
-                    ? (contribVal > 0 ? '+' : '') + contribVal.toFixed(3) + '%'
-                    : '0';
-                
-                const barWidth = Math.min(50, (Math.abs(contribVal) / maxContrib) * 50);
-
-                const tr = document.createElement('tr');
-                tr.className = 'ghost-row';
-                tr.innerHTML = `
-                    <td class="asset-cell ghost"><strong>${ticker}</strong></td>
-                    <td class="num-cell ghost">--</td>
-                    <td class="num-cell ghost">--</td>
-                    <td class="num-cell wtd-cell ghost ${returnClass}">${returnDisplay}</td>
-                    <td class="contrib-cell ghost">
-                        <div class="contrib-bar-wrapper">
-                            <div class="contrib-bar ${contribClass}" style="width: ${barWidth}%;"></div>
-                            <span class="contrib-value">${contribDisplay}</span>
-                        </div>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        // Update Chart (only current holdings)
+        // Update Chart
         if (chartInstance) {
             chartInstance.data.labels = labels;
             chartInstance.data.datasets[0].data = data;
             chartInstance.data.datasets[0].backgroundColor = backgroundColors;
+            chartInstance.data.datasets[0].borderWidth = 0;
+            chartInstance.options.cutout = '70%'; // Thinner donut
             chartInstance.update();
+        }
+    },
+    /**
+     * Render Macro Environment (Net Liquidity & Real Yield)
+     * Renamed from renderMacroVitals to avoid caching issues.
+     */
+    renderMacroEnvironment: (data) => {
+        const liqEl = document.getElementById('macro-liquidity');
+        const liqTrendEl = document.getElementById('macro-liquidity-trend');
+        const yieldEl = document.getElementById('macro-yield');
+        const yieldTrendEl = document.getElementById('macro-yield-trend');
+
+        // Check core elements only (trend elements may not exist in new layout)
+        if (!liqEl || !yieldEl) return;
+
+        // 1. Check if data is null/undefined
+        if (!data || !data.net_liquidity || !data.real_yield) {
+             liqEl.textContent = "ERR"; 
+             yieldEl.textContent = "ERR";
+             return;
+        }
+
+        // Helper: Get Color
+        const getStateColor = (state) => {
+            switch(state) {
+                case 'safe': return '#00E3CC';   
+                case 'danger': return '#FF453A'; 
+                default: return '#FFD700';       
+            }
+        };
+
+        // --- Custom Tooltip Logic ---
+        let tooltipEl = document.getElementById('macro-tooltip-custom');
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.id = 'macro-tooltip-custom';
+            tooltipEl.className = 'macro-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+
+        const showTooltip = (e, metricName, thresholds, state, val, unit, trend) => {
+            const rangeDesc = state === 'danger' ? '⚠️ DANGER ZONE' : state === 'safe' ? '✅ SAFE ZONE' : '⚖️ NEUTRAL ZONE';
+            const trendIcon = trend === 'up' ? '▲' : '▼';
+            const trendDesc = trend === 'up' ? (metricName === 'Liquidity' ? 'Fueling' : 'Tightening') : (metricName === 'Liquidity' ? 'Draining' : 'Easing');
+            
+            // Build HTML
+            tooltipEl.innerHTML = `
+                <div class="mt-header">
+                    <span class="mt-title">${metricName}</span>
+                    <span class="mt-status ${state}">${rangeDesc}</span>
+                </div>
+                <div class="mt-body">
+                    <div class="mt-row">
+                        <span class="mt-label">Current Value</span>
+                        <span class="mt-value" style="color:${getStateColor(state)}">${val}${unit}</span>
+                    </div>
+                    <div class="mt-row">
+                        <span class="mt-label">Momentum (MA20)</span>
+                        <span class="mt-value">${trendIcon} ${trendDesc}</span>
+                    </div>
+                     <div class="mt-bar-container">
+                        <!-- Simplified Visualization (Conceptual) -->
+                        <div class="mt-bar-fill" style="width: 50%; background: linear-gradient(90deg, #FF453A, #FFD700, #00E3CC); opacity: 0.3;"></div>
+                    </div>
+                    <div class="mt-context">
+                        Auto-calibrated on 5Y cycle (2020-2025).<br>
+                        <span style="color:#FF453A">Red Zone:</span> ${unit === 'T' ? '<' : '>'} ${thresholds.red}${unit}<br>
+                        <span style="color:#00E3CC">Green Zone:</span> ${unit === 'T' ? '>' : '<'} ${thresholds.green}${unit}
+                    </div>
+                </div>
+            `;
+            
+            tooltipEl.classList.add('visible');
+            moveTooltip(e);
+        };
+
+        const hideTooltip = () => {
+            tooltipEl.classList.remove('visible');
+        };
+
+        const moveTooltip = (e) => {
+            const x = e.pageX + 15;
+            const y = e.pageY + 15;
+            // Prevent going off screen
+            const rect = tooltipEl.getBoundingClientRect();
+            const finalX = (x + rect.width > window.innerWidth) ? x - rect.width - 15 : x;
+            
+            tooltipEl.style.left = `${finalX}px`;
+            tooltipEl.style.top = `${y}px`;
+        };
+
+        // Attach Events Wrapper
+        const attachTooltipEvents = (element, metricName, thresholds, state, val, unit, trend) => {
+            // Find parent container
+            const container = element.closest('.macro-vital-item');
+            if (!container) return;
+            
+            container.removeAttribute('title'); // Remove native tooltip
+            
+            // Clear old listeners (naive approach: clone node to wipe events, or just overwrite onmouseover)
+            // Ideally we use addEventListener but need cleanup. For simplicity here:
+            container.onmouseenter = (e) => showTooltip(e, metricName, thresholds, state, val, unit, trend);
+            container.onmouseleave = hideTooltip;
+            container.onmousemove = moveTooltip;
+        };
+
+        // 2. Net Liquidity Rendering
+        const nl = data.net_liquidity;
+        liqEl.textContent = `$${nl.value}${nl.unit}`;
+        const nlColor = getStateColor(nl.state);
+        liqEl.style.color = nlColor;
+        if (liqTrendEl) {
+            liqTrendEl.style.color = nlColor;
+            liqTrendEl.textContent = nl.trend === 'up' ? '▲' : '▼';
+        }
+        
+        // Attach Tooltip to container
+        if (nl.thresholds) {
+            attachTooltipEvents(liqEl, "NET LIQUIDITY", nl.thresholds, nl.state, nl.value, nl.trend);
+        }
+
+        // 3. Real Yield Rendering
+        const ry = data.real_yield;
+        yieldEl.textContent = `${ry.value}${ry.unit}`;
+        const ryColor = getStateColor(ry.state);
+        yieldEl.style.color = ryColor;
+        if (yieldTrendEl) {
+            yieldTrendEl.style.color = ryColor;
+            yieldTrendEl.textContent = ry.trend === 'up' ? '▲' : '▼';
+        }
+
+        // Attach Tooltip to container
+        if (ry.thresholds) {
+             attachTooltipEvents(yieldEl, "10Y REAL YIELD", ry.thresholds, ry.state, ry.value, ry.unit, ry.trend);
+        }
+
+        // --- NEW: Update Global Ticker ---
+        const tickerLiq = document.getElementById('ticker-liquidity');
+        const tickerYield = document.getElementById('ticker-yield');
+        
+        if (tickerLiq) {
+            tickerLiq.textContent = `${nl.value}${nl.unit}`;
+            tickerLiq.style.color = nlColor;
+        }
+        if (tickerYield) {
+            tickerYield.textContent = `${ry.value}${ry.unit}`;
+            tickerYield.style.color = ryColor;
         }
     },
 
@@ -333,70 +455,215 @@ const UI = {
     },
 
     /**
-     * Render Trading Signals
-     */
-    renderSignals: (sellSignals, buySignals, rebalanceActions) => {
-        const sellList = document.getElementById('sell-signals-list');
-        const buyList = document.getElementById('buy-signals-list');
-        const badge = document.getElementById('signal-status-badge');
-        const adviceBox = document.getElementById('rebalance-advice');
+ * Render ACTION REQUIRED Panel (To-Do Style Checklist)
+ * Replaces System Logs with actionable checkbox items
+ * Features: localStorage persistence, Friday auto-reset, manual reset
+ */
+renderActionRequired: (sellSignals, buySignals, rebalanceActions) => {
+    const container = document.getElementById('action-required-list');
+    const statusEl = document.getElementById('action-status');
+    const resetBtn = document.getElementById('action-reset-btn');
+    
+    if (!container) return;
 
-        if (!sellList || !buyList) return;
-
-        sellList.innerHTML = '';
-        buyList.innerHTML = '';
-
-        let actionCount = 0;
-
-        // Render Sell Signals
-        if (sellSignals.length > 0) {
-            sellSignals.forEach(s => {
-                const li = document.createElement('li');
-                li.className = 'sell-signal';
-                li.innerHTML = `<i data-lucide="trending-down"></i> ${s.msg}`;
-                sellList.appendChild(li);
-                actionCount++;
+    // Storage Key
+    const STORAGE_KEY = 'actionRequiredChecked';
+    const LAST_RESET_KEY = 'actionRequiredLastReset';
+    
+    // Load checked state from localStorage
+    const loadCheckedState = () => {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        } catch {
+            return {};
+        }
+    };
+    
+    // Save checked state
+    const saveCheckedState = (state) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    };
+    
+    // Check if Friday auto-reset is needed
+    const checkFridayReset = () => {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday, 5 = Friday
+        const lastReset = localStorage.getItem(LAST_RESET_KEY);
+        const today = now.toISOString().split('T')[0];
+        
+        // If it's Friday and we haven't reset today
+        if (dayOfWeek === 5 && lastReset !== today) {
+            localStorage.setItem(LAST_RESET_KEY, today);
+            localStorage.removeItem(STORAGE_KEY);
+            return true;
+        }
+        return false;
+    };
+    
+    // Perform Friday reset check
+    checkFridayReset();
+    
+    // Build action items
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    
+    const actions = [];
+    
+    // Add rebalancing signals (highest priority)
+    rebalanceActions.forEach((a, i) => {
+        actions.push({
+            id: `rebal_${i}_${a.msg.substring(0, 10)}`,
+            type: 'rebal',
+            tag: 'REBAL',
+            text: a.msg,
+            time: timeStr
+        });
+    });
+    
+    // Add sell signals
+    sellSignals.forEach((s, i) => {
+        actions.push({
+            id: `sell_${i}_${s.msg.substring(0, 10)}`,
+            type: 'signal',
+            tag: 'SELL',
+            text: s.msg,
+            time: timeStr
+        });
+    });
+    
+    // Add buy signals
+    buySignals.forEach((s, i) => {
+        actions.push({
+            id: `buy_${i}_${s.msg.substring(0, 10)}`,
+            type: 'signal',
+            tag: 'BUY',
+            text: s.msg,
+            time: timeStr
+        });
+    });
+    
+    // If no actions, show "all clear" message
+    if (actions.length === 0) {
+        actions.push({
+            id: 'status_ok',
+            type: 'info',
+            tag: 'INFO',
+            text: 'System stable. No actionable signals.',
+            time: timeStr
+        });
+    }
+    
+    // Load current checked state
+    let checkedState = loadCheckedState();
+    
+    // Render items
+    const renderItems = () => {
+        // Count pending (unchecked non-info items)
+        const pendingCount = actions.filter(a => a.type !== 'info' && !checkedState[a.id]).length;
+        
+        // Update status badge
+        if (statusEl) {
+            if (pendingCount === 0) {
+                statusEl.textContent = 'ALL CLEAR ✓';
+                statusEl.className = 'action-required-status all-clear';
+            } else {
+                statusEl.textContent = `${pendingCount} PENDING`;
+                statusEl.className = 'action-required-status pending';
+            }
+        }
+        
+        // Sort: unchecked first, then checked
+        const sortedActions = [...actions].sort((a, b) => {
+            const aChecked = checkedState[a.id] || false;
+            const bChecked = checkedState[b.id] || false;
+            if (aChecked === bChecked) return 0;
+            return aChecked ? 1 : -1;
+        });
+        
+        container.innerHTML = sortedActions.map(action => {
+            const isChecked = checkedState[action.id] || false;
+            const isInfoItem = action.type === 'info';
+            
+            return `
+                <div class="action-item ${isChecked ? 'checked' : ''}" data-id="${action.id}" ${isInfoItem ? 'style="cursor:default; opacity:0.7;"' : ''}>
+                    ${!isInfoItem ? `
+                        <div class="action-checkbox">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                    ` : '<span style="width:16px;"></span>'}
+                    <span class="action-tag ${action.type}">${action.tag}</span>
+                    <span class="action-text">${action.text}</span>
+                </div>
+            `;
+        }).join('');
+        
+        // Add click handlers
+        container.querySelectorAll('.action-item:not([data-id="status_ok"])').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = item.dataset.id;
+                if (id === 'status_ok') return; // Don't toggle info items
+                
+                checkedState[id] = !checkedState[id];
+                saveCheckedState(checkedState);
+                renderItems();
             });
-        } else {
-            sellList.innerHTML = '<li class="no-signal"><i data-lucide="minus"></i> No Sell Actions</li>';
-        }
+        });
+    };
+    
+    // Reset button handler
+    if (resetBtn) {
+        resetBtn.onclick = () => {
+            checkedState = {};
+            saveCheckedState(checkedState);
+            renderItems();
+        };
+    }
+    
+    // Initial render
+    renderItems();
+    
+    // Re-render Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+},
 
-        // Render Buy Signals
-        if (buySignals.length > 0) {
-            buySignals.forEach(s => {
-                const li = document.createElement('li');
-                li.className = 'buy-signal';
-                li.innerHTML = `<i data-lucide="trending-up"></i> ${s.msg}`;
-                buyList.appendChild(li);
-                actionCount++;
-            });
-        } else {
-            buyList.innerHTML = '<li class="no-signal"><i data-lucide="minus"></i> No Buy Actions</li>';
-        }
+/**
+ * Legacy alias for backward compatibility
+ */
+renderSignals: function(sellSignals, buySignals, rebalanceActions) {
+    this.renderActionRequired(sellSignals, buySignals, rebalanceActions);
+},
 
-        // Rebalancing Advice
-        if (rebalanceActions.length > 0) {
-            adviceBox.innerHTML = rebalanceActions.map(a => `<div><i data-lucide="scale"></i> ${a.msg}</div>`).join('');
-            adviceBox.style.borderColor = '#ffd60a';
-            adviceBox.style.color = '#ffd60a';
-            actionCount += rebalanceActions.length;
-        } else {
-            adviceBox.innerHTML = '<i data-lucide="check-circle"></i> Portfolio Balanced. No rebalancing needed.';
-            adviceBox.style.borderColor = '#10b981';
-            adviceBox.style.color = '#10b981';
-        }
-
-        if (badge) {
-            badge.innerText = actionCount > 0 ? `${actionCount} Actions Needed` : 'System Stable';
-            badge.style.color = actionCount > 0 ? 'var(--neon-yellow)' : 'var(--neon-cyan)';
-            badge.style.borderColor = actionCount > 0 ? 'var(--neon-yellow)' : 'var(--neon-cyan)';
-        }
-
-        // Re-render Lucide icons
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    },
+/**
+ * Render Sleep Score in Ticker Tape
+ * Compact display of sleep score in the global header
+ * @param {Object} sleepData - From Finance.calculateSleepScoreComparison()
+ */
+renderTickerSleepScore: (sleepData) => {
+    const valueEl = document.getElementById('ticker-sleep-value');
+    if (!valueEl) return;
+    
+    if (!sleepData || !sleepData.portfolio) {
+        valueEl.textContent = '--';
+        valueEl.className = 'ticker-sleep-value';
+        return;
+    }
+    
+    const score = sleepData.portfolio.score;
+    valueEl.textContent = Math.round(score);
+    
+    // Apply color class based on score
+    if (score >= 80) {
+        valueEl.className = 'ticker-sleep-value good';
+    } else if (score >= 60) {
+        valueEl.className = 'ticker-sleep-value warning';
+    } else {
+        valueEl.className = 'ticker-sleep-value danger';
+    }
+},
 
     /**
      * Render Market Conditions Monitor (Final Graphics with MSTR hints)
@@ -407,54 +674,72 @@ const UI = {
 
         grid.innerHTML = '';
 
-        // 1. Common Asset Card Renderer
+        // 1. Common Asset Card Renderer (Minimal) - Updated with MA Chain Display
         const renderAssetCard = (ticker, name, data, currency = 'USD') => {
             if (!data || !data.price) return '';
 
             const price = data.price;
+            const ma20 = data.ma20 || null;
             const ma50 = data.ma50;
             const ma250 = data.ma250;
             const rsi = data.rsi;
 
-            // RSI State-based Styling: <35 or >65 is EXTREME → highlight
-            const isRsiExtreme = rsi < 35 || rsi > 65;
-            // RSI: Neutral gray when normal, Red when extreme
-            const rsiColor = isRsiExtreme ? '#ff0a4e' : '#64748b';
-            const rsiBarColor = isRsiExtreme ? '#ff0a4e' : '#10b981';
-            const rsiFontWeight = isRsiExtreme ? 'font-weight:700;' : '';
-            const rsiHighlight = isRsiExtreme ? 'border: 1px solid rgba(255, 10, 78, 0.3); padding: 2px 6px; border-radius: 4px;' : '';
+            // Get MA Status using Finance utility
+            const maStatus = typeof Finance !== 'undefined' && Finance.getMAStatus 
+                ? Finance.getMAStatus(price, ma50, ma250, ma20)
+                : { status: '--', trend: 'neutral' };
 
-            // Price display: Neutral (muted) - not prominent
+            // Trend State Logic
+            const isBullish = price > ma250;
+            const isAccelerating = price > ma50;
+            const trendState = isBullish && isAccelerating ? 'BULL' : (isBullish ? 'WEAK' : 'BEAR');
+            const trendColor = trendState === 'BULL' ? '#10b981' : (trendState === 'WEAK' ? '#eab308' : '#ef4444');
+
+            // MA Chain Color
+            const maChainColor = maStatus.trend === 'bullish' ? '#10b981' : 
+                                 (maStatus.trend === 'bearish' ? '#ef4444' : '#71717a');
+
+            // RSI Color Logic
+            const rsiColor = rsi > 70 ? '#ef4444' : (rsi < 30 ? '#10b981' : '#71717a'); // Zinc-500
+            
+            // RSI Background Color for No-Trade Zones (user preference: < 35 or > 65)
+            const rsiBgColor = rsi > 65 ? 'rgba(239, 68, 68, 0.15)' : (rsi < 35 ? 'rgba(59, 130, 246, 0.15)' : 'transparent');
+            const rsiZoneLabel = rsi > 65 ? 'OVERBOUGHT' : (rsi < 35 ? 'OVERSOLD' : '');
+            
+            // Price display
             const priceDisplay = currency === 'KRW' 
                 ? '₩' + Math.round(price).toLocaleString()
                 : '$' + price.toFixed(2);
 
-            // Trend Sorting Logic - Logic Formula stays bright (High Contrast)
-            const sortItems = [
-                { label: 'MP', val: price },
-                { label: '50MA', val: ma50 },
-                { label: '250MA', val: ma250 }
-            ].sort((a, b) => a.val - b.val);
-
-            // MP is bright white, others are light gray (readable but not muted)
-            const trendStr = sortItems.map(i => `<span style="${i.label === 'MP' ? 'color:#fff;font-weight:bold' : 'color:#cbd5e1'}">${i.label}</span>`).join(' < ');
-
             return `
-            <div class="diag-item-graphic">
-                <div class="diag-header">
-                    <span class="diag-title">${ticker}</span>
-                    <span class="diag-price" style="color:#64748b;">${priceDisplay}</span>
-                </div>
-                <div class="diag-visuals">
-                    <div class="rsi-container">
-                        <span>RSI</span>
-                        <div class="rsi-bar-bg">
-                            <div class="rsi-bar-fill" style="width: ${rsi}%; background-color: ${rsiBarColor}"></div>
-                        </div>
-                        <span class="rsi-val" style="color:${rsiColor};${rsiFontWeight}${rsiHighlight}">${rsi.toFixed(2)}</span>
+            <div class="diag-item-graphic minimal-style" 
+                 style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; padding:16px;">
+                 
+                <div class="diag-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-family:var(--font-head); font-size:0.8rem; color:var(--text-secondary); font-weight:500;">${name}</span>
+                        <span style="font-family:var(--font-mono); font-size:1.1rem; color:var(--text-primary); font-weight:600;">${ticker}</span>
                     </div>
-                    <div class="trend-row" style="margin-top:8px; justify-content:center;">
-                        <div style="font-size:0.8rem;">${trendStr}</div>
+                    <div style="text-align:right;">
+                        <span style="font-family:var(--font-mono); font-size:1.1rem; color:var(--text-primary);">${priceDisplay}</span>
+                        <div style="font-family:var(--font-head); font-size:0.7rem; color:${trendColor}; font-weight:600; margin-top:2px;">${trendState}</div>
+                    </div>
+                </div>
+                
+                <!-- MA Chain Status - NEW -->
+                <div class="ma-chain-status" style="background:rgba(0,0,0,0.2); padding:6px 8px; border-radius:4px; margin-bottom:8px;">
+                    <span style="font-family:var(--font-mono); font-size:0.7rem; color:${maChainColor}; letter-spacing:0.5px;">
+                        ${maStatus.status}
+                    </span>
+                </div>
+                
+                <div class="diag-visuals" style="background:${rsiBgColor}; padding:6px; border-radius:4px; margin:-4px; margin-top:0;">
+                    <!-- RSI Minimal Bar -->
+                    <div class="rsi-container" style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:0.7rem; color:var(--text-secondary); font-family:var(--font-mono);">RSI ${rsi.toFixed(0)}${rsiZoneLabel ? ' <span style=\"color:' + (rsi > 65 ? '#ef4444' : '#3b82f6') + '; font-weight:600;\">' + rsiZoneLabel + '</span>' : ''}</span>
+                        <div style="flex:1; height:4px; background:#27272a; border-radius:2px; overflow:hidden;">
+                            <div style="width: ${rsi}%; background-color: ${rsiColor}; height:100%;"></div>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -467,95 +752,117 @@ const UI = {
         grid.innerHTML += renderAssetCard('CSI300', 'China', marketData?.CSI300, 'KRW');
         grid.innerHTML += renderAssetCard('MSTR', 'Crypto', marketData?.MSTR, 'USD');
 
-        // 2. Gauge Widgets for MNAV and Z-Score
-        // MNAV uses 3-zone (Green-Yellow-Red), Z-Score uses 5-zone (Blue-Green-Yellow-Orange-Red)
-        const renderGaugeWidget = (id, title, url, minVal, maxVal, buyThreshold, sellThreshold, is5Zone = false) => {
-            const range = maxVal - minVal;
-            let gradientStyle;
-            let labelsHtml;
+        // 2. Gauge Widgets for MNAV and Z-Score with Static Color Zones
+        
+        // Z-Score Gauge: 5 zones (-0.5 to 4.0)
+        // Blue(-0.5~0) | Green(0~1.5) | Yellow(1.5~2.0) | Orange(2.0~3.5) | Red(3.5~4.0)
+        const renderZScoreGauge = () => {
+            const minVal = -0.5;
+            const maxVal = 4.0;
+            const range = maxVal - minVal; // 4.5
             
-            if (is5Zone) {
-                // 5-Zone Z-Score Logic (Fixed thresholds: 0, 1.5, 2.0, 3.5)
-                // Blue(<0) → Green(0-1.5) → Yellow(1.5-2.0) → Orange(2.0-3.5) → Red(>3.5)
-                const zonePercents = {
-                    blue: ((0 - minVal) / range * 100).toFixed(1),      // Z = 0
-                    green: ((1.5 - minVal) / range * 100).toFixed(1),   // Z = 1.5
-                    yellow: ((2.0 - minVal) / range * 100).toFixed(1),  // Z = 2.0
-                    orange: ((3.5 - minVal) / range * 100).toFixed(1)   // Z = 3.5
-                };
-                
-                gradientStyle = `linear-gradient(to right, 
-                    #3b82f6 0%, 
-                    #3b82f6 ${zonePercents.blue}%, 
-                    #10b981 ${zonePercents.blue}%, 
-                    #10b981 ${zonePercents.green}%, 
-                    #eab308 ${zonePercents.green}%, 
-                    #eab308 ${zonePercents.yellow}%, 
-                    #f97316 ${zonePercents.yellow}%, 
-                    #f97316 ${zonePercents.orange}%, 
-                    #ef4444 ${zonePercents.orange}%, 
-                    #ef4444 100%)`;
-                
-                labelsHtml = `
-                    <span class="gauge-zone-label" style="color:#3b82f6;">🔵 <0</span>
-                    <span class="gauge-zone-label" style="color:#10b981;">🟢 0~1.5</span>
-                    <span class="gauge-zone-label" style="color:#eab308;">🟡 1.5~2</span>
-                    <span class="gauge-zone-label" style="color:#f97316;">🟠 2~3.5</span>
-                    <span class="gauge-zone-label" style="color:#ef4444;">🔴 >3.5</span>`;
-            } else {
-                // 3-Zone MNAV Logic (Green-Yellow-Red)
-                const buyPercent = ((buyThreshold - minVal) / range * 100).toFixed(1);
-                const sellPercent = ((sellThreshold - minVal) / range * 100).toFixed(1);
-                
-                gradientStyle = `linear-gradient(to right, 
-                    #10b981 0%, 
-                    #10b981 ${buyPercent}%, 
-                    #eab308 ${buyPercent}%, 
-                    #eab308 ${sellPercent}%, 
-                    #ef4444 ${sellPercent}%, 
-                    #ef4444 100%)`;
-                
-                labelsHtml = `
-                    <span class="gauge-zone-label buy">BUY < ${buyThreshold}</span>
-                    <span class="gauge-zone-label hold">HOLD</span>
-                    <span class="gauge-zone-label sell">SELL > ${sellThreshold}</span>`;
-            }
+            // Calculate zone widths as percentages
+            const blueEnd = (0 - minVal) / range * 100;        // 11.1%
+            const greenEnd = (1.5 - minVal) / range * 100;     // 44.4%
+            const yellowEnd = (2.0 - minVal) / range * 100;    // 55.6%
+            const orangeEnd = (3.5 - minVal) / range * 100;    // 88.9%
+            
+            const gradientStyle = `linear-gradient(to right, 
+                #3b82f6 0%, #3b82f6 ${blueEnd}%, 
+                #10b981 ${blueEnd}%, #10b981 ${greenEnd}%, 
+                #eab308 ${greenEnd}%, #eab308 ${yellowEnd}%, 
+                #f59e0b ${yellowEnd}%, #f59e0b ${orangeEnd}%, 
+                #ef4444 ${orangeEnd}%, #ef4444 100%)`;
             
             return `
-            <div class="gauge-widget" id="${id}-widget">
-                <div class="gauge-header">
-                    <span class="gauge-title">${title}</span>
-                    <a href="${url}" target="_blank" style="color: var(--neon-cyan); font-size: 0.7rem;">
-                        <i data-lucide="external-link" style="width:12px; height:12px;"></i>
-                    </a>
+            <div class="gauge-widget zscore-gauge" id="zscore-widget" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-bottom:12px;">
+                <div class="gauge-header" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span class="gauge-title" style="font-family:var(--font-head); font-size:0.8rem; color:var(--text-secondary);">BTC MVRV Z-Score</span>
+                    <a href="https://coinank.com/ko/chart/indicator/mvrv-z-score" target="_blank" style="color:var(--text-secondary);"><i data-lucide="external-link" style="width:12px;"></i></a>
                 </div>
-                <div class="gauge-input-row">
-                    <input type="number" 
-                           id="${id}-input" 
-                           class="gauge-input" 
-                           placeholder="Enter value" 
-                           step="0.01"
-                           data-min="${minVal}"
-                           data-max="${maxVal}"
-                           data-buy="${buyThreshold}"
-                           data-sell="${sellThreshold}"
-                           data-is5zone="${is5Zone}">
-                    <span class="gauge-value" id="${id}-value">--</span>
+                
+                <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:8px;">
+                     <span class="gauge-value" id="zscore-value" style="font-family:var(--font-mono); font-size:1.5rem; font-weight:600; color:var(--text-primary);">--</span>
+                     <input type="number" id="zscore-input" class="minimal-input" placeholder="Set" step="0.01" style="background:transparent; border:none; border-bottom:1px solid var(--border-color); color:var(--text-secondary); font-family:var(--font-mono); width:60px; font-size:0.8rem;" 
+                           data-min="${minVal}" data-max="${maxVal}">
                 </div>
-                <div class="gauge-track" id="${id}-track" style="background: ${gradientStyle};">
-                    <div class="gauge-marker" id="${id}-marker" style="left: 50%;"></div>
+
+                <div class="gauge-track" id="zscore-track" style="height:8px; border-radius:4px; position:relative; overflow:hidden; background:${gradientStyle};">
+                    <div class="gauge-marker" id="zscore-marker" style="position:absolute; width:4px; height:100%; background:#fff; left:50%; box-shadow:0 0 6px white; border-radius:2px; transition:left 0.3s;"></div>
                 </div>
-                <div class="gauge-labels" style="${is5Zone ? 'font-size:0.55rem; gap:2px;' : ''}">
-                    ${labelsHtml}
+                
+                <div class="gauge-labels" style="display:flex; justify-content:space-between; font-size:0.6rem; color:var(--text-secondary); margin-top:4px; font-family:var(--font-mono);">
+                    <span style="color:#3b82f6;">🔵 Z<0</span>
+                    <span style="color:#10b981;">🟢 0~1.5</span>
+                    <span style="color:#eab308;">🟡 ~2.0</span>
+                    <span style="color:#f59e0b;">🟠 ~3.5</span>
+                    <span style="color:#ef4444;">🔴 >3.5</span>
+                </div>
+            </div>`;
+        };
+        
+        // MNAV Gauge: 3 zones (0.5 to 3.0)
+        // Green(0.5~1.0) | Yellow(1.0~2.5) | Red(2.5~3.0)
+        const renderMNAVGauge = () => {
+            const minVal = 0.5;
+            const maxVal = 3.0;
+            const range = maxVal - minVal; // 2.5
+            
+            // Calculate zone widths as percentages
+            const greenEnd = (1.0 - minVal) / range * 100;     // 20%
+            const yellowEnd = (2.5 - minVal) / range * 100;    // 80%
+            
+            const gradientStyle = `linear-gradient(to right, 
+                #10b981 0%, #10b981 ${greenEnd}%, 
+                #eab308 ${greenEnd}%, #eab308 ${yellowEnd}%, 
+                #ef4444 ${yellowEnd}%, #ef4444 100%)`;
+            
+            return `
+            <div class="gauge-widget mnav-gauge" id="mnav-widget" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-bottom:12px;">
+                <div class="gauge-header" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span class="gauge-title" style="font-family:var(--font-head); font-size:0.8rem; color:var(--text-secondary);">MSTR MNAV</span>
+                    <a href="https://www.strategy.com/" target="_blank" style="color:var(--text-secondary);"><i data-lucide="external-link" style="width:12px;"></i></a>
+                </div>
+                
+                <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:8px;">
+                     <span class="gauge-value" id="mnav-value" style="font-family:var(--font-mono); font-size:1.5rem; font-weight:600; color:var(--text-primary);">--</span>
+                     <input type="number" id="mnav-input" class="minimal-input" placeholder="Set" step="0.01" style="background:transparent; border:none; border-bottom:1px solid var(--border-color); color:var(--text-secondary); font-family:var(--font-mono); width:60px; font-size:0.8rem;" 
+                           data-min="${minVal}" data-max="${maxVal}">
+                </div>
+
+                <div class="gauge-track" id="mnav-track" style="height:8px; border-radius:4px; position:relative; overflow:hidden; background:${gradientStyle};">
+                    <div class="gauge-marker" id="mnav-marker" style="position:absolute; width:4px; height:100%; background:#fff; left:50%; box-shadow:0 0 6px white; border-radius:2px; transition:left 0.3s;"></div>
+                </div>
+                
+                <div class="gauge-labels" style="display:flex; justify-content:space-between; font-size:0.6rem; color:var(--text-secondary); margin-top:4px; font-family:var(--font-mono);">
+                    <span style="color:#10b981;">🟢 <1.0</span>
+                    <span style="color:#eab308;">🟡 1.0~2.5</span>
+                    <span style="color:#ef4444;">🔴 >2.5</span>
                 </div>
             </div>`;
         };
 
-        // MNAV: Buy < 1.3, Sell > 2.8 (3-zone)
-        grid.innerHTML += renderGaugeWidget('mnav', 'MSTR MNAV', 'https://www.strategy.com/', 0.8, 3.3, 1.3, 2.8, false);
+        // Render both gauges
+        grid.innerHTML += renderMNAVGauge();
+        grid.innerHTML += renderZScoreGauge();
+
+        // 3. Signal Badge - Shows current MSTR algo signal status
+        const renderSignalBadge = () => {
+            return `
+            <div id="signal-badge-container" class="signal-badge-widget" style="background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-top:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-family:var(--font-head); font-size:0.8rem; color:var(--text-secondary);">ALGO SIGNAL</span>
+                    <span id="signal-badge" style="font-family:var(--font-mono); font-size:0.75rem; padding:4px 10px; border-radius:12px; background:#27272a; color:#a1a1aa;">
+                        ⚪ IDLE
+                    </span>
+                </div>
+                <div id="signal-detail" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-secondary); min-height:20px;">
+                    Enter MNAV/Z-Score to evaluate signals
+                </div>
+            </div>`;
+        };
         
-        // Z-Score: 5-zone system (Range: -1 to 5 for visual coverage)
-        grid.innerHTML += renderGaugeWidget('zscore', 'BTC MVRV Z-Score', 'https://coinank.com/ko/chart/indicator/mvrv-z-score', -1.0, 5.0, 0, 3.5, true);
+        grid.innerHTML += renderSignalBadge();
 
         // Re-render Lucide icons
         if (typeof lucide !== 'undefined') {
@@ -601,32 +908,12 @@ const UI = {
                 // Update value display with color
                 if (valueEl) {
                     valueEl.textContent = value.toFixed(2);
-                    
-                    // Check if this is a 5-zone gauge (Z-Score)
-                    const is5Zone = input.dataset.is5zone === 'true';
-                    
-                    if (is5Zone) {
-                        // 5-Zone Z-Score coloring
-                        if (value < 0) {
-                            valueEl.style.color = '#3b82f6'; // Blue (Strong Buy)
-                        } else if (value <= 1.5) {
-                            valueEl.style.color = '#10b981'; // Green (Fair Value)
-                        } else if (value <= 2.0) {
-                            valueEl.style.color = '#eab308'; // Yellow (Buffer)
-                        } else if (value <= 3.5) {
-                            valueEl.style.color = '#f97316'; // Orange (Profit Lock)
-                        } else {
-                            valueEl.style.color = '#ef4444'; // Red (Hard Exit)
-                        }
+                    if (value < buyThreshold) {
+                        valueEl.style.color = 'var(--neon-green)';
+                    } else if (value > sellThreshold) {
+                        valueEl.style.color = 'var(--neon-red)';
                     } else {
-                        // 3-Zone MNAV coloring
-                        if (value < buyThreshold) {
-                            valueEl.style.color = 'var(--neon-green)';
-                        } else if (value > sellThreshold) {
-                            valueEl.style.color = 'var(--neon-red)';
-                        } else {
-                            valueEl.style.color = '#fbbf24';
-                        }
+                        valueEl.style.color = '#fbbf24';
                     }
                 }
                 
@@ -660,9 +947,148 @@ const UI = {
                     }
                     
                     // Add input listener
-                    input.addEventListener('input', () => updateGauge(id, true));
+                    input.addEventListener('input', () => {
+                        updateGauge(id, true);
+                        updateSignalBadge(); // Update signal badge on input change
+                    });
                 }
             });
+            
+            // Signal Badge Update Function
+            const updateSignalBadge = () => {
+                const badge = document.getElementById('signal-badge');
+                const detail = document.getElementById('signal-detail');
+                if (!badge || !detail) return;
+                
+                const mnavInput = document.getElementById('mnav-input');
+                const zscoreInput = document.getElementById('zscore-input');
+                
+                const mnav = mnavInput ? parseFloat(mnavInput.value) : NaN;
+                const zscore = zscoreInput ? parseFloat(zscoreInput.value) : NaN;
+                
+                // Helper to reset gauge state (for IDLE mode)
+                const resetGaugeState = () => {
+                    const mnavMarker = document.getElementById('mnav-marker');
+                    const zscoreMarker = document.getElementById('zscore-marker');
+                    const mnavTrack = document.getElementById('mnav-track');
+                    const zscoreTrack = document.getElementById('zscore-track');
+                    
+                    // Reset markers to center
+                    if (mnavMarker) mnavMarker.style.left = '50%';
+                    if (zscoreMarker) zscoreMarker.style.left = '50%';
+                    
+                    // Remove any pulsing animation
+                    if (mnavTrack) mnavTrack.style.animation = 'none';
+                    if (zscoreTrack) zscoreTrack.style.animation = 'none';
+                };
+                
+                // Check if inputs are valid
+                if (isNaN(mnav) || isNaN(zscore)) {
+                    badge.textContent = '⚪ IDLE';
+                    badge.style.background = '#27272a';
+                    badge.style.color = '#a1a1aa';
+                    detail.textContent = 'Enter MNAV/Z-Score to evaluate signals';
+                    resetGaugeState();
+                    return;
+                }
+                
+                // Load MSTR state if available
+                const mstrState = typeof MSTRState !== 'undefined' ? MSTRState : { boughtAtLow: false, soldAtHigh: false };
+                const mstrInTactical = typeof tacticalTargets !== 'undefined' && tacticalTargets['MSTR'];
+                
+                // ═══════════════════════════════════════════════════════════════
+                // STEP 1: Update gauge markers and apply pulsing for extreme zones
+                // ═══════════════════════════════════════════════════════════════
+                const updateGaugeMarkers = () => {
+                    // Z-Score marker (range: -0.5 to 4.0)
+                    const zscoreMarker = document.getElementById('zscore-marker');
+                    const zscoreTrack = document.getElementById('zscore-track');
+                    if (zscoreMarker && !isNaN(zscore)) {
+                        const zMin = -0.5, zMax = 4.0;
+                        const zClamped = Math.max(zMin, Math.min(zMax, zscore));
+                        const zPercent = ((zClamped - zMin) / (zMax - zMin)) * 100;
+                        zscoreMarker.style.left = `${zPercent}%`;
+                        
+                        // Pulsing animation for extreme zones
+                        if (zscore < 0) {
+                            zscoreTrack.style.animation = 'pulse-blue 1.5s infinite';
+                        } else if (zscore > 3.5) {
+                            zscoreTrack.style.animation = 'pulse-red 1.5s infinite';
+                        } else {
+                            zscoreTrack.style.animation = 'none';
+                        }
+                    }
+                    
+                    // MNAV marker (range: 0.5 to 3.0)
+                    const mnavMarker = document.getElementById('mnav-marker');
+                    const mnavTrack = document.getElementById('mnav-track');
+                    if (mnavMarker && !isNaN(mnav)) {
+                        const mMin = 0.5, mMax = 3.0;
+                        const mClamped = Math.max(mMin, Math.min(mMax, mnav));
+                        const mPercent = ((mClamped - mMin) / (mMax - mMin)) * 100;
+                        mnavMarker.style.left = `${mPercent}%`;
+                        
+                        // Pulsing animation for extreme zone
+                        if (mnav > 2.5) {
+                            mnavTrack.style.animation = 'pulse-red 1.5s infinite';
+                        } else {
+                            mnavTrack.style.animation = 'none';
+                        }
+                    }
+                };
+                
+                updateGaugeMarkers();
+                
+                // ═══════════════════════════════════════════════════════════════
+                // STEP 2: Display SIGNAL based on tactical state (actual trading signals)
+                // Only actionable signals are displayed; requires tactical conditions
+                // ═══════════════════════════════════════════════════════════════
+                
+                // SELL signals (priority order)
+                if (zscore > 3.5 || mnav > 2.5) {
+                    badge.textContent = '🔴 HARD EXIT';
+                    badge.style.background = 'rgba(239, 68, 68, 0.2)';
+                    badge.style.color = '#ef4444';
+                    detail.textContent = `Z=${zscore.toFixed(2)}, MNAV=${mnav.toFixed(2)} → MSTR(100%) → DBMF`;
+                    return;
+                }
+                
+                if (zscore > 2.0 && mstrInTactical) {
+                    badge.textContent = '🟠 PROFIT LOCK';
+                    badge.style.background = 'rgba(245, 158, 11, 0.2)';
+                    badge.style.color = '#f59e0b';
+                    detail.textContent = `Z=${zscore.toFixed(2)} (tactical) → MSTR(50%) → DBMF`;
+                    return;
+                }
+                
+                // [DEPRECATED] SOFT ROTATE (Z > 1.0) - Removed per new algo spec
+                
+                // BUY signals
+                if (zscore < 0) {
+                    badge.textContent = '🟢 OPPORTUNITY';
+                    badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                    badge.style.color = '#10b981';
+                    detail.textContent = `Z=${zscore.toFixed(2)} < 0 → DBMF(10%) → MSTR`;
+                    return;
+                }
+                
+                if (zscore < 1.5 && mstrState.soldAtHigh) {
+                    badge.textContent = '🔵 TREND RE-ENTRY';
+                    badge.style.background = 'rgba(59, 130, 246, 0.2)';
+                    badge.style.color = '#3b82f6';
+                    detail.textContent = `Z=${zscore.toFixed(2)} (sold high, check 20MA) → BIL → MSTR`;
+                    return;
+                }
+                
+                // No signal - HOLD (but color already applied above)
+                badge.textContent = '⚪ HOLD';
+                badge.style.background = '#27272a';
+                badge.style.color = '#a1a1aa';
+                detail.textContent = `Z=${zscore.toFixed(2)}, MNAV=${mnav.toFixed(2)} - No action needed`;
+            };
+            
+            // Initial badge update
+            setTimeout(updateSignalBadge, 200);
         }, 100);
     },
 
@@ -675,19 +1101,80 @@ const UI = {
 
         const weeklyPnlEl = document.getElementById('weekly-pnl');
         if (weeklyPnlEl && stats.weeklyReturn !== undefined) {
-            const returnStr = (stats.weeklyReturn > 0 ? '+' : '') + stats.weeklyReturn.toFixed(2) + '%';
+            const val = stats.weeklyReturn;
+            const returnStr = (val > 0 ? '+' : '') + val.toFixed(2) + '%';
             
-            // Check if in weekend freeze period
+            // 1. Update Text
             if (stats.wtdStatus && stats.wtdStatus.isFrozen) {
-                // Weekend freeze - show with snowflake icon
-                weeklyPnlEl.innerHTML = `<span style="opacity: 0.7">❄️</span> ${returnStr}`;
-                weeklyPnlEl.title = `Week Closed (Base: ${stats.wtdStatus.baseDate})`;
+                 weeklyPnlEl.innerHTML = `<span style="opacity: 0.7">❄️</span> ${returnStr}`;
             } else {
-                weeklyPnlEl.innerText = returnStr;
-                weeklyPnlEl.title = stats.wtdStatus ? `Base: ${stats.wtdStatus.baseDate}` : '';
+                 weeklyPnlEl.innerText = returnStr;
             }
-            
-            weeklyPnlEl.style.color = stats.weeklyReturn >= 0 ? 'var(--neon-green)' : 'var(--neon-red)';
+            weeklyPnlEl.style.color = val >= 0 ? '#00E3CC' : '#FF453A'; // Quant colors
+
+            // 2. Apply Glow Effects to Card
+            const card = weeklyPnlEl.closest('.pulse-card');
+            if (card) {
+                card.classList.add('quant-style');
+                card.classList.remove('glow-green', 'glow-red', 'glow-neutral');
+                
+                if (val > 0) card.classList.add('glow-green');
+                else if (val < 0) card.classList.add('glow-red');
+                else card.classList.add('glow-neutral');
+
+                // 3. Attach Insight Tooltip (Simplified Inline Logic)
+                // Use a generic tooltip handler if available, or just custom here
+                // Reuse the 'macro-tooltip-custom' if it exists, or create separate
+                
+                // We'll quickly define the tooltip show/hide for this specific element
+                // to avoid huge code duplication, we assume simple text for now or 
+                // re-implement the 'attachTooltipEvents' pattern if we want high consistency.
+                
+                // Let's implement a 'Weekly Pulse Insight' specific tooltip
+                card.onmouseenter = (e) => {
+                    let tt = document.getElementById('macro-tooltip-custom');
+                    if (!tt) return; // Should be created by renderMacroEnvironment already
+                    
+                    const state = val > 0 ? 'safe' : (val < 0 ? 'danger' : 'neutral');
+                    const stateColor = val > 0 ? '#00E3CC' : (val < 0 ? '#FF453A' : '#FFD700');
+                    const label = val > 0 ? 'PROFITABLE' : (val < 0 ? 'DRAWDOWN' : 'FLAT');
+                    
+                    tt.innerHTML = `
+                        <div class="mt-header">
+                            <span class="mt-title">WEEKLY PULSE</span>
+                            <span class="mt-status ${state}">${label}</span>
+                        </div>
+                        <div class="mt-body">
+                            <div class="mt-row">
+                                <span class="mt-label">WTD Return</span>
+                                <span class="mt-value" style="color:${stateColor}">${returnStr}</span>
+                            </div>
+                            <div class="mt-context">
+                                Performance since Monday Open.<br>
+                                Measured against base capital.
+                            </div>
+                        </div>
+                    `;
+                    tt.classList.add('visible');
+                    
+                    // Simple move logic
+                    const move = (ev) => {
+                        const x = ev.pageX + 15;
+                        const y = ev.pageY + 15;
+                        const rect = tt.getBoundingClientRect();
+                         const finalX = (x + rect.width > window.innerWidth) ? x - rect.width - 15 : x;
+                        tt.style.left = `${finalX}px`;
+                        tt.style.top = `${y}px`;
+                    };
+                    card.onmousemove = move;
+                    move(e);
+                };
+                card.onmouseleave = () => {
+                     const tt = document.getElementById('macro-tooltip-custom');
+                     if(tt) tt.classList.remove('visible');
+                     card.onmousemove = null;
+                };
+            }
         }
 
         // ===== SIGMA GAUGE RENDERING =====
@@ -841,135 +1328,137 @@ const UI = {
      * @param {Object} bmMetrics - { cagr, stdDev, sharpe, mdd } (SPY)
      */
     renderPerformanceScorecard: (fundMetrics, bmMetrics) => {
-        if (!fundMetrics || !bmMetrics) return;
+        const container = document.getElementById('performance-scorecard');
+        if (!container || !fundMetrics || !bmMetrics) return;
 
         const safe = (val) => (val !== undefined && val !== null && !isNaN(val));
-
-        // Delta Threshold: Hide styling if absolute change is less than 0.01% (0.0001 in decimal)
-        // This prevents displaying meaningless micro-changes in long-term metrics
-        const DELTA_THRESHOLD = 0.0001; // 0.01%
+        const DELTA_THRESHOLD = 0.0001;
         
-        const formatDelta = (delta, isPercent, invert = false) => {
-            if (!safe(delta)) return { text: '--', className: '' };
+        // Helper: Format Delta
+        const getDelta = (fund, bench, invert = false) => {
+            if (!safe(fund) || !safe(bench)) return { text: '--', cls: '' };
+            const diff = fund - bench;
+            if (Math.abs(diff) < DELTA_THRESHOLD) return { text: '--', cls: '' };
             
-            // Hide delta if below threshold (0.01%)
-            if (Math.abs(delta) < DELTA_THRESHOLD) {
-                return { text: '--', className: '' };
-            }
+            const isBetter = invert ? diff < 0 : diff > 0; // Lower MDD/StdDev is better
+            const cls = isBetter ? 'positive' : 'negative';
+            const arrow = diff > 0 ? '▲' : '▼';
+            const text = arrow + Math.abs(diff * (Math.abs(fund) > 1 ? 1 : 100)).toFixed(1) + ((Math.abs(fund) <= 1) ? '%' : '');
             
-            const arrow = delta > 0 ? '▲' : (delta < 0 ? '▼' : '');
-            let text;
-            if (isPercent) {
-                text = arrow + (delta > 0 ? '+' : '') + (delta * 100).toFixed(1) + '%';
-            } else {
-                text = arrow + (delta > 0 ? '+' : '') + delta.toFixed(2);
-            }
-
-            // Determine class: for most metrics higher is better (alpha)
-            // For StdDev/MDD: lower fund value means less risk = alpha (inverted)
-            let isAlpha = delta > 0;
-            if (invert) isAlpha = !isAlpha;
-
-            return {
-                text: text,
-                className: isAlpha ? 'alpha' : 'underperform'
-            };
+            return { text, cls };
         };
 
-        // Calculate Calmar ratios
+        // Helper: Create Tile HTML
+        const createTile = (label, value, deltaObj, format = 'pct', rank = '', desc = '') => {
+            let valStr = '--';
+            if (safe(value)) {
+                valStr = format === 'pct' ? (value * 100).toFixed(1) + '%' : value.toFixed(2);
+            }
+            // Tooltip handler logic (Minified for inline)
+            // Using a data attribute based approach might be cleaner but inline works for immediate "Quant" feel
+            const tooltipTitle = label.toUpperCase();
+            const rankLabel = rank ? `RANK: ${rank}` : '';
+            
+            return `
+            <div class="sc-tile"
+                 onmouseenter="const tt=document.getElementById('macro-tooltip-custom'); if(tt){ 
+                    tt.innerHTML='<div class=\\'mt-header\\'><span class=\\'mt-title\\'>${tooltipTitle}</span><span class=\\'mt-status neutral\\'>${rankLabel}</span></div><div class=\\'mt-body\\'><div class=\\'mt-context\\'>${desc}</div><div class=\\'mt-row\\' style=\\'margin-top:8px;\\'><span class=\\'mt-label\\'>vs Benchmark</span><span class=\\'mt-value\\' style=\\'color:${deltaObj.cls==='positive'?'#00E3CC':'#FF453A'}\\'>${deltaObj.text}</span></div></div>';
+                    tt.classList.add('visible');
+                    const move=(e)=>{const x=e.pageX+15;const y=e.pageY+15;const rect=tt.getBoundingClientRect();tt.style.left=(x+rect.width>window.innerWidth?x-rect.width-15:x)+'px';tt.style.top=y+'px'};
+                    this.onmousemove=move; move(event);
+                 }"
+                 onmouseleave="document.getElementById('macro-tooltip-custom')?.classList.remove('visible'); this.onmousemove=null;"
+            >
+                <div class="sc-header">
+                    <span class="sc-label">${label}</span>
+                    <span class="sc-rank" style="color:${rank==='S'?'#00E3CC':(rank==='A'?'#FFD700':'#64748b')}">${rank || '-'}</span>
+                </div>
+                <div class="sc-value-row">
+                    <span class="sc-value">${valStr}</span>
+                    ${deltaObj.text !== '--' ? `<span class="sc-delta ${deltaObj.cls}">${deltaObj.text}</span>` : ''}
+                </div>
+            </div>`;
+        };
+
+        // Calculate Derived Stats
         const fundCalmar = Finance.calculateCalmarRatio(fundMetrics.cagr, fundMetrics.mdd);
         const bmCalmar = Finance.calculateCalmarRatio(bmMetrics.cagr, bmMetrics.mdd);
 
-        // === 2x3 GRID METRICS ===
+        // Define Metrics Config
+        const tiles = [
+            {
+                label: 'CAGR', 
+                val: fundMetrics.cagr, 
+                delta: getDelta(fundMetrics.cagr, bmMetrics.cagr),
+                fmt: 'pct',
+                rank: fundMetrics.cagr > 0.25 ? 'S' : (fundMetrics.cagr > 0.15 ? 'A' : 'B'),
+                desc: 'Compound Annual Growth Rate. Measures the geometric progression ratio that provides a constant rate of return.'
+            },
+            {
+                label: 'MDD', 
+                val: fundMetrics.mdd, 
+                delta: getDelta(fundMetrics.mdd, bmMetrics.mdd, true), // Inverted
+                fmt: 'pct',
+                rank: fundMetrics.mdd < 0.1 ? 'S' : (fundMetrics.mdd < 0.2 ? 'A' : 'C'),
+                desc: 'Max Drawdown. The maximum observed loss from a peak to a trough of a portfolio.'
+            },
+            {
+                label: 'Sharpe', 
+                val: fundMetrics.sharpe, 
+                delta: getDelta(fundMetrics.sharpe, bmMetrics.sharpe),
+                fmt: 'num',
+                rank: fundMetrics.sharpe > 2.0 ? 'S' : (fundMetrics.sharpe > 1.0 ? 'A' : 'B'),
+                desc: 'Sharpe Ratio. Measures risk-adjusted return (using StdDev). > 1.0 is considered good.'
+            },
+            {
+                label: 'Sortino', 
+                val: fundMetrics.sortino, 
+                delta: getDelta(fundMetrics.sortino, bmMetrics.sortino),
+                fmt: 'num',
+                rank: fundMetrics.sortino > 3.0 ? 'S' : (fundMetrics.sortino > 1.5 ? 'A' : 'B'),
+                desc: 'Sortino Ratio. Similar to Sharpe but only penalizes downside volatility. Best for asymmetric return strategies.'
+            },
+            {
+                label: 'StdDev', 
+                val: fundMetrics.stdDev, 
+                delta: getDelta(fundMetrics.stdDev, bmMetrics.stdDev, true), // Inverted
+                fmt: 'pct',
+                rank: fundMetrics.stdDev < 0.1 ? 'S' : (fundMetrics.stdDev < 0.15 ? 'A' : 'B'),
+                desc: 'Standard Deviation (Volatility). A statistical measure of the dispersion of returns.'
+            },
+            {
+                label: 'Calmar', 
+                val: fundCalmar, 
+                delta: getDelta(fundCalmar, bmCalmar),
+                fmt: 'num',
+                rank: fundCalmar > 2.0 ? 'S' : (fundCalmar > 1.0 ? 'A' : 'B'),
+                desc: 'Calmar Ratio. CAGR / Max Drawdown. Measures return relative to downside risk (drawdown).'
+            }
+        ];
+
+        // Generate HTML with Smart Grid Structure
+        let html = `<div class="scorecard-container quant-style">`;
         
-        // Row 1: CAGR (higher is better) | MDD (lower is better)
-        const cagrEl = document.getElementById('sc-cagr');
-        const cagrDeltaEl = document.getElementById('sc-delta-cagr');
-        if (cagrEl && safe(fundMetrics.cagr)) {
-            cagrEl.textContent = (fundMetrics.cagr * 100).toFixed(1) + '%';
-        }
-        if (cagrDeltaEl && safe(fundMetrics.cagr) && safe(bmMetrics.cagr)) {
-            const delta = fundMetrics.cagr - bmMetrics.cagr;
-            const { text, className } = formatDelta(delta, true, false);
-            cagrDeltaEl.textContent = text;
-            cagrDeltaEl.className = `cell-delta ${className}`;
-        }
+        // 1. Core Metrics Grid (Smart Auto-Fit)
+        html += `<div class="scorecard-grid">`;
+        tiles.forEach(t => {
+            html += createTile(t.label, t.val, t.delta, t.fmt, t.rank, t.desc);
+        });
+        html += `</div>`;
 
-        const mddEl = document.getElementById('sc-mdd');
-        const mddDeltaEl = document.getElementById('sc-delta-mdd');
-        if (mddEl && safe(fundMetrics.mdd)) {
-            mddEl.textContent = '-' + (fundMetrics.mdd * 100).toFixed(1) + '%';
-        }
-        if (mddDeltaEl && safe(fundMetrics.mdd) && safe(bmMetrics.mdd)) {
-            const delta = fundMetrics.mdd - bmMetrics.mdd;
-            const { text, className } = formatDelta(delta, true, true); // Inverted: lower MDD is better
-            mddDeltaEl.textContent = text;
-            mddDeltaEl.className = `cell-delta ${className}`;
-        }
+        // 2. Meta Stats Footer (Beta & Correlation)
+        html += `
+            <div class="scorecard-footer">
+                <div class="sc-mini-stat" title="Sensitivity to Market Movements">
+                    <span style="color:#00E3CC">BETA:</span> <span style="font-family:'Roboto Mono'; color:white;">${(fundMetrics.beta || 0).toFixed(2)}</span>
+                </div>
+                <div class="sc-mini-stat" title="Correlation to Market (SPY)">
+                    <span style="color:#00E3CC">CORR:</span> <span style="font-family:'Roboto Mono'; color:white;">${(fundMetrics.correlation || 0).toFixed(2)}</span>
+                </div>
+            </div>
+        </div>`;
 
-        // Row 2: SHARPE (higher is better) | STDDEV (lower is better)
-        const sharpeEl = document.getElementById('sc-sharpe');
-        const sharpeDeltaEl = document.getElementById('sc-delta-sharpe');
-        if (sharpeEl && safe(fundMetrics.sharpe)) {
-            sharpeEl.textContent = fundMetrics.sharpe.toFixed(2);
-        }
-        if (sharpeDeltaEl && safe(fundMetrics.sharpe) && safe(bmMetrics.sharpe)) {
-            const delta = fundMetrics.sharpe - bmMetrics.sharpe;
-            const { text, className } = formatDelta(delta, false, false);
-            sharpeDeltaEl.textContent = text;
-            sharpeDeltaEl.className = `cell-delta ${className}`;
-        }
-
-        const stdEl = document.getElementById('sc-std');
-        const stdDeltaEl = document.getElementById('sc-delta-std');
-        if (stdEl && safe(fundMetrics.stdDev)) {
-            stdEl.textContent = (fundMetrics.stdDev * 100).toFixed(1) + '%';
-        }
-        if (stdDeltaEl && safe(fundMetrics.stdDev) && safe(bmMetrics.stdDev)) {
-            const delta = fundMetrics.stdDev - bmMetrics.stdDev;
-            const { text, className } = formatDelta(delta, true, true); // Inverted: lower StdDev is better
-            stdDeltaEl.textContent = text;
-            stdDeltaEl.className = `cell-delta ${className}`;
-        }
-
-        // Row 3: SORTINO (higher is better) | CALMAR (higher is better)
-        const sortinoEl = document.getElementById('sc-sortino');
-        const sortinoDeltaEl = document.getElementById('sc-delta-sortino');
-        if (sortinoEl && safe(fundMetrics.sortino)) {
-            sortinoEl.textContent = fundMetrics.sortino.toFixed(2);
-        }
-        if (sortinoDeltaEl && safe(fundMetrics.sortino) && safe(bmMetrics.sortino)) {
-            const delta = fundMetrics.sortino - bmMetrics.sortino;
-            const { text, className } = formatDelta(delta, false, false);
-            sortinoDeltaEl.textContent = text;
-            sortinoDeltaEl.className = `cell-delta ${className}`;
-        }
-
-        const calmarEl = document.getElementById('sc-calmar');
-        const calmarDeltaEl = document.getElementById('sc-delta-calmar');
-        if (calmarEl && safe(fundCalmar)) {
-            calmarEl.textContent = fundCalmar.toFixed(2);
-        }
-        if (calmarDeltaEl && safe(fundCalmar) && safe(bmCalmar)) {
-            const delta = fundCalmar - bmCalmar;
-            const { text, className } = formatDelta(delta, false, false);
-            calmarDeltaEl.textContent = text;
-            calmarDeltaEl.className = `cell-delta ${className}`;
-        }
-
-        // === FOOTER METRICS ===
-        
-        // Beta
-        const betaEl = document.getElementById('sc-beta');
-        if (betaEl && safe(fundMetrics.beta)) {
-            betaEl.textContent = fundMetrics.beta.toFixed(2);
-        }
-
-        // Correlation
-        const corrEl = document.getElementById('sc-correlation');
-        if (corrEl && safe(fundMetrics.correlation)) {
-            corrEl.textContent = fundMetrics.correlation.toFixed(2);
-        }
+        container.innerHTML = html;
     },
 
     /**
@@ -1592,6 +2081,73 @@ const UI = {
                     fromAsset, fromShares, toAsset, toShares
                 }];
                 eventData.details = `${fromAsset} ${fromShares}주 → ${toAsset} ${toShares}주`;
+                
+                // NEW: Capture Z-Score and MNAV for MSTR trades
+                const mnavInput = document.getElementById('mstr-mnav-input');
+                const zscoreInput = document.getElementById('mstr-zscore-input');
+                if (mnavInput && mnavInput.value) {
+                    eventData.mnav = parseFloat(mnavInput.value);
+                }
+                if (zscoreInput && zscoreInput.value) {
+                    eventData.zScore = parseFloat(zscoreInput.value);
+                }
+                
+                // NEW: Mark as Algo Switch (WATCHING state)
+                // All switches from this form are Algo-driven
+                eventData.status = typeof SignalStates !== 'undefined' ? SignalStates.WATCHING : 'WATCHING';
+                
+                // NEW: Set Tactical Target (call global function if available)
+                // Calculate amount as the from asset's target weight (full switch)
+                if (typeof setTacticalTarget === 'function') {
+                    const fromAssetData = typeof portfolio !== 'undefined' 
+                        ? portfolio.find(a => a.ticker === fromAsset) 
+                        : null;
+                    const amount = fromAssetData?.targetWeight || 0.10;
+                    
+                    // Check if this is a RETURN Switch (reversing a Tactical position)
+                    // If toAsset is in Tactical state (has a tactical target), this is a return
+                    const isReturnSwitch = typeof tacticalTargets !== 'undefined' && tacticalTargets[toAsset];
+                    
+                    if (isReturnSwitch) {
+                        // This is a RETURN Switch - clear Tactical targets
+                        console.log(`🔄 Return Switch detected: ${fromAsset} → ${toAsset}`);
+                        
+                        if (typeof clearTacticalTarget === 'function') {
+                            clearTacticalTarget(toAsset);  // Restore toAsset's original Target
+                            clearTacticalTarget(fromAsset); // Clear fromAsset's Tactical state
+                        }
+                        
+                        // Mark signal as complete
+                        if (typeof activeSignals !== 'undefined') {
+                            const signal = activeSignals.find(s => 
+                                s.status === 'RETURN_PENDING' && 
+                                (s.returnAction?.to === toAsset || s.to === fromAsset)
+                            );
+                            if (signal && typeof removeSignal === 'function') {
+                                removeSignal(signal.id);
+                            }
+                        }
+                        
+                        eventData.triggeredBy = 'RETURN_SWITCH';
+                        eventData.status = 'COMPLETE';
+                    } else {
+                        // Normal forward Switch - set Tactical targets
+                        // Get rule ID from signal badge if available
+                        const signalBadge = document.getElementById('signal-badge');
+                        const ruleId = signalBadge?.textContent?.includes('HARD EXIT') ? 'SELL_HARD_EXIT' :
+                                      signalBadge?.textContent?.includes('PROFIT LOCK') ? 'SELL_PROFIT_LOCK' :
+                                      signalBadge?.textContent?.includes('SOFT ROTATE') ? 'SELL_SOFT_ROTATE' :
+                                      signalBadge?.textContent?.includes('OPPORTUNITY') ? 'BUY_OPPORTUNITY' :
+                                      'MANUAL_SWITCH';
+                        
+                        eventData.triggeredBy = ruleId;
+                        eventData.amount = amount;
+                        
+                        if (typeof setTacticalTarget === 'function') {
+                            setTacticalTarget(fromAsset, toAsset, amount, ruleId, '');
+                        }
+                    }
+                }
             } else if (type === 'Deposit' || type === 'Withdraw') {
                 const transactions = [];
                 let i = 0;
@@ -1675,102 +2231,143 @@ const UI = {
         }
 
         const result = stressTestResults[activeScenario];
-        if (!result) {
-            container.innerHTML = `
-                <div class="stress-test-error">
-                    <i data-lucide="alert-triangle"></i>
-                    <span>Failed to load stress test data</span>
-                </div>
-            `;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            return;
-        }
-
-        // Format MDD values
-        const portfolioMDD = (result.portfolioMDD * 100).toFixed(1);
-        const spyMDD = (result.spyMDD * 100).toFixed(1);
-        
-        // Calculate relative performance (better = less drawdown)
-        const delta = result.spyMDD - result.portfolioMDD;
-        const deltaPercent = (delta * 100).toFixed(1);
-        const isOutperform = delta > 0;
-
-        // Scenario info
-        const scenarioLabels = {
-            '2020': { name: '2020 Pandemic', type: 'Deflationary Shock', icon: '🦠' },
-            '2022': { name: '2022 Inflation', type: 'Inflationary Shock', icon: '📈' }
-        };
-        const scenario = scenarioLabels[activeScenario];
+        if (!result) return;
 
         // Calculate bar widths (scale to max 100%)
         const maxMDD = Math.max(result.portfolioMDD, result.spyMDD);
-        const spyWidth = (result.spyMDD / maxMDD) * 100;
-        const portfolioWidth = (result.portfolioMDD / maxMDD) * 100;
+        const safeMax = maxMDD > 0 ? maxMDD : 0.01;
+        
+        const spyWidth = (result.spyMDD / safeMax) * 100;
+        const portfolioWidth = (result.portfolioMDD / safeMax) * 100;
 
+        // Visual Class & Colors
+        let damageClass = 'safe';
+        let damageColor = '#00E3CC';
+        if (result.portfolioMDD > 0.20) { damageClass = 'danger'; damageColor = '#FF453A'; }
+        else if (result.portfolioMDD > 0.10) { damageClass = 'warning'; damageColor = '#FFD700'; }
+
+        // Comparison Logic
+        const delta = result.spyMDD - result.portfolioMDD;
+        const isOutperform = delta > 0;
+        const deltaColor = isOutperform ? '#00E3CC' : '#FF453A';
+
+        // Scenario Metadata
+        const scenarios = {
+            '2020': { label: 'COVID-19 CRASH', sub: 'Deflationary Shock' },
+            '2022': { label: 'INFLATION SHOCK', sub: 'Rate Hike Cycle' }
+        };
+        const currentMeta = scenarios[activeScenario] || { label: 'SCENARIO', sub: 'Unknown' };
+
+        // Tooltip Handler
+        const showStressTooltip = (e, title, mdd, type) => {
+            let tt = document.getElementById('macro-tooltip-custom');
+            if (!tt) return;
+            
+            const pct = (mdd * 100).toFixed(1) + '%';
+            const state = mdd < 0.15 ? 'safe' : (mdd < 0.25 ? 'neutral' : 'danger');
+            const color = mdd < 0.15 ? '#00E3CC' : (mdd < 0.25 ? '#FFD700' : '#FF453A');
+            
+            tt.innerHTML = `
+                <div class="mt-header">
+                    <span class="mt-title">DAMAGE REPORT: ${title}</span>
+                    <span class="mt-status ${state}">${type}</span>
+                </div>
+                <div class="mt-body">
+                    <div class="mt-row">
+                        <span class="mt-label">Max Drawdown</span>
+                        <span class="mt-value" style="color:${color};">-${pct}</span>
+                    </div>
+                     <div class="mt-bar-container">
+                        <div class="mt-bar-fill" style="width: ${Math.min(100, (mdd/0.5)*100)}%; background: ${color}; opacity: 0.5;"></div>
+                    </div>
+                </div>
+            `;
+            tt.classList.add('visible');
+            const move = (ev) => {
+                 const x = ev.pageX + 15;
+                 const y = ev.pageY + 15;
+                 const rect = tt.getBoundingClientRect();
+                 const finalX = (x + rect.width > window.innerWidth) ? x - rect.width - 15 : x;
+                 tt.style.left = `${finalX}px`;
+                 tt.style.top = `${y}px`;
+            };
+            container.onmousemove = move;
+            move(e);
+        };
+
+        // Render HTML (Quant Panel Style)
         container.innerHTML = `
-            <!-- Scenario Toggle Buttons -->
-            <div class="stress-scenario-toggle">
-                <button class="scenario-btn ${activeScenario === '2020' ? 'active' : ''}" data-scenario="2020">
-                    🦠 2020 Pandemic
-                </button>
-                <button class="scenario-btn ${activeScenario === '2022' ? 'active' : ''}" data-scenario="2022">
-                    📈 2022 Inflation
-                </button>
-            </div>
-
-            <!-- Scenario Info Header -->
-            <div class="stress-scenario-info">
-                <span class="scenario-name">${scenario.icon} ${scenario.name}</span>
-                <span class="scenario-type">${scenario.type}</span>
-                <span class="scenario-period">${result.periodStart} → ${result.periodEnd}</span>
-            </div>
-
-            <!-- MDD Comparison Chart -->
-            <div class="stress-mdd-chart">
-                <!-- SPY (Benchmark) Row -->
-                <div class="mdd-row">
-                    <div class="mdd-label">SPY</div>
-                    <div class="mdd-bar-wrapper">
-                        <div class="mdd-bar benchmark" style="width: ${spyWidth}%"></div>
-                        <span class="mdd-value">-${spyMDD}%</span>
-                    </div>
-                </div>
+            <div class="quant-panel" style="padding:16px; min-height:220px; display:flex; flex-direction:column; justify-content:space-between;">
                 
-                <!-- Portfolio Row -->
-                <div class="mdd-row">
-                    <div class="mdd-label">Base 6</div>
-                    <div class="mdd-bar-wrapper">
-                        <div class="mdd-bar portfolio ${isOutperform ? 'outperform' : 'underperform'}" style="width: ${portfolioWidth}%"></div>
-                        <span class="mdd-value">-${portfolioMDD}%</span>
+                <!-- Header / Controls -->
+                <div class="stress-header-row">
+                    <div>
+                        <div style="font-family:'Oswald'; color:var(--text-muted); font-size:0.65rem; letter-spacing:2px; margin-bottom:2px;">SIMULATION</div>
+                        <div class="scenario-name" style="font-family:'Oswald'; font-size:1.0rem; color:white;">${currentMeta.label}</div>
+                    </div>
+                     <div class="stress-scenario-toggle" style="background:rgba(255,255,255,0.05); padding:2px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">
+                        <button class="scenario-btn ${activeScenario === '2020' ? 'active' : ''}" 
+                                onclick="UI.renderStressTest(window._globalStressResults, '2020')"
+                                style="padding:4px 8px; font-size:0.7rem; ${activeScenario==='2020'?'background:rgba(255,255,255,0.1); color:white;':''}">2020</button>
+                        <button class="scenario-btn ${activeScenario === '2022' ? 'active' : ''}" 
+                                onclick="UI.renderStressTest(window._globalStressResults, '2022')"
+                                style="padding:4px 8px; font-size:0.7rem; ${activeScenario==='2022'?'background:rgba(255,255,255,0.1); color:white;':''}">2022</button>
                     </div>
                 </div>
-            </div>
 
-            <!-- Delta Summary -->
-            <div class="stress-delta-summary ${isOutperform ? 'positive' : 'negative'}">
-                <span class="delta-label">vs Benchmark:</span>
-                <span class="delta-value">${isOutperform ? '+' : ''}${deltaPercent}%</span>
-                <span class="delta-verdict">${isOutperform ? 'Better Protection' : 'More Drawdown'}</span>
-            </div>
+                <!-- Comparison Bars (VS) - Minimal Info -->
+                <div class="stress-vs-section">
+                    
+                    <!-- SPY -->
+                    <div class="stress-vs-pill" style="border-bottom:1px solid #333;"
+                         onmouseenter="(showStressTooltip)(event, 'SPY', ${result.spyMDD}, 'BENCHMARK')"
+                         onmouseleave="document.getElementById('macro-tooltip-custom')?.classList.remove('visible'); this.parentElement.parentElement.onmousemove=null;">
+                         
+                        <div style="width:50px; font-family:'Inter'; font-size:0.75rem; color:#71717a;">SPY</div>
+                        <div style="flex:1; margin:0 12px;">
+                            <div class="stress-bar-segmented" style="background:#27272a; height:6px; border-radius:3px;">
+                                <div class="stress-bar-fill-striped benchmark" style="width: ${spyWidth}%; background:#52525b; height:100%; border-radius:3px;"></div>
+                            </div>
+                        </div>
+                        <div style="width:60px; text-align:right; font-family:'Roboto Mono'; font-weight:600; color:#a1a1aa;">-${(result.spyMDD * 100).toFixed(1)}%</div>
+                    </div>
 
-            <!-- Footnote / Disclaimer -->
-            <div class="stress-disclaimer">
-                <i data-lucide="info" class="disclaimer-icon"></i>
-                <p>This simulation tests the fund's 'Base Asset Structure' (Core 6) without tactical hedges or switching rules, to provide a <strong>Worst-Case MDD</strong> scenario. Historical stress tests use DBMF (CTA), CSI 300 Index, and Bitcoin spot prices (MSTR in 2020) as proxies to ensure data availability and strategic validity.</p>
+                    <!-- Portfolio -->
+                    <div class="stress-vs-pill" style="border-bottom:1px solid transparent;"
+                         onmouseenter="(showStressTooltip)(event, 'BASE 6', ${result.portfolioMDD}, 'SYSTEM')"
+                         onmouseleave="document.getElementById('macro-tooltip-custom')?.classList.remove('visible'); this.parentElement.parentElement.onmousemove=null;">
+                         
+                        <div style="width:50px; font-family:'Inter'; font-size:0.75rem; color:${damageColor}; font-weight:600;">BASE 6</div>
+                        <div style="flex:1; margin:0 12px;">
+                            <div class="stress-bar-segmented" style="background:#27272a; height:6px; border-radius:3px;">
+                                <div class="stress-bar-fill-striped ${damageClass}" style="width: ${portfolioWidth}%; background:${damageColor}; height:100%; border-radius:3px;"></div>
+                            </div>
+                        </div>
+                        <div style="width:60px; text-align:right; font-family:'Roboto Mono'; font-weight:600; color:${damageColor};">-${(result.portfolioMDD * 100).toFixed(1)}%</div>
+                    </div>
+
+                </div>
+
+                <!-- Summary Footer -->
+                <div style="margin-top:auto; padding-top:16px; border-top:1px solid #27272a; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.7rem; color:#71717a; letter-spacing:0.02em; font-family:'Inter';">RESILIENCE RATING</span>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                         <span style="font-family:'Roboto Mono'; font-size:0.75rem; color:${deltaColor};">
+                            ${isOutperform ? '+' : ''}${(delta*100).toFixed(1)}% vs SPY
+                         </span>
+                         <span class="badge" style="background:transparent; color:${damageClass==='safe'?'#10b981':(damageClass==='warning'?'#f59e0b':'#f43f5e')}; border:1px solid ${damageClass==='safe'?'#10b981':(damageClass==='warning'?'#f59e0b':'#f43f5e')}; font-family:'Roboto Mono';">
+                            ${damageClass==='safe' ? 'HIGH' : (damageClass==='warning'?'MODERATE':'CRITICAL')}
+                         </span>
+                    </div>
+                </div>
+
             </div>
         `;
 
-        // Add event listeners to scenario buttons
-        container.querySelectorAll('.scenario-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const newScenario = btn.dataset.scenario;
-                if (newScenario !== activeScenario) {
-                    UI.renderStressTest(stressTestResults, newScenario);
-                }
-            });
-        });
-
-        // Re-render Lucide icons
+        // Store global results
+        window._globalStressResults = stressTestResults;
+        
+        // Re-render Lucide
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
@@ -1788,144 +2385,80 @@ const UI = {
      * @param {string} activePeriod - 'total' or '1y'
      * @param {Function} onPeriodChange - Callback when period toggle is clicked
      */
+        // Minimal Sleep Score UI (Simple Ring)
     renderSleepScore: (sleepData, activePeriod = 'total', onPeriodChange = null) => {
-        // ALWAYS update Ticker Tape Sleep Score (even if panel container doesn't exist)
-        const tickerSleepValue = document.getElementById('ticker-sleep-value');
-        if (tickerSleepValue && sleepData && sleepData.portfolio) {
-            const score = sleepData.portfolio.score;
-            tickerSleepValue.textContent = score.toFixed(0);
-            
-            // Color based on grade
-            if (score >= 90) {
-                tickerSleepValue.className = 'ticker-sleep-value good';
-                tickerSleepValue.style.color = '#14b8a6'; // Deep Sleep (Teal)
-            } else if (score >= 70) {
-                tickerSleepValue.className = 'ticker-sleep-value good';
-                tickerSleepValue.style.color = '#22c55e'; // Light Sleep (Green)
-            } else if (score >= 50) {
-                tickerSleepValue.className = 'ticker-sleep-value warning';
-                tickerSleepValue.style.color = '#f97316'; // Restless (Orange)
-            } else {
-                tickerSleepValue.className = 'ticker-sleep-value danger';
-                tickerSleepValue.style.color = '#ef4444'; // Insomnia (Red)
+            const container = document.getElementById('sleep-score-container');
+            if (!container) return;
+
+            // Loading state
+            if (!sleepData) {
+                container.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#71717a; gap:12px;">
+                        <i data-lucide="loader-2" class="spin-slow" style="width:20px;"></i>
+                        <span style="font-size:0.75rem; font-family:'Inter';">ANALYZING VOLATILITY...</span>
+                    </div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
             }
-        }
 
-        // Panel container rendering (optional - may not exist in current HTML)
-        const container = document.getElementById('sleep-score-container');
-        if (!container) return;
+            const { portfolio, period, dataPoints } = sleepData;
+            
+            // Score Color: Green / Yellow / Red
+            const getScoreColor = (score) => {
+                if (score >= 80) return '#10b981';
+                if (score >= 60) return '#eab308';
+                return '#f43f5e';
+            };
+            const scoreColor = getScoreColor(portfolio.score);
 
-        // Loading state
-        if (!sleepData) {
             container.innerHTML = `
-                <div class="sleep-score-loading">
-                    <i data-lucide="moon" class="sleep-icon"></i>
-                    <span>Calculating sleep quality...</span>
+                <!-- Period Toggle -->
+                <div style="position:absolute; top:20px; right:20px;">
+                    <div style="display:flex; background:#27272a; border-radius:4px; padding:2px;">
+                        <button class="period-btn ${activePeriod === 'total' ? 'active' : ''}" data-period="total" style="font-size:0.65rem; padding:4px 8px; border:none; background:${activePeriod === 'total' ? '#3f3f46' : 'transparent'}; color:${activePeriod === 'total' ? 'white' : '#a1a1aa'}; border-radius:2px; cursor:pointer;">ALL</button>
+                        <button class="period-btn ${activePeriod === '1y' ? 'active' : ''}" data-period="1y" style="font-size:0.65rem; padding:4px 8px; border:none; background:${activePeriod === '1y' ? '#3f3f46' : 'transparent'}; color:${activePeriod === '1y' ? 'white' : '#a1a1aa'}; border-radius:2px; cursor:pointer;">1Y</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                    
+                    <!-- Thin Ring Canvas -->
+                    <div style="position:relative; width:140px; height:140px; display:flex; align-items:center; justify-content:center;">
+                        <!-- SVG Ring -->
+                        <svg width="140" height="140" viewBox="0 0 100 100" style="transform: rotate(-90deg);">
+                            <circle cx="50" cy="50" r="45" stroke="#27272a" stroke-width="4" fill="none" />
+                            <circle cx="50" cy="50" r="45" stroke="${scoreColor}" stroke-width="4" fill="none" 
+                                    stroke-dasharray="283" stroke-dashoffset="${283 - (283 * portfolio.score / 100)}" 
+                                    style="transition: stroke-dashoffset 1s ease;" />
+                        </svg>
+                        
+                        <!-- Center Data -->
+                        <div style="position:absolute; text-align:center;">
+                            <div style="font-family:'Roboto Mono'; font-size:2.2rem; font-weight:700; color:white; line-height:1;">
+                                ${portfolio.score.toFixed(0)}
+                            </div>
+                            <div style="font-family:'Inter'; font-size:0.7rem; color:${scoreColor}; margin-top:4px; font-weight:600; letter-spacing:0.05em;">
+                                ${portfolio.grade.label.toUpperCase()}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; text-align:center;">
+                        <div style="font-size:0.7rem; color:#71717a; font-family:'Inter';">PSYCHOLOGICAL COST (ULCER INDEX)</div>
+                        <div style="font-size:0.65rem; color:#52525b; margin-top:4px;">Based on ${dataPoints} daily samples</div>
+                    </div>
+
                 </div>
             `;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            return;
-        }
 
-        // Extract data
-        const { portfolio, spy, tqqq, period, dataPoints } = sleepData;
-
-        // Calculate bar widths (normalize to max 100)
-        const maxScore = 100;
-        const portfolioWidth = (portfolio.score / maxScore) * 100;
-        const spyWidth = (spy.score / maxScore) * 100;
-        const tqqqWidth = (tqqq.score / maxScore) * 100;
-
-        // Period labels
-        const periodLabels = {
-            'total': 'Since Inception',
-            '1y': '1 Year'
-        };
-
-        // Generate insight text
-        const generateInsight = () => {
-            const periodText = periodLabels[period] || 'the selected period';
-            const portfolioGrade = portfolio.grade.label;
-            const tqqqGrade = tqqq.grade?.label || 'Insomnia';
-            
-            if (portfolio.score >= 70) {
-                return `Over ${periodText}, TQQQ investors suffered from '<strong>${tqqqGrade}</strong>' (Score: ${tqqq.score?.toFixed(0) || 'N/A'}). You maintained a '<strong>${portfolioGrade}</strong>' status (Score: ${portfolio.score.toFixed(0)}), proving that your system generates wealth efficiently without the emotional tax.`;
-            } else {
-                return `Your system achieved a score of ${portfolio.score.toFixed(0)} over ${periodText}. While this beats leveraged products like TQQQ (${tqqq.score?.toFixed(0) || 'N/A'}), there's room for improvement in reducing drawdown volatility.`;
-            }
-        };
-
-        container.innerHTML = `
-            <!-- Period Toggle -->
-            <div class="sleep-period-toggle">
-                <button class="period-btn ${activePeriod === 'total' ? 'active' : ''}" data-period="total">Total</button>
-                <button class="period-btn ${activePeriod === '1y' ? 'active' : ''}" data-period="1y">1Y</button>
-            </div>
-
-            <!-- Score Display -->
-            <div class="sleep-score-display">
-                <div class="sleep-main-score">
-                    <span class="score-icon">${portfolio.grade.icon}</span>
-                    <span class="score-value" style="color: ${portfolio.grade.color}">${portfolio.score.toFixed(0)}</span>
-                    <span class="score-label">${portfolio.grade.label}</span>
-                </div>
-            </div>
-
-            <!-- Comparison Chart -->
-            <div class="sleep-comparison-chart">
-                <!-- Portfolio Row -->
-                <div class="sleep-bar-row">
-                    <div class="sleep-bar-label">Portfolio</div>
-                    <div class="sleep-bar-wrapper">
-                        <div class="sleep-bar portfolio" style="width: ${portfolioWidth}%; background: ${portfolio.grade.color}"></div>
-                        <span class="sleep-bar-value">${portfolio.score.toFixed(0)}</span>
-                    </div>
-                </div>
-
-                <!-- SPY Row -->
-                <div class="sleep-bar-row">
-                    <div class="sleep-bar-label">SPY</div>
-                    <div class="sleep-bar-wrapper">
-                        <div class="sleep-bar spy" style="width: ${spyWidth}%"></div>
-                        <span class="sleep-bar-value">${spy.score?.toFixed(0) || 'N/A'}</span>
-                    </div>
-                </div>
-
-                <!-- TQQQ Row -->
-                <div class="sleep-bar-row">
-                    <div class="sleep-bar-label">TQQQ</div>
-                    <div class="sleep-bar-wrapper">
-                        <div class="sleep-bar tqqq" style="width: ${tqqqWidth}%"></div>
-                        <span class="sleep-bar-value">${tqqq.score?.toFixed(0) || 'N/A'}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Insight Text -->
-            <div class="sleep-insight">
-                <p>${generateInsight()}</p>
-            </div>
-
-            <!-- Data Points Info -->
-            <div class="sleep-meta">
-                <span>${periodLabels[period]} • ${dataPoints} trading days</span>
-            </div>
-        `;
-
-        // Add period toggle event listeners
-        container.querySelectorAll('.period-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const newPeriod = btn.dataset.period;
-                if (newPeriod !== activePeriod && onPeriodChange) {
-                    onPeriodChange(newPeriod);
-                }
+            // Event Listeners
+            container.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (onPeriodChange) onPeriodChange(btn.dataset.period);
+                });
             });
-        });
 
-        // Re-render Lucide icons
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
     },
 
     // =====================================================
@@ -1942,94 +2475,271 @@ const UI = {
      * @param {Function} onCurrencyToggle - Callback when currency is toggled
      */
     renderROTIBadge: (rotiData, currency = 'KRW', fxRate = 1410, onCurrencyToggle = null) => {
-        const container = document.getElementById('roti-badge-container');
-        if (!container) return;
+        const display = document.getElementById('roti-value-display');
+        const badge = document.getElementById('roti-global-badge');
+        
+        // If elements don't exist (e.g., in other pages), exit
+        if (!display) return;
 
         // Loading or error state
         if (!rotiData) {
-            container.innerHTML = `
-                <div class="roti-badge roti-loading">
-                    <span class="roti-icon">💰</span>
-                    <span class="roti-label">Calculating...</span>
-                </div>
-            `;
+            display.textContent = 'Calculating...';
             return;
         }
 
-        // Convert values based on currency
-        const hourlyAlpha = Finance.convertROTICurrency(rotiData.hourlyAlpha, currency, fxRate);
-        const netProfit = Finance.convertROTICurrency(rotiData.netProfit, currency, fxRate);
+        // Use hourlyRate if available, otherwise hourlyAlpha
+        const hourlyRate = rotiData.hourlyRate || rotiData.hourlyAlpha || 0;
         
-        // Format values
-        const currencySymbol = currency === 'USD' ? '$' : '₩';
-        const formatValue = (val) => {
-            if (currency === 'USD') {
-                return val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val.toFixed(0);
-            } else {
-                return val >= 10000 ? `${(val / 10000).toFixed(0)}만` : val.toLocaleString();
-            }
+        let displayVal;
+        if (currency === 'KRW') {
+            displayVal = '₩' + Math.round(hourlyRate).toLocaleString();
+        } else {
+            const usdVal = hourlyRate / fxRate;
+            displayVal = '$' + usdVal.toFixed(2);
+        }
+
+        display.textContent = `${displayVal}/hr`;
+        
+        // Add currency toggle capability
+        if (badge && onCurrencyToggle) {
+             badge.onclick = onCurrencyToggle;
+             badge.style.cursor = 'pointer';
+             badge.title = 'Click to toggle currency (KRW/USD)';
+        }
+    },
+
+    /**
+     * Render Macro Vitals (Net Liquidity, Real Yield)
+     * Currently uses hardcoded values as placeholder for API data
+     */
+    renderMacroVitals: () => {
+        const liquidityEl = document.getElementById('macro-liquidity');
+        const liquidityTrendEl = document.getElementById('macro-liquidity-trend');
+        const yieldEl = document.getElementById('macro-yield');
+        const yieldTrendEl = document.getElementById('macro-yield-trend');
+
+        // Hardcoded Data (Mockup Phase)
+        // Net Liquidity: $6.2T (Fueling)
+        if (liquidityEl) liquidityEl.textContent = '$6.2T';
+        if (liquidityTrendEl) {
+            liquidityTrendEl.innerHTML = '<i data-lucide="trending-up" style="width:12px;height:12px;margin-right:4px"></i>Fueling';
+            liquidityTrendEl.className = 'macro-trend fueling';
+        }
+
+        // Real Yield: 2.1% (Heavy)
+        if (yieldEl) yieldEl.textContent = '2.10%';
+        if (yieldTrendEl) {
+            yieldTrendEl.innerHTML = '<i data-lucide="anchor" style="width:12px;height:12px;margin-right:4px"></i>Heavy';
+            yieldTrendEl.className = 'macro-trend heavy';
+        }
+        
+        // Re-render Lucide icons if needed
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    },
+
+    /**
+     * Render Weekly Pulse Stats (Win Rate, Expectancy, etc.)
+     * @param {Object} stats - { winRate, gainLossRatio, expectancy }
+     */
+    renderPulse: (stats) => {
+        const els = {
+            winRate: document.getElementById('vital-winrate'),
+            gainLoss: document.getElementById('vital-gainloss'),
+            expectancy: document.getElementById('vital-expectancy')
         };
 
-        const formattedHourly = formatValue(hourlyAlpha);
-        const formattedProfit = formatValue(netProfit);
+        if (stats.winRate !== undefined && els.winRate) {
+            els.winRate.textContent = (stats.winRate * 100).toFixed(1) + '%';
+            els.winRate.style.color = stats.winRate >= 0.5 ? '#00E3CC' : '#FF453A';
+        }
+        
+        if (stats.gainLossRatio !== undefined && els.gainLoss) {
+            els.gainLoss.textContent = stats.gainLossRatio.toFixed(2);
+            els.gainLoss.style.color = stats.gainLossRatio >= 1.5 ? '#00E3CC' : (stats.gainLossRatio >= 1.0 ? '#FFD700' : '#FF453A');
+        }
 
-        // Determine display color based on profit
-        const isPositive = rotiData.netProfit > 0;
-        const badgeClass = isPositive ? 'positive' : 'negative';
+        if (stats.expectancy !== undefined && els.expectancy) {
+             els.expectancy.textContent = (stats.expectancy > 0 ? '+' : '') + stats.expectancy.toFixed(2) + 'R';
+             els.expectancy.style.color = stats.expectancy > 0.5 ? '#00E3CC' : (stats.expectancy > 0 ? '#FFD700' : '#FF453A');
+        }
+        
+        // Render Sigma Zone if sigmaStats available
+        if (stats.sigmaStats && stats.weeklyReturn !== undefined) {
+            UI.renderSigmaZone(stats.sigmaStats, stats.weeklyReturn, stats.expectancy);
+        }
+    },
 
+    /**
+     * Render Sigma Zone Gauge (Weekly Pulse)
+     * Shows WTD Return position within -2σ to +2σ range
+     * @param {Object} sigmaStats - { mean, stdDev, twoSigma }
+     * @param {number} currentReturn - Current WTD return (decimal, e.g., -0.0217 for -2.17%)
+     * @param {number} expectancy - Weekly expectancy for arrow marker
+     */
+    renderSigmaZone: (sigmaStats, currentReturn, expectancy = 0) => {
+        // Find container (pre-defined in HTML)
+        const container = document.getElementById('sigma-zone');
+        if (!container) return;
+        
+        // Show the container
+        container.style.display = 'block';
+        
+        const { mean, stdDev, twoSigma } = sigmaStats;
+        
+        // Convert values to percentages
+        const meanPct = mean * 100;
+        const stdDevPct = stdDev * 100;
+        const currentPct = currentReturn * 100;
+        const expectancyPct = (expectancy || 0) * stdDevPct; // expectancy in R units = stdDev multiples
+        
+        // Calculate positions (0% = -2σ, 50% = mean, 100% = +2σ)
+        // Range: mean - 2*stdDev to mean + 2*stdDev
+        const rangeMin = meanPct - 2 * stdDevPct;
+        const rangeMax = meanPct + 2 * stdDevPct;
+        const rangeSize = rangeMax - rangeMin;
+        
+        // Clamp WTD position to 0-100%
+        let wtdPosition = ((currentPct - rangeMin) / rangeSize) * 100;
+        wtdPosition = Math.max(0, Math.min(100, wtdPosition));
+        
+        // Expectation position (mean + expectancy offset)
+        let expectationPosition = 50; // At mean by default
+        if (expectancy) {
+            // Expectation is relative to mean, in R-units (std dev multiples)
+            const expectationValue = meanPct + (expectancy * stdDevPct * 0.5); // Scale down for visibility
+            expectationPosition = ((expectationValue - rangeMin) / rangeSize) * 100;
+            expectationPosition = Math.max(5, Math.min(95, expectationPosition));
+        }
+        
+        // Calculate deviation from mean in sigma units
+        const deviationSigma = (currentPct - meanPct) / stdDevPct;
+        
+        // Determine status
+        let statusClass = 'safe';
+        let statusText = 'Within normal range';
+        if (Math.abs(deviationSigma) > 2) {
+            statusClass = 'danger';
+            statusText = '⚠️ Extreme move (>2σ)';
+        } else if (Math.abs(deviationSigma) > 1) {
+            statusClass = 'warning';
+            statusText = 'Notable deviation';
+        }
+        
+        const isNegative = currentReturn < 0;
+        const isExtreme = Math.abs(deviationSigma) > 2;
+        
         container.innerHTML = `
-            <div class="roti-badge ${badgeClass}">
-                <div class="roti-main">
-                    <span class="roti-icon">💰</span>
-                    <div class="roti-content">
-                        <span class="roti-label">Hourly Alpha</span>
-                        <span class="roti-value">${currencySymbol}${formattedHourly}/hr</span>
-                    </div>
-                    <button class="roti-currency-toggle" data-currency="${currency}">
-                        ${currency}
-                    </button>
+            <div class="sigma-zone-label">Sigma Zone (-2σ ~ +2σ)</div>
+            <div class="sigma-bar-container">
+                <div class="sigma-bar-track"></div>
+                <div class="sigma-bar-ticks">
+                    <div class="sigma-tick-mark"><span class="sigma-tick-label">-2σ</span></div>
+                    <div class="sigma-tick-mark"><span class="sigma-tick-label">-1σ</span></div>
+                    <div class="sigma-tick-mark center"><span class="sigma-tick-label">μ</span></div>
+                    <div class="sigma-tick-mark"><span class="sigma-tick-label">+1σ</span></div>
+                    <div class="sigma-tick-mark"><span class="sigma-tick-label">+2σ</span></div>
                 </div>
-                
-                <!-- Hover Tooltip -->
-                <div class="roti-tooltip">
-                    <div class="tooltip-header">Return On Time Invested</div>
-                    <div class="tooltip-row">
-                        <span>Operation Period:</span>
-                        <strong>${rotiData.weeksOperating} weeks</strong>
-                    </div>
-                    <div class="tooltip-row">
-                        <span>Your Active Time:</span>
-                        <strong>${rotiData.totalHours.toFixed(1)} hrs</strong>
-                    </div>
-                    <div class="tooltip-row highlight">
-                        <span>vs Day Trader:</span>
-                        <strong>~${rotiData.dayTraderHours.toLocaleString()} hrs</strong>
-                    </div>
-                    <div class="tooltip-divider"></div>
-                    <div class="tooltip-row">
-                        <span>Net Profit:</span>
-                        <strong class="${isPositive ? 'profit' : 'loss'}">${currencySymbol}${formattedProfit}</strong>
-                    </div>
-                    <div class="tooltip-row">
-                        <span>Time Saved:</span>
-                        <strong>${rotiData.timeSaved.toFixed(1)} hrs</strong>
-                    </div>
-                    <div class="tooltip-footer">
-                        10 min/week × ${rotiData.weeksOperating} weeks operation
-                    </div>
+                <div class="sigma-expectation-marker" style="left: ${expectationPosition}%" title="Expectation"></div>
+                <div class="sigma-wtd-marker ${isNegative ? 'negative' : ''} ${isExtreme ? 'extreme' : ''}" 
+                     style="left: ${wtdPosition}%" 
+                     title="WTD: ${currentPct.toFixed(2)}%"></div>
+            </div>
+            <div class="sigma-legend">
+                <div class="sigma-legend-item">
+                    <span class="sigma-legend-dot wtd"></span>
+                    <span>WTD Return</span>
+                </div>
+                <div class="sigma-legend-item">
+                    <span class="sigma-legend-arrow">▼</span>
+                    <span>Expectation</span>
                 </div>
             </div>
+            <div class="sigma-deviation-text">
+                ${statusText} · Deviation: <span class="value ${statusClass}">${deviationSigma >= 0 ? '+' : ''}${deviationSigma.toFixed(2)}σ</span>
+            </div>
         `;
+    },
 
-        // Add currency toggle event listener
-        const toggleBtn = container.querySelector('.roti-currency-toggle');
-        if (toggleBtn && onCurrencyToggle) {
-            toggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const newCurrency = currency === 'KRW' ? 'USD' : 'KRW';
-                onCurrencyToggle(newCurrency);
+    /**
+     * Initialize Sidebar Navigation
+     */
+    initSidebar: () => {
+        const navItems = document.querySelectorAll('.nav-item[data-target]');
+        navItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = item.getAttribute('data-target');
+                const targetSection = document.getElementById(targetId);
+                
+                // Update active state
+                navItems.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+
+                if (targetSection) {
+                    // Smooth scroll to section
+                    targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             });
-        }
+        });
+
+        // Intersection Observer to update active state on scroll
+        const observerOptions = {
+            root: null,
+            rootMargin: '-50% 0px -50% 0px', // Activate when section is 50% visible
+            threshold: 0
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    navItems.forEach(item => {
+                        if (item.getAttribute('data-target') === id) {
+                           item.classList.add('active');
+                        } else {
+                           item.classList.remove('active');
+                        }
+                    });
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.dashboard-section').forEach(section => {
+            observer.observe(section);
+        });
+        
+        // Initialize scroll fade detection
+        UI.initScrollFadeDetection();
+    },
+    
+    /**
+     * Initialize Scroll Fade Detection
+     * Monitors terminal sections for scrollability and shows fade gradient when scrollable
+     */
+    initScrollFadeDetection: () => {
+        const checkScrollable = () => {
+            document.querySelectorAll('.terminal-section').forEach(section => {
+                // Check if content exceeds viewport height
+                const isScrollable = section.scrollHeight > section.clientHeight;
+                section.classList.toggle('has-scroll', isScrollable);
+            });
+        };
+        
+        // Initial check
+        checkScrollable();
+        
+        // Re-check on resize (debounced)
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(checkScrollable, 150);
+        });
+        
+        // Re-check after charts render (delayed)
+        setTimeout(checkScrollable, 1000);
+        setTimeout(checkScrollable, 3000);
     }
 };
 

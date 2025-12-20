@@ -22,11 +22,498 @@ let simPortfolioHistory = null; // Simulated history (deep copy)
 let simMNAV = null; // Simulated MNAV (temporary)
 let simZScore = null; // Simulated Z-Score (temporary)
 
+// Algo State Backups (NEW: for complete sim isolation)
+let realTacticalTargets = null; // Backup of tacticalTargets
+let realMSTRState = null; // Backup of MSTRState
+let realActiveSignals = null; // Backup of activeSignals
+
 // UI State backup for freeze mode restoration
 let prevFreezeState = null; // Backup of freeze mode classes before entering sim
 
+// ===================================
+// MSTR STATE TRACKING (for Algo Rules)
+// ===================================
+const MSTRState = {
+  lastAction: null,        // "BOUGHT" | "SOLD" | null
+  entryZScore: null,       // Z-score at entry
+  exitZScore: null,        // Z-score at exit
+  boughtAtLow: false,      // Z < 0 or Z < 1.5 at buy (enables SELL_PROFIT_LOCK)
+  soldAtHigh: false        // Z > 2.0 or Z > 3.5 at sell (enables BUY_TREND_REENTRY)
+};
+
+// Load MSTR state from localStorage
+function loadMSTRState() {
+  const stored = localStorage.getItem('jg_mstr_state');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      Object.assign(MSTRState, parsed);
+      console.log('📊 MSTR State loaded:', MSTRState);
+    } catch (e) {
+      console.warn('Failed to parse MSTR state:', e);
+    }
+  }
+}
+
+// Save MSTR state to localStorage
+function saveMSTRState() {
+  localStorage.setItem('jg_mstr_state', JSON.stringify(MSTRState));
+  console.log('📊 MSTR State saved:', MSTRState);
+}
+
+// Update MSTR state when a trade is executed
+function updateMSTRState(action, zScore) {
+  if (action === 'BUY') {
+    MSTRState.lastAction = 'BOUGHT';
+    MSTRState.entryZScore = zScore;
+    MSTRState.boughtAtLow = zScore < 0 || zScore < 1.5;
+    MSTRState.soldAtHigh = false; // Reset on new buy
+    console.log(`📊 MSTR Bought at Z=${zScore}, boughtAtLow=${MSTRState.boughtAtLow}`);
+  } else if (action === 'SELL') {
+    MSTRState.lastAction = 'SOLD';
+    MSTRState.exitZScore = zScore;
+    MSTRState.soldAtHigh = zScore > 2.0 || zScore > 3.5;
+    MSTRState.boughtAtLow = false; // Reset on sell
+    console.log(`📊 MSTR Sold at Z=${zScore}, soldAtHigh=${MSTRState.soldAtHigh}`);
+  }
+  saveMSTRState();
+}
+
+// ===================================
+// SIGNAL LIFECYCLE STATES
+// ===================================
+const SignalStates = {
+  IDLE: 'IDLE',               // No active signal
+  PENDING: 'PENDING',         // Signal detected, waiting for execution
+  ACTIVE: 'ACTIVE',           // Position taken, trade executed
+  WATCHING: 'WATCHING',       // Monitoring for return/reversal signal
+  RETURN_PENDING: 'RETURN_PENDING'  // Return condition met, waiting for user to execute return Switch
+};
+
+// Active signals storage
+let activeSignals = [];
+
+function loadActiveSignals() {
+  const stored = localStorage.getItem('jg_active_signals');
+  if (stored) {
+    try {
+      activeSignals = JSON.parse(stored);
+      console.log('📊 Active signals loaded:', activeSignals.length);
+    } catch (e) {
+      console.warn('Failed to parse active signals:', e);
+      activeSignals = [];
+    }
+  }
+}
+
+function saveActiveSignals() {
+  localStorage.setItem('jg_active_signals', JSON.stringify(activeSignals));
+}
+
+function addPendingSignal(signal) {
+  const newSignal = {
+    id: Date.now().toString(),
+    ruleId: signal.ruleId,
+    type: signal.type,
+    from: signal.from,
+    to: signal.to,
+    reason: signal.reason,
+    returnCondition: signal.returnCondition || null,
+    status: SignalStates.PENDING,
+    createdAt: new Date().toISOString(),
+    executedAt: null
+  };
+  activeSignals.push(newSignal);
+  saveActiveSignals();
+  return newSignal;
+}
+
+function markSignalExecuted(signalId) {
+  const signal = activeSignals.find(s => s.id === signalId);
+  if (signal) {
+    signal.status = SignalStates.WATCHING;
+    signal.executedAt = new Date().toISOString();
+    saveActiveSignals();
+    console.log(`📊 Signal ${signalId} marked as executed, now WATCHING`);
+  }
+}
+
+function removeSignal(signalId) {
+  activeSignals = activeSignals.filter(s => s.id !== signalId);
+  saveActiveSignals();
+}
+
+/**
+ * Create a Log entry from an algo signal (PENDING state)
+ * @param {Object} signal - Signal from Strategy engine
+ * @returns {Object} - Created log entry
+ */
+function createLogFromSignal(signal) {
+  const log = {
+    id: `log_${Date.now()}`,
+    date: new Date().toISOString().split('T')[0],
+    type: 'Switch',
+    status: SignalStates.PENDING,  // NEW field for lifecycle
+    triggeredBy: signal.ruleId || signal.id,
+    from: signal.from,
+    to: signal.to,
+    amount: signal.amount || '100%',
+    reason: signal.reason || signal.desc || signal.msg,
+    returnCondition: signal.returnCondition || null,
+    createdAt: new Date().toISOString(),
+    executedAt: null
+  };
+  
+  // Add to pending signal tracking
+  addPendingSignal({
+    ruleId: log.triggeredBy,
+    type: signal.type,
+    from: log.from,
+    to: log.to,
+    reason: log.reason,
+    returnCondition: log.returnCondition
+  });
+  
+  console.log(`📋 Log created from signal: ${log.triggeredBy}`, log);
+  return log;
+}
+
+/**
+ * Mark a log as executed and transition to WATCHING state
+ * @param {string} logId - Log ID to mark as executed
+ */
+function markLogExecuted(logId) {
+  const history = DataService.loadHistory();
+  const log = history.find(l => l.id === logId);
+  
+  if (log) {
+    log.status = SignalStates.WATCHING;
+    log.executedAt = new Date().toISOString();
+    DataService.saveHistory(history);
+    console.log(`✅ Log ${logId} executed, now WATCHING for return condition`);
+    
+    // If this was an MSTR trade, update MSTR state
+    if (log.from === 'MSTR' || log.to === 'MSTR') {
+      const zscoreInput = document.getElementById('zscore-input');
+      const zscore = zscoreInput ? parseFloat(zscoreInput.value) : null;
+      if (zscore !== null && !isNaN(zscore)) {
+        if (log.from === 'MSTR') {
+          updateMSTRState('SELL', zscore);
+        } else if (log.to === 'MSTR') {
+          updateMSTRState('BUY', zscore);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Check return conditions for WATCHING signals
+ * When condition is met, marks signal as RETURN_PENDING (displayed in Action Required)
+ * Does NOT auto-clear Tactical targets - user must execute return Switch
+ * @param {Object} context - Strategy context with marketData, mstrInputs, etc.
+ * @returns {Array} - Array of signals that are ready for return
+ */
+function checkReturnConditions(context) {
+  const returnSignals = [];
+  const watchingSignals = activeSignals.filter(s => s.status === SignalStates.WATCHING);
+  
+  watchingSignals.forEach(signal => {
+    // Check if return condition is met based on the original rule
+    let conditionMet = false;
+    let returnAction = null;
+    const { marketData, mstrInputs } = context;
+    
+    // MSTR-related return conditions
+    if (signal.ruleId === 'SELL_HARD_EXIT' || signal.ruleId === 'SELL_SOFT_ROTATE') {
+      // Return: Z < 0 (BUY_OPPORTUNITY)
+      if (mstrInputs?.zScore !== null && mstrInputs.zScore < 0) {
+        conditionMet = true;
+        returnAction = { from: signal.to, to: 'MSTR', rule: 'BUY_OPPORTUNITY' };
+      }
+    } else if (signal.ruleId === 'SELL_PROFIT_LOCK') {
+      // Return: Z < 1.5 AND MSTR > 20MA (BUY_TREND_REENTRY)
+      const mstr = marketData?.MSTR;
+      if (mstrInputs?.zScore !== null && mstrInputs.zScore < 1.5 && mstr?.price > mstr?.ma20) {
+        conditionMet = true;
+        returnAction = { from: signal.to, to: 'MSTR', rule: 'BUY_TREND_REENTRY' };
+      }
+    } else if (signal.ruleId === 'SELL_HEDGE_UNWIND') {
+      // Return: TLT < 50MA < 250MA (BUY_CRISIS_DEFENSE)
+      const tlt = marketData?.TLT_US || marketData?.TLT;
+      if (tlt && tlt.price < tlt.ma50 && tlt.ma50 < tlt.ma250) {
+        conditionMet = true;
+        returnAction = { from: 'GLDM', to: 'PFIX', rule: 'BUY_CRISIS_DEFENSE' };
+      }
+    } else if (signal.ruleId === 'SELL_GLDM_CASH') {
+      // Return: GLDM > 250MA
+      const gldm = marketData?.GLDM;
+      if (gldm && gldm.price > gldm.ma250) {
+        conditionMet = true;
+        returnAction = { from: 'VBIL', to: 'GLDM', rule: 'BUY_GLDM_REENTRY' };
+      }
+    } else if (signal.ruleId === 'SELL_TLT_CASH') {
+      // Return: TLT > 250MA
+      const tlt = marketData?.TLT_US || marketData?.TLT;
+      if (tlt && tlt.price > tlt.ma250) {
+        conditionMet = true;
+        returnAction = { from: 'BIL', to: 'TLT', rule: 'BUY_TLT_REENTRY' };
+      }
+    } else if (signal.ruleId === 'SELL_CHINA_WEAK' || signal.ruleId === 'SELL_EM_FAIL') {
+      // Return: CSI300 > 250MA
+      const csi = marketData?.CSI300;
+      if (csi && csi.price > csi.ma250) {
+        conditionMet = true;
+        returnAction = { from: 'QQQ', to: 'CSI300', rule: 'BUY_EM_RETURN' };
+      }
+    }
+    
+    if (conditionMet && signal.status !== SignalStates.RETURN_PENDING) {
+      // Mark as RETURN_PENDING (do NOT clear Tactical yet!)
+      signal.status = SignalStates.RETURN_PENDING;
+      signal.returnAction = returnAction;
+      saveActiveSignals();
+      
+      returnSignals.push({
+        originalSignal: signal,
+        returnType: 'RETURN_' + signal.ruleId.replace('SELL_', ''),
+        from: returnAction.from,
+        to: returnAction.to,
+        rule: returnAction.rule,
+        msg: `🔄 RETURN READY: ${returnAction.from} → ${returnAction.to}`
+      });
+    } else if (signal.status === SignalStates.RETURN_PENDING) {
+      // Already in RETURN_PENDING state, just add to display list
+      returnSignals.push({
+        originalSignal: signal,
+        returnType: 'RETURN_' + signal.ruleId.replace('SELL_', ''),
+        from: signal.returnAction?.from,
+        to: signal.returnAction?.to,
+        rule: signal.returnAction?.rule,
+        msg: `🔄 RETURN READY: ${signal.returnAction?.from} → ${signal.returnAction?.to}`
+      });
+    }
+  });
+  
+  return returnSignals;
+}
+
+// ===================================
+// TACTICAL TARGET SYSTEM
+// ===================================
+// Temporarily overrides Target Weights during Algo Switches
+// Rebalancing uses Tactical Targets instead of original Targets
+// Returns to original Targets when Return signal is triggered
+
+let tacticalTargets = {}; // { ticker: { original: 0.10, tactical: 0.20, ruleId: 'SELL_XX', returnCondition: '...' } }
+
+function loadTacticalTargets() {
+  const stored = localStorage.getItem('jg_tactical_targets');
+  if (stored) {
+    try {
+      tacticalTargets = JSON.parse(stored);
+      console.log('📊 Tactical Targets loaded:', tacticalTargets);
+    } catch (e) {
+      console.warn('Failed to parse tactical targets:', e);
+      tacticalTargets = {};
+    }
+  }
+}
+
+function saveTacticalTargets() {
+  localStorage.setItem('jg_tactical_targets', JSON.stringify(tacticalTargets));
+  console.log('📊 Tactical Targets saved:', tacticalTargets);
+}
+
+/**
+ * Set Tactical Target for a Switch operation
+ * @param {string} fromTicker - Ticker being sold
+ * @param {string} toTicker - Ticker being bought
+ * @param {number} amount - Amount transferred (in weight points, e.g., 0.10 for 10%)
+ * @param {string} ruleId - Algo rule that triggered this switch
+ * @param {string} returnCondition - Condition for returning to original
+ */
+function setTacticalTarget(fromTicker, toTicker, amount, ruleId, returnCondition) {
+  // Get current targets from portfolio
+  const fromAsset = portfolio.find(a => a.ticker === fromTicker);
+  const toAsset = portfolio.find(a => a.ticker === toTicker);
+  
+  if (!fromAsset || !toAsset) {
+    console.warn('Tactical Target: Assets not found', fromTicker, toTicker);
+    return;
+  }
+  
+  // Store original targets if not already stored
+  if (!tacticalTargets[fromTicker]) {
+    tacticalTargets[fromTicker] = {
+      original: fromAsset.targetWeight,
+      tactical: fromAsset.targetWeight,
+      ruleId: null,
+      returnCondition: null
+    };
+  }
+  if (!tacticalTargets[toTicker]) {
+    tacticalTargets[toTicker] = {
+      original: toAsset.targetWeight,
+      tactical: toAsset.targetWeight,
+      ruleId: null,
+      returnCondition: null
+    };
+  }
+  
+  // Adjust tactical targets
+  tacticalTargets[fromTicker].tactical = Math.max(0, tacticalTargets[fromTicker].tactical - amount);
+  tacticalTargets[fromTicker].ruleId = ruleId;
+  tacticalTargets[fromTicker].returnCondition = returnCondition;
+  
+  tacticalTargets[toTicker].tactical = tacticalTargets[toTicker].tactical + amount;
+  tacticalTargets[toTicker].ruleId = ruleId;
+  tacticalTargets[toTicker].returnCondition = returnCondition;
+  
+  console.log(`📊 Tactical Target set: ${fromTicker} ${(tacticalTargets[fromTicker].tactical * 100).toFixed(0)}%, ${toTicker} ${(tacticalTargets[toTicker].tactical * 100).toFixed(0)}%`);
+  
+  saveTacticalTargets();
+}
+
+/**
+ * Clear Tactical Target for a ticker (return to original)
+ * @param {string} ticker - Ticker to clear
+ */
+function clearTacticalTarget(ticker) {
+  if (tacticalTargets[ticker]) {
+    const original = tacticalTargets[ticker].original;
+    console.log(`📊 Tactical Target cleared for ${ticker}, reverting to ${(original * 100).toFixed(0)}%`);
+    delete tacticalTargets[ticker];
+    saveTacticalTargets();
+    
+    // Update portfolio target weight
+    const asset = portfolio.find(a => a.ticker === ticker);
+    if (asset) {
+      asset.targetWeight = original;
+      DataService.savePortfolio(portfolio);
+    }
+  }
+}
+
+/**
+ * Get effective Target Weight (Tactical if active, otherwise original)
+ * @param {string} ticker - Ticker to check
+ * @returns {Object} - { weight: number, isTactical: boolean }
+ */
+function getEffectiveTarget(ticker) {
+  if (tacticalTargets[ticker]) {
+    return {
+      weight: tacticalTargets[ticker].tactical,
+      isTactical: true,
+      ruleId: tacticalTargets[ticker].ruleId
+    };
+  }
+  const asset = portfolio.find(a => a.ticker === ticker);
+  return {
+    weight: asset?.targetWeight || 0,
+    isTactical: false,
+    ruleId: null
+  };
+}
+
+/**
+ * Check if any ticker has Tactical Target active
+ * @returns {boolean}
+ */
+function hasTacticalTargets() {
+  return Object.keys(tacticalTargets).length > 0;
+}
+
+// ===================================
+// RESTORE MSTR STATE FROM LOGS
+// ===================================
+
+/**
+ * Restore MSTR state (boughtAtLow, soldAtHigh) from historical logs
+ * Call this on app initialization
+ */
+function restoreMSTRStateFromLogs() {
+  const history = DataService.loadHistory();
+  if (!history || history.length === 0) return;
+  
+  // Filter MSTR-related trades and sort by date (newest first)
+  const mstrTrades = history
+    .filter(log => {
+      if (!log.transactions) return false;
+      return log.transactions.some(t => 
+        t.fromAsset === 'MSTR' || t.toAsset === 'MSTR'
+      );
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  if (mstrTrades.length === 0) {
+    console.log('📊 No MSTR trades found in history');
+    return;
+  }
+  
+  const lastTrade = mstrTrades[0];
+  const lastMstrTx = lastTrade.transactions.find(t => 
+    t.fromAsset === 'MSTR' || t.toAsset === 'MSTR'
+  );
+  
+  if (!lastMstrTx) return;
+  
+  // Check if Z-Score was logged
+  const zScore = lastTrade.zScore || lastTrade.zscore || null;
+  
+  if (lastMstrTx.toAsset === 'MSTR') {
+    // Last trade was MSTR BUY
+    MSTRState.lastAction = 'BOUGHT';
+    MSTRState.entryZScore = zScore;
+    MSTRState.boughtAtLow = zScore !== null ? zScore < 1.5 : false;
+    MSTRState.soldAtHigh = false;
+    console.log(`📊 MSTR State restored: BOUGHT at Z=${zScore}, boughtAtLow=${MSTRState.boughtAtLow}`);
+  } else if (lastMstrTx.fromAsset === 'MSTR') {
+    // Last trade was MSTR SELL
+    MSTRState.lastAction = 'SOLD';
+    MSTRState.exitZScore = zScore;
+    MSTRState.soldAtHigh = zScore !== null ? zScore > 2.0 : false;
+    MSTRState.boughtAtLow = false;
+    console.log(`📊 MSTR State restored: SOLD at Z=${zScore}, soldAtHigh=${MSTRState.soldAtHigh}`);
+  }
+  
+  saveMSTRState();
+}
+
+/**
+ * Restore Tactical Targets from historical logs
+ * Scans logs for active (unresolved) Switch operations
+ */
+function restoreTacticalTargetsFromLogs() {
+  const history = DataService.loadHistory();
+  if (!history || history.length === 0) return;
+  
+  // Get switches that are still in WATCHING state
+  const watchingSwitches = history.filter(log => 
+    log.type === 'Switch' && log.status === SignalStates.WATCHING
+  );
+  
+  watchingSwitches.forEach(log => {
+    if (log.transactions) {
+      log.transactions.forEach(tx => {
+        // Reconstruct tactical targets from log
+        setTacticalTarget(
+          tx.fromAsset, 
+          tx.toAsset, 
+          tx.amount || 0.10, // Default 10% if not specified
+          log.triggeredBy,
+          log.returnCondition
+        );
+      });
+    }
+  });
+  
+  console.log('📊 Tactical Targets restored from logs:', Object.keys(tacticalTargets).length);
+}
+
 async function initApp() {
   console.log("initApp started");
+
 
   // One-time reset to apply new Log/Snapshot/Export system (v3.5)
   const appVersion = "v3.5";
@@ -39,6 +526,11 @@ async function initApp() {
   // 1. Load Portfolio & History
   portfolio = DataService.loadPortfolio();
   portfolioHistory = DataService.loadHistory();
+
+  // 1.5 Restore State from Logs (NEW)
+  loadTacticalTargets();           // Load persisted tactical targets
+  restoreMSTRStateFromLogs();      // Restore MSTR boughtAtLow/soldAtHigh from logs
+  restoreTacticalTargetsFromLogs(); // Restore tactical targets from WATCHING logs
 
   // 2. Initialize Chart
   initChart();
@@ -56,6 +548,9 @@ async function initApp() {
 
   // 5. Setup Event Listeners
   setupEventListeners();
+  
+  // 5.5 Init Sidebar Navigation
+  if (UI.initSidebar) UI.initSidebar();
 
   // 6. Setup Tooltip Click Toggle for Pulse Cards
   setupTooltipClickToggle();
@@ -108,6 +603,7 @@ async function updateDashboard() {
 
     processedMarketData[ticker] = {
       price: data.price,
+      ma20: Finance.calculateMA(prices, 20),  // Added for MSTR trend reentry
       ma50: Finance.calculateMA(prices, 50),
       ma250: Finance.calculateMA(prices, 250),
       rsi: Finance.calculateRSI(prices, 14),
@@ -115,9 +611,20 @@ async function updateDashboard() {
       dates: data.dates || [], // Include dates from server!
       currency: data.currency || "KRW",
     };
+    
+    // Detect Golden Cross for CSI300
+    if (ticker === 'CSI300' && prices.length >= 250) {
+      const ma50Series = Finance.calculateMASeries ? Finance.calculateMASeries(prices, 50) : [];
+      const ma250Series = Finance.calculateMASeries ? Finance.calculateMASeries(prices, 250) : [];
+      if (ma50Series.length >= 2 && ma250Series.length >= 2) {
+        processedMarketData[ticker].goldenCross = Finance.detectGoldenCross 
+          ? Finance.detectGoldenCross(ma50Series.slice(-5), ma250Series.slice(-5)) 
+          : false;
+      }
+    }
   });
 
-  // Specific MSTR Z-Score
+  // Specific MSTR Z-Score (from API calculated value)
   let zScoreMSTR = 0;
   if (processedMarketData.MSTR) {
     zScoreMSTR = Finance.calculateZScore(
@@ -128,6 +635,20 @@ async function updateDashboard() {
     console.warn("MSTR data missing for Z-Score calc");
   }
 
+  // Get manual MSTR inputs (MNAV/Z-Score are manually entered by user)
+  const mnavInput = document.getElementById("mstr-mnav-input") || document.getElementById("mnav-input");
+  const zscoreInput = document.getElementById("mstr-zscore-input") || document.getElementById("zscore-input");
+  const manualMNAV = mnavInput ? parseFloat(mnavInput.value) : null;
+  const manualZScore = zscoreInput ? parseFloat(zscoreInput.value) : null;
+
+  // Load MSTR state from localStorage (if function exists)
+  if (typeof loadMSTRState === 'function') {
+    loadMSTRState();
+  }
+  if (typeof loadActiveSignals === 'function') {
+    loadActiveSignals();
+  }
+
   // Context object for Strategy (must match structure expected by strategy.js)
   const strategyContext = {
     marketData: processedMarketData,
@@ -136,6 +657,13 @@ async function updateDashboard() {
       mnavMSTR: rawData.MNAV_MSTR,
     },
     portfolio: portfolio,
+    // NEW: Manual MSTR inputs (user-entered values for MNAV/Z-Score)
+    mstrInputs: {
+      mnav: !isNaN(manualMNAV) ? manualMNAV : null,
+      zScore: !isNaN(manualZScore) ? manualZScore : null
+    },
+    // NEW: MSTR state tracking (boughtAtLow, soldAtHigh)
+    mstrState: typeof MSTRState !== 'undefined' ? MSTRState : { boughtAtLow: false, soldAtHigh: false }
   };
 
   // Debug
@@ -304,6 +832,28 @@ async function updateDashboard() {
   // 11. Calculate daily returns for bar chart
   const dailyReturns = Finance.calculateDailyReturnsFromAUM(aumHistory);
 
+  // 11.2 Calculate Pulse Stats (Win Rate, G/L Ratio, Expectancy) based on WEEKLY Returns
+  // Uses Friday-to-Friday weekly intervals from aumHistory (weeklyReturns already calculated above)
+  let pulseStats = { winRate: 0, gainLossRatio: 0, expectancy: 0 };
+  
+  if (weeklyReturns && weeklyReturns.length > 0) {
+      // Use Finance helper functions for consistency
+      const wrResult = Finance.calculateWeeklyWinRate(weeklyReturns);
+      const glResult = Finance.calculateGainLossRatio(weeklyReturns);
+      const expResult = Finance.calculateExpectancy(glResult, wrResult);
+      
+      pulseStats = {
+          winRate: wrResult.winRate !== null ? wrResult.winRate / 100 : 0, // Convert to decimal for renderPulse
+          gainLossRatio: glResult.ratio !== null ? glResult.ratio : 0,
+          expectancy: expResult.expectancy !== null ? expResult.expectancy : 0,
+          sigmaStats: sigmaStats,  // For Sigma Zone gauge
+          weeklyReturn: portfolioWeeklyReturn / 100  // Current WTD return as decimal (convert from %)
+      };
+      console.log("📊 Weekly Pulse Stats:", pulseStats, `(${weeklyReturns.length} weeks)`);
+  }
+  
+  if (UI.renderPulse) UI.renderPulse(pulseStats);
+
   // 11.5 Calculate benchmark returns array (for histogram/alpha curve)
   let benchmarkReturns = [];
   if (spyPricesMatched && spyPricesMatched.length > 1) {
@@ -381,6 +931,7 @@ async function updateDashboard() {
 
   // 13. Render UI
   UI.renderAllocation(portfolio, allocationChart, assetReturns, window._currentViewMode);
+  createCTRChart(assetReturns, portfolio, window._currentViewMode);  // CTR Chart in Attribution
   UI.renderSignals(sellSignals, buySignals, rebalanceActions);
   UI.renderConditions(processedMarketData, {
     zScoreMSTR,
@@ -390,7 +941,20 @@ async function updateDashboard() {
   UI.renderRisk(riskStats);
   UI.renderWoWDelta(wowDelta);
   UI.renderCorrelationMatrix(corrData);
+  UI.renderCorrelationMatrix(corrData);
   
+  // 13.5 Render Macro Vitals (Net Liquidity & Real Yield)
+  // Fetch freshly from server (separate endpoint)
+  try {
+      const macroData = await DataService.fetchMacroVitals();
+      console.log("📊 Macro Data API Response:", macroData);
+      if (UI.renderMacroEnvironment) {
+          UI.renderMacroEnvironment(macroData);
+      }
+  } catch(e) {
+      console.warn("Macro data fetch failed", e);
+  }
+
   // Render Performance Scorecard (Unified Metrics View)
   const fundMetrics = {
     cagr: perfMetrics.cagr,
@@ -544,6 +1108,10 @@ function loadSleepScoreData(period = 'total') {
   // Check cache
   if (_sleepScoreCache[period]) {
     UI.renderSleepScore(_sleepScoreCache[period], period, handleSleepPeriodChange);
+    // Also update ticker tape
+    if (UI.renderTickerSleepScore) {
+      UI.renderTickerSleepScore(_sleepScoreCache[period]);
+    }
     return;
   }
 
@@ -559,6 +1127,10 @@ function loadSleepScoreData(period = 'total') {
     if (result) {
       _sleepScoreCache[period] = result;
       UI.renderSleepScore(result, period, handleSleepPeriodChange);
+      // Also update ticker tape
+      if (UI.renderTickerSleepScore) {
+        UI.renderTickerSleepScore(result);
+      }
       console.log("✅ Sleep Score calculated:", result);
     } else {
       console.warn("⚠️ Sleep Score calculation failed");
@@ -922,11 +1494,64 @@ function handleTimelineModeChange(mode) {
   // Update Info Bar visibility
   updateInfoBarFields();
   
+  // Toggle projection input visibility
+  const projInputContainer = document.getElementById('projection-input-container');
+  if (projInputContainer) {
+    projInputContainer.style.display = (mode === 'projection') ? 'flex' : 'none';
+  }
+  
   // Rebuild charts based on new mode
   rebuildChartsForMode(mode);
   
   console.log(`📊 Timeline Mode Changed: ${prevMode} → ${mode}`);
 }
+
+// Projection Target Input Handler (debounced)
+let _projectionInputDebounce = null;
+function setupProjectionInputListener() {
+  const input = document.getElementById('projection-target-input');
+  if (!input) return;
+  
+  // Parse Korean currency format (e.g., "₩100M", "1억", "10000000")
+  const parseTargetValue = (val) => {
+    let cleaned = val.replace(/[₩,\s]/g, '');
+    // Handle "M" for millions, "B" for billions
+    if (cleaned.toUpperCase().endsWith('M')) {
+      return parseFloat(cleaned) * 1000000;
+    } else if (cleaned.toUpperCase().endsWith('B')) {
+      return parseFloat(cleaned) * 1000000000;
+    } else if (cleaned.includes('억')) {
+      return parseFloat(cleaned.replace('억', '')) * 100000000;
+    }
+    return parseFloat(cleaned) || 0;
+  };
+  
+  input.addEventListener('input', (e) => {
+    clearTimeout(_projectionInputDebounce);
+    _projectionInputDebounce = setTimeout(() => {
+      const targetValue = parseTargetValue(e.target.value);
+      const currentAUM = window._cvCurrentAUM || window._globalAumHistory?.[window._globalAumHistory.length - 1]?.totalValue || 0;
+      
+      if (targetValue > currentAUM && typeof ChartState !== 'undefined') {
+        ChartState.projectionTarget = targetValue;
+        ChartState.save();
+        
+        // Trigger projection chart update
+        if (ChartState.timelineMode === 'projection') {
+          rebuildChartsForMode('projection');
+        }
+        console.log(`🎯 Projection Target: ₩${targetValue.toLocaleString()}`);
+      }
+    }, 500);
+  });
+  
+  // Initialize with saved value if exists
+  if (ChartState && ChartState.projectionTarget) {
+    input.value = '₩' + (ChartState.projectionTarget / 1000000).toFixed(0) + 'M';
+  }
+}
+
+// Initialize on DOM ready (called from existing init flow)
 
 /**
  * Handle Overlay Toggle (SPY / Static)
@@ -1112,17 +1737,40 @@ function rebuildHypotheticalMode() {
  * Rebuild Projection mode
  */
 function rebuildProjectionMode() {
-  const targetInput = document.getElementById('cv-target-input');
-  const targetValue = targetInput ? parseFloat(targetInput.value.replace(/,/g, '')) : 0;
-  const currentAUM = window._cvCurrentAUM || 0;
+  // Try new projection input first, then legacy cv-target-input
+  const newInput = document.getElementById('projection-target-input');
+  const legacyInput = document.getElementById('cv-target-input');
+  
+  let targetValue = 0;
+  
+  // Priority: ChartState.projectionTarget > new input > legacy input
+  if (typeof ChartState !== 'undefined' && ChartState.projectionTarget) {
+    targetValue = ChartState.projectionTarget;
+  } else if (newInput && newInput.value) {
+    // Parse the new input format (₩100M, 1억, etc.)
+    const val = newInput.value.replace(/[₩,\s]/g, '');
+    if (val.toUpperCase().endsWith('M')) {
+      targetValue = parseFloat(val) * 1000000;
+    } else if (val.toUpperCase().endsWith('B')) {
+      targetValue = parseFloat(val) * 1000000000;
+    } else if (val.includes('억')) {
+      targetValue = parseFloat(val.replace('억', '')) * 100000000;
+    } else {
+      targetValue = parseFloat(val) || 0;
+    }
+  } else if (legacyInput) {
+    targetValue = parseFloat(legacyInput.value.replace(/,/g, '')) || 0;
+  }
+  
+  const currentAUM = window._cvCurrentAUM || window._globalAumHistory?.[window._globalAumHistory.length - 1]?.totalValue || 0;
   
   if (targetValue > currentAUM) {
     _cvProjectionEnabled = true;
     calculateAndDisplayCompoundVision(targetValue);
     updateChartWithProjection(_compoundVisionData);
-    console.log('📊 Projection mode activated');
+    console.log('📊 Projection mode activated with target:', targetValue);
   } else {
-    console.warn('⚠️ Target must be greater than current AUM for Projection mode');
+    console.warn('⚠️ Target must be greater than current AUM for Projection mode. Target:', targetValue, 'AUM:', currentAUM);
     // Reset to default mode
     ChartState.setTimelineMode('default');
     const defaultRadio = document.querySelector('input[name="timeline-mode"][value="default"]');
@@ -1271,14 +1919,16 @@ function updateExecutionAlphaBadge(showStatic) {
       try {
         const alphaResult = Finance.calculateExecutionAlpha(window._hypotheticalCache, actualData);
         
-        // Check if alphaResult has valid alpha value (number)
-        if (alphaResult && typeof alphaResult.alpha === 'number' && !isNaN(alphaResult.alpha)) {
+        // alphaResult.alpha is a string from .toFixed(2), parse it
+        const alphaNum = alphaResult && alphaResult.alpha !== null ? parseFloat(alphaResult.alpha) : NaN;
+        
+        if (!isNaN(alphaNum)) {
           const alphaValue = document.getElementById('alpha-value');
           if (alphaValue) {
-            alphaValue.textContent = alphaResult.alpha.toFixed(2);
+            alphaValue.textContent = alphaNum.toFixed(2);
           }
-          badge.classList.toggle('positive', alphaResult.alpha > 0);
-          badge.classList.toggle('negative', alphaResult.alpha < 0);
+          badge.classList.toggle('positive', alphaNum > 0);
+          badge.classList.toggle('negative', alphaNum < 0);
         } else {
           console.warn('Execution Alpha calculation returned invalid result:', alphaResult);
           badge.classList.add('hidden');
@@ -1300,6 +1950,9 @@ function setupEventListeners() {
 
   // Setup Compound Vision Simulator listeners
   setupCompoundVisionListeners();
+  
+  // Setup new Projection Target Input listener
+  setupProjectionInputListener();
 
   // Allocation View Toggle (1W / Total)
   const viewToggle = document.getElementById("allocation-view-toggle");
@@ -1317,6 +1970,25 @@ function setupEventListeners() {
         // Re-render allocation table with new view mode
         if (window._assetReturns) {
           UI.renderAllocation(portfolio, allocationChart, window._assetReturns, viewMode);
+        }
+      });
+    });
+  }
+
+  // CTR Chart View Toggle (Total / YTD / 1W)
+  const ctrToggle = document.getElementById("ctr-view-toggle");
+  if (ctrToggle) {
+    ctrToggle.querySelectorAll('.toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state
+        ctrToggle.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update CTR Chart
+        const viewMode = btn.dataset.view;
+        const portfolio = DataService.loadPortfolio(); 
+        if (window._assetReturns) {
+            createCTRChart(window._assetReturns, portfolio, viewMode);
         }
       });
     });
@@ -2080,32 +2752,59 @@ function getAccountGroup(ticker) {
 }
 
 /**
- * MSTR Signal Criteria
+ * MSTR Signal Criteria (Updated to match Algo Rules - Dec 2024)
+ * Hard Exit: Z > 3.5 OR MNAV > 2.5 → 100% MSTR → DBMF
+ * Profit Lock: Z > 2.0 (if boughtAtLow) → 50% MSTR → DBMF
+ * [DEPRECATED] Soft Rotate: Z > 1.0 - REMOVED
+ * Opportunity: Z < 0
  */
 const MSTR_SIGNALS = {
-  riskOff: {
-    trigger: (mnav, zscore) => mnav > 2.8 || zscore > 4.5,
-    return: (mnav, zscore) => mnav < 1.8 || zscore < 2.2,
+  hardExit: {
+    trigger: (mnav, zscore) => zscore > 3.5 || mnav > 2.5,
+    label: 'HARD EXIT',
+    desc: '100% MSTR → DBMF (Euphoria Safety)'
   },
-  riskOn: {
-    trigger: (mnav, zscore) => mnav < 1.3 && zscore < 0.5,
-    return: (mnav, zscore) => mnav > 2.0 || zscore > 2.0,
+  profitLock: {
+    trigger: (zscore, boughtAtLow) => zscore > 2.0 && boughtAtLow,
+    label: 'PROFIT LOCK',
+    desc: '50% MSTR → DBMF (Normalization)'
   },
+  // [REMOVED] softRotate - Dec 2024 update
+  opportunity: {
+    trigger: (zscore) => zscore < 0,
+    label: 'OPPORTUNITY',
+    desc: 'Scramble buy'
+  },
+  trendReentry: {
+    trigger: (zscore, priceAbove20MA, soldAtHigh) => zscore < 1.5 && priceAbove20MA && soldAtHigh,
+    label: 'TREND RE-ENTRY',
+    desc: 'Dip buying (if sold high)'
+  }
 };
 
 /**
  * Verify MSTR signal based on user-provided MNAV and Z-Score
  */
-function verifyMSTRSignal(mnav, zscore, direction) {
-  // direction: 'sell' (MSTR -> other) or 'buy' (other -> MSTR)
+function verifyMSTRSignal(mnav, zscore, direction, mstrState = {}) {
   if (direction === "sell") {
-    // Risk Off trigger: MNAV > 2.8 OR Z-Score > 4.5
-    return MSTR_SIGNALS.riskOff.trigger(mnav, zscore);
+    // Check SELL signals in priority order
+    if (MSTR_SIGNALS.hardExit.trigger(mnav, zscore)) {
+      return { valid: true, signal: 'hardExit', label: MSTR_SIGNALS.hardExit.label };
+    }
+    if (MSTR_SIGNALS.profitLock.trigger(zscore, mstrState.boughtAtLow)) {
+      return { valid: true, signal: 'profitLock', label: MSTR_SIGNALS.profitLock.label };
+    }
+    // [REMOVED] softRotate check - deprecated in Dec 2024
+    return { valid: false, signal: null, label: 'No SELL signal' };
   } else if (direction === "buy") {
-    // Risk On trigger: MNAV < 1.3 AND Z-Score < 0.5
-    return MSTR_SIGNALS.riskOn.trigger(mnav, zscore);
+    // Check BUY signals in priority order
+    if (MSTR_SIGNALS.opportunity.trigger(zscore)) {
+      return { valid: true, signal: 'opportunity', label: MSTR_SIGNALS.opportunity.label };
+    }
+    // trendReentry requires price > 20MA check (done elsewhere)
+    return { valid: false, signal: null, label: 'No BUY signal' };
   }
-  return false;
+  return { valid: false, signal: null, label: 'Unknown direction' };
 }
 
 /**
@@ -2464,7 +3163,17 @@ function enterSimulationMode() {
   realMNAV = localStorage.getItem("jg_mnav_value") || "";
   realZScore = localStorage.getItem("jg_zscore_value") || "";
 
-  // 3. Create simulation copies
+  // 3. Backup Algo State (NEW: complete sim isolation)
+  realTacticalTargets = JSON.parse(JSON.stringify(tacticalTargets || {}));
+  realMSTRState = JSON.parse(JSON.stringify(MSTRState || {}));
+  realActiveSignals = JSON.parse(JSON.stringify(activeSignals || []));
+  console.log("📦 Algo state backed up:", {
+    tacticalTargets: Object.keys(realTacticalTargets).length,
+    MSTRState: realMSTRState.lastAction,
+    activeSignals: realActiveSignals.length
+  });
+
+  // 4. Create simulation copies (same as real data on enter)
   simPortfolio = JSON.parse(JSON.stringify(portfolio));
   simPortfolioHistory = JSON.parse(JSON.stringify(portfolioHistory));
   simMNAV = realMNAV;
@@ -2541,11 +3250,33 @@ async function exitSimulationMode() {
   if (mnavInput) mnavInput.value = realMNAV;
   if (zscoreInput) zscoreInput.value = realZScore;
 
+  // 2.5. Restore Algo State (NEW: complete sim isolation)
+  if (realTacticalTargets !== null) {
+    tacticalTargets = JSON.parse(JSON.stringify(realTacticalTargets));
+    saveTacticalTargets();
+  }
+  if (realMSTRState !== null) {
+    Object.assign(MSTRState, realMSTRState);
+    saveMSTRState();
+  }
+  if (realActiveSignals !== null) {
+    activeSignals = JSON.parse(JSON.stringify(realActiveSignals));
+    saveActiveSignals();
+  }
+  console.log("📦 Algo state restored:", {
+    tacticalTargets: Object.keys(tacticalTargets).length,
+    MSTRState: MSTRState.lastAction,
+    activeSignals: activeSignals.length
+  });
+
   // 3. Clear all simulation state
   realPortfolio = null;
   realPortfolioHistory = null;
   realMNAV = null;
   realZScore = null;
+  realTacticalTargets = null;
+  realMSTRState = null;
+  realActiveSignals = null;
   simPortfolio = null;
   simPortfolioHistory = null;
   simMNAV = null;
@@ -2783,28 +3514,56 @@ function updateRebalancingTimer() {
       iconEl.setAttribute('data-lucide', 'unlock');
     }
   } else {
-    // Calculate time to next Friday 23:00 KST
+    // Calculate next Friday for market open times
     timerEl.classList.remove('active');
     
     // Days until Friday
     let daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-    if (daysUntilFriday === 0 && hours < 23) {
-      daysUntilFriday = 0; // Today is Friday but before 23:00
+    if (daysUntilFriday === 0 && hours < 9) {
+      daysUntilFriday = 0; // Today is Friday but before market open
     } else if (daysUntilFriday === 0) {
-      daysUntilFriday = 7; // Today is Friday after 23:00, next Friday
+      daysUntilFriday = 7; // Today is Friday after market, next Friday
     }
     
-    // Target time: Friday 23:00
-    const target = new Date(now);
-    target.setDate(target.getDate() + daysUntilFriday);
-    target.setHours(23, 0, 0, 0);
+    // Calculate next Friday's market times
+    const nextFriday = new Date(now);
+    nextFriday.setDate(nextFriday.getDate() + daysUntilFriday);
     
-    const diffMs = target - now;
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    // Get day name
+    const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][nextFriday.getDay()];
     
-    displayEl.textContent = `NEXT OP: ${diffDays}D ${diffHours}H ${diffMins}M`;
+    // Korean market: 09:00 KST (always)
+    const krTime = '09:00';
+    
+    // US market: 9:30 AM ET → depends on DST
+    // Use Intl.DateTimeFormat to auto-detect DST
+    const usMarketOpen = new Date(nextFriday);
+    usMarketOpen.setHours(9, 30, 0, 0); // 9:30 AM in US Eastern
+    
+    // Get US Eastern time offset to calculate KST equivalent
+    // During DST (EDT): UTC-4 → KST offset is +13 hours
+    // During Standard (EST): UTC-5 → KST offset is +14 hours
+    const etFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    
+    // Check if we're in DST by comparing Jan vs July offset
+    const jan = new Date(nextFriday.getFullYear(), 0, 1);
+    const jul = new Date(nextFriday.getFullYear(), 6, 1);
+    const janOffset = new Date(jan.toLocaleString('en-US', { timeZone: 'America/New_York' })).getTimezoneOffset();
+    const julOffset = new Date(jul.toLocaleString('en-US', { timeZone: 'America/New_York' })).getTimezoneOffset();
+    const stdOffset = Math.max(janOffset, julOffset); // Standard time offset
+    const currentOffset = new Date(nextFriday.toLocaleString('en-US', { timeZone: 'America/New_York' })).getTimezoneOffset();
+    const isDST = currentOffset < stdOffset;
+    
+    // US market opens at 9:30 AM ET
+    // In KST: DST = 22:30, Standard = 23:30
+    const usTime = isDST ? '22:30' : '23:30';
+    
+    displayEl.innerHTML = `NEXT OP<br><span style="font-size:0.75rem;opacity:0.8;">🇰🇷 ${dayName} ${krTime} · 🇺🇸 ${dayName} ${usTime}</span>`;
     if (iconEl) {
       iconEl.setAttribute('data-lucide', 'lock');
     }
@@ -2815,310 +3574,6 @@ function updateRebalancingTimer() {
     lucide.createIcons();
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// HYPOTHETICAL TRAJECTORY SIMULATOR
-// Show static backtest from 2020-08-11 to compare with actual performance
-// ═══════════════════════════════════════════════════════════════════════════
-
-window._hypotheticalData = null;
-window._hypotheticalTrajectory = null;
-window._showHypothetical = false;
-window._showSlope = false;
-
-/**
- * Fetch hypothetical data from backend API
- */
-async function fetchHypotheticalData() {
-  try {
-    console.log("📊 Fetching hypothetical data...");
-    const response = await fetch('/api/hypothetical-data');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    window._hypotheticalData = data;
-    console.log("✅ Hypothetical data loaded:", Object.keys(data.assets).length, "assets");
-    return data;
-  } catch (error) {
-    console.error("❌ Failed to fetch hypothetical data:", error);
-    return null;
-  }
-}
-
-/**
- * Calculate and display hypothetical trajectory on chart
- * 
- * Two modes:
- * - Show Hypothetical (showSlope=false): Full backtest 2020~present
- * - Compare Slope (showSlope=true): Original chart range with hypothetical overlay
- */
-async function updateHypotheticalChart(showHypothetical, showSlope = false) {
-  const alphaBadge = document.getElementById('execution-alpha-badge');
-  const alphaValue = document.getElementById('alpha-value');
-  const slopeWrapper = document.getElementById('slope-toggle-wrapper');
-  
-  // ═══════════════════════════════════════════════════════════════════
-  // CASE 1: Both OFF - Restore original chart
-  // ═══════════════════════════════════════════════════════════════════
-  if (!showHypothetical && !showSlope) {
-    window._showHypothetical = false;
-    window._showSlope = false;
-    if (alphaBadge) alphaBadge.classList.add('hidden');
-    if (slopeWrapper) {
-      slopeWrapper.style.opacity = '0.5';
-      slopeWrapper.style.pointerEvents = 'none';
-      slopeWrapper.classList.remove('enabled');
-    }
-    
-    // Restore original chart
-    if (typeof window._refreshPerformanceChart === 'function') {
-      window._refreshPerformanceChart();
-    }
-    return;
-  }
-  
-  // Fetch data if not already loaded
-  if (!window._hypotheticalData) {
-    await fetchHypotheticalData();
-  }
-  
-  if (!window._hypotheticalData) {
-    console.warn("No hypothetical data available");
-    return;
-  }
-  
-  // Calculate trajectory
-  const trajectory = Finance.calculateHypotheticalTrajectory(
-    window._hypotheticalData,
-    100 // Normalized to 100
-  );
-  
-  if (!trajectory) {
-    console.warn("Failed to calculate hypothetical trajectory");
-    return;
-  }
-  
-  window._hypotheticalTrajectory = trajectory;
-  console.log("📈 Hypothetical trajectory:", trajectory.stats);
-  
-  // Get actual portfolio data
-  const actualData = getActualPortfolioData();
-  
-  // ═══════════════════════════════════════════════════════════════════
-  // CASE 2: Compare Slope ON - Original chart range + Hypothetical overlay
-  // ═══════════════════════════════════════════════════════════════════
-  if (showSlope) {
-    window._showHypothetical = true;
-    window._showSlope = true;
-    
-    // Enable slope toggle styling
-    if (slopeWrapper) {
-      slopeWrapper.style.opacity = '1';
-      slopeWrapper.style.pointerEvents = 'auto';
-      slopeWrapper.classList.add('enabled');
-    }
-    
-    // Calculate Execution Alpha
-    if (actualData) {
-      const executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
-      
-      if (executionAlpha) {
-        console.log("⚡ Execution Alpha:", executionAlpha);
-        
-        // Update alpha badge
-        if (alphaBadge && alphaValue) {
-          alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
-          alphaBadge.classList.remove('hidden', 'positive', 'negative');
-          alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
-        }
-      }
-    }
-    
-    // Use Compare Slope chart (original range + hypothetical)
-    if (typeof updatePerformanceChartCompareSlope === 'function') {
-      updatePerformanceChartCompareSlope(trajectory, actualData);
-    } else {
-      console.warn("updatePerformanceChartCompareSlope not found");
-    }
-    
-    return;
-  }
-  
-  // ═══════════════════════════════════════════════════════════════════
-  // CASE 3: Show Hypothetical ON (Slope OFF) - Full 2020~present backtest
-  // ═══════════════════════════════════════════════════════════════════
-  window._showHypothetical = true;
-  window._showSlope = false;
-  
-  // Enable slope toggle
-  if (slopeWrapper) {
-    slopeWrapper.style.opacity = '1';
-    slopeWrapper.style.pointerEvents = 'auto';
-    slopeWrapper.classList.add('enabled');
-  }
-  
-  // Hide alpha badge in this mode
-  if (alphaBadge) alphaBadge.classList.add('hidden');
-  
-  // Use full hypothetical chart (2020~present)
-  if (typeof updatePerformanceChartWithHypothetical === 'function') {
-    updatePerformanceChartWithHypothetical(trajectory, null, actualData);
-  }
-}
-
-/**
- * Get actual portfolio data in the format needed for comparison
- * Uses aumHistory (daily AUM values) instead of portfolioHistory (event logs)
- * @returns {Object} { dates: [], values: [] }
- */
-function getActualPortfolioData() {
-  // Use globalAumHistory which contains daily AUM values
-  const aumHistory = window._globalAumHistory;
-  
-  if (!aumHistory || aumHistory.length < 2) {
-    console.warn("No AUM history available for actual portfolio data");
-    return null;
-  }
-  
-  // Sort by date (should already be sorted, but ensure)
-  const sorted = [...aumHistory].sort((a, b) => {
-    return new Date(a.date) - new Date(b.date);
-  });
-  
-  // Convert dates to YYYY-MM-DD format (avoid UTC offset issues)
-  const dates = sorted.map(h => {
-    const d = new Date(h.date);
-    // Use local date parts to avoid timezone offset
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
-  
-  // Extract totalValue (not 'value' which doesn't exist)
-  const values = sorted.map(h => h.totalValue);
-  
-  console.log(`📊 Actual portfolio data: ${dates.length} days, from ${dates[0]} to ${dates[dates.length - 1]}`);
-  
-  return { dates, values };
-}
-
-/**
- * Setup event listeners for chart controls (new design)
- * - SPY toggle: Show/hide SPY benchmark
- * - Hypothetical radio: Off / Full / Slope modes
- */
-function setupHypotheticalTrajectoryListeners() {
-  const spyToggle = document.getElementById('cv-spy-toggle');
-  const hypoRadios = document.querySelectorAll('input[name="hypo-view"]');
-  const alphaBadge = document.getElementById('execution-alpha-badge');
-  
-  // Store current hypothetical mode for chart updates
-  window._hypoViewMode = 'off';
-  
-  // Initialize SPY state from actual toggle (default: true if toggle is checked or doesn't exist yet)
-  window._showSPY = spyToggle ? spyToggle.checked : true;
-
-  
-  // SPY Toggle - directly toggle visibility on charts
-  if (spyToggle) {
-    spyToggle.addEventListener('change', (e) => {
-      window._showSPY = e.target.checked;
-      
-      // Use Chart.js visibility toggle (no chart recreation needed)
-      if (typeof toggleSPYVisibility === 'function') {
-        toggleSPYVisibility(e.target.checked);
-      }
-    });
-  }
-
-  
-  // Hypothetical View Radio Buttons
-  hypoRadios.forEach(radio => {
-    radio.addEventListener('change', async (e) => {
-      const mode = e.target.value; // 'off', 'full', 'slope'
-      window._hypoViewMode = mode;
-      
-      console.log("🔄 Hypothetical view:", mode);
-      
-      if (mode === 'off') {
-        // Hide alpha badge
-        if (alphaBadge) alphaBadge.classList.add('hidden');
-        
-        // Restore original chart
-        refreshChartWithCurrentSettings();
-      } else {
-        // Fetch data if needed
-        if (!window._hypotheticalData) {
-          await fetchHypotheticalData();
-        }
-        
-        if (!window._hypotheticalData) {
-          console.warn("No hypothetical data available");
-          return;
-        }
-        
-        // Calculate trajectory
-        const trajectory = Finance.calculateHypotheticalTrajectory(
-          window._hypotheticalData,
-          100
-        );
-        
-        if (!trajectory) {
-          console.warn("Failed to calculate hypothetical trajectory");
-          return;
-        }
-        
-        window._hypotheticalTrajectory = trajectory;
-        
-        // Get actual data for comparison
-        const actualData = getActualPortfolioData();
-        
-        // Calculate and show Execution Alpha
-        if (actualData) {
-          const executionAlpha = Finance.calculateExecutionAlpha(trajectory, actualData);
-          if (executionAlpha && alphaBadge) {
-            const alphaValue = document.getElementById('alpha-value');
-            if (alphaValue) {
-              alphaValue.textContent = (parseFloat(executionAlpha.alpha) >= 0 ? '+' : '') + executionAlpha.alpha;
-            }
-            alphaBadge.classList.remove('hidden', 'positive', 'negative');
-            alphaBadge.classList.add(parseFloat(executionAlpha.alpha) >= 0 ? 'positive' : 'negative');
-          }
-        }
-        
-        // Update chart based on mode
-        if (mode === 'full') {
-          // Full backtest: 2020.08.11 ~ present
-          if (typeof updatePerformanceChartWithHypothetical === 'function') {
-            updatePerformanceChartWithHypothetical(trajectory, null, actualData);
-          }
-        } else if (mode === 'slope') {
-          // Compare slope: 2024.03.12 ~ present
-          if (typeof updatePerformanceChartCompareSlope === 'function') {
-            updatePerformanceChartCompareSlope(trajectory, actualData);
-          }
-        }
-      }
-    });
-  });
-}
-
-/**
- * Refresh chart with current toggle/radio settings
- */
-function refreshChartWithCurrentSettings() {
-  if (typeof window._refreshPerformanceChart === 'function') {
-    window._refreshPerformanceChart();
-  }
-  
-  // TODO: Apply SPY visibility toggle when implemented
-  // For now, SPY is always shown by default in the main chart
-}
-
-// Initialize listeners after DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  setupHypotheticalTrajectoryListeners();
-});
 
 // Start
 initApp();

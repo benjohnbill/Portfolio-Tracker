@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chart Management Module
  * Handles all Chart.js visualizations (Performance, Allocation, etc.)
  */
@@ -9,6 +9,7 @@ let performanceChart = null;
 let histogramChart = null;
 let alphaCurveChart = null;
 let underwaterChart = null;
+let ctrChart = null;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -25,7 +26,8 @@ const ChartState = {
     // Default: both OFF for clean initial view
     overlays: {
         spy: false,     // SPY benchmark (OFF by default)
-        static: false   // Static rebalancing strategy (OFF by default)
+        static: false,  // Static rebalancing strategy (OFF by default)
+        trend: false    // Adaptive Trend Line (60MA/200MA) (OFF by default)
     },
     
     // Projection mode settings
@@ -134,6 +136,171 @@ const ChartState = {
         return false;
     }
 };
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * INFO HEADER MODE MANAGEMENT
+ * Switches between mode-specific info headers based on timeline mode
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Switch Info Header based on current mode
+ * @param {string} mode - 'default' | 'hypothetical' | 'projection'
+ */
+function switchInfoHeaderMode(mode) {
+    const headers = {
+        default: document.getElementById('info-header-default'),
+        hypothetical: document.getElementById('info-header-history'),
+        projection: document.getElementById('info-header-projection')
+    };
+    
+    // Hide all headers
+    Object.values(headers).forEach(h => {
+        if (h) h.classList.add('hidden');
+    });
+    
+    // Show the appropriate header
+    const activeHeader = headers[mode];
+    if (activeHeader) {
+        activeHeader.classList.remove('hidden');
+        console.log(`📊 Info Header switched to: ${mode}`);
+    }
+}
+
+/**
+ * Update Projection Info Header with Idle state data
+ * @param {Object} cvData - Compound Vision data
+ */
+function updateProjectionInfoHeaderIdle(cvData) {
+    if (!cvData) return;
+    
+    const header = document.getElementById('info-header-projection');
+    if (!header) return;
+    
+    // Remove hover state
+    header.classList.remove('hover-state');
+    
+    // Helper: Format currency in Western style (M for millions)
+    const formatCurrencyWestern = (value) => {
+        if (value >= 1000000000) {
+            return '₩' + (value / 1000000000).toFixed(1) + 'B';
+        } else if (value >= 1000000) {
+            return '₩' + (value / 1000000).toFixed(0) + 'M';
+        } else if (value >= 1000) {
+            return '₩' + (value / 1000).toFixed(0) + 'K';
+        }
+        return '₩' + value.toLocaleString();
+    };
+    
+    // Goal
+    const goalEl = document.getElementById('info-proj-goal');
+    if (goalEl) {
+        goalEl.textContent = formatCurrencyWestern(cvData.targetValue);
+    }
+    
+    // Arrival Date
+    const arrivalEl = document.getElementById('info-proj-arrival');
+    if (arrivalEl) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const d = cvData.portfolioFinishDate;
+        arrivalEl.textContent = months[d.getMonth()] + ' ' + d.getFullYear();
+    }
+    
+    // Time Alpha
+    const timegapEl = document.getElementById('info-proj-timegap');
+    if (timegapEl) {
+        const portDate = cvData.portfolioFinishDate;
+        const spyDate = cvData.benchmarkFinishDate;
+        const diffMonths = Math.round((spyDate - portDate) / (1000 * 60 * 60 * 24 * 30));
+        
+        timegapEl.classList.remove('win', 'lag');
+        
+        if (diffMonths > 0) {
+            timegapEl.textContent = '+' + diffMonths + ' months';
+            timegapEl.classList.add('win');
+        } else if (diffMonths < 0) {
+            timegapEl.textContent = diffMonths + ' months';
+            timegapEl.classList.add('lag');
+        } else {
+            timegapEl.textContent = 'Same time';
+            timegapEl.classList.add('win');
+        }
+    }
+    
+    // Update labels for Idle state
+    const labels = header.querySelectorAll('.info-label');
+    if (labels.length >= 3) {
+        labels[0].innerHTML = '<i data-lucide="crosshair" style="width:14px;height:14px;margin-right:6px;"></i>Goal';
+        labels[1].innerHTML = '<i data-lucide="rocket" style="width:14px;height:14px;margin-right:6px;"></i>Arrival';
+        labels[2].innerHTML = '<i data-lucide="zap" style="width:14px;height:14px;margin-right:6px;"></i>Time Alpha';
+        
+        // Render icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({
+                root: header
+            });
+        }
+    }
+}
+
+/**
+ * Update Projection Info Header with Hover state data
+ * @param {number} year - Hovered year
+ * @param {number} portfolioValue - Projected portfolio value
+ * @param {number} spyValue - Projected SPY value
+ */
+function updateProjectionInfoHeaderHover(year, portfolioValue, spyValue) {
+    const header = document.getElementById('info-header-projection');
+    if (!header) return;
+    
+    // Add hover state styling
+    header.classList.add('hover-state');
+    
+    // Update labels for Hover state
+    const labels = header.querySelectorAll('.info-label');
+    if (labels.length >= 3) {
+        labels[0].innerHTML = '<i data-lucide="calendar" style="width:14px;height:14px;margin-right:6px;"></i>Year';
+        labels[1].innerHTML = '<i data-lucide="trending-up" style="width:14px;height:14px;margin-right:6px;"></i>Projected';
+        labels[2].innerHTML = '<i data-lucide="coins" style="width:14px;height:14px;margin-right:6px;"></i>vs SPY';
+        
+        // Render icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({
+                root: header
+            });
+        }
+    }
+    
+    // Year
+    const goalEl = document.getElementById('info-proj-goal');
+    if (goalEl) {
+        goalEl.textContent = year;
+    }
+    
+    // Projected AUM
+    const arrivalEl = document.getElementById('info-proj-arrival');
+    if (arrivalEl) {
+        arrivalEl.textContent = '₩' + (portfolioValue / 1000000).toFixed(1) + 'M'; // Use Western format (M) for consistency
+    }
+    
+    // Wealth Gap vs SPY
+    const timegapEl = document.getElementById('info-proj-timegap');
+    if (timegapEl) {
+        const gap = portfolioValue - spyValue;
+        timegapEl.classList.remove('win', 'lag');
+        
+        if (gap > 0) {
+            timegapEl.textContent = '+₩' + (gap / 1000000).toFixed(1) + 'M';
+            timegapEl.classList.add('win');
+        } else if (gap < 0) {
+            timegapEl.textContent = '-₩' + (Math.abs(gap) / 1000000).toFixed(1) + 'M';
+            timegapEl.classList.add('lag');
+        } else {
+            timegapEl.textContent = '₩0';
+        }
+    }
+}
 
 /**
  * Toggle SPY benchmark visibility on performance and underwater charts
@@ -340,7 +507,7 @@ function initChart() {
 function getStaticDataForDefault(aumHistory) {
     const hypothetical = window._hypotheticalCache;
     if (!hypothetical || !hypothetical.dates || !hypothetical.values) {
-        console.warn('📊 Static: No hypothetical cache available');
+        // Silent return - cache may not be loaded yet, which is normal when Static is OFF
         return new Array(aumHistory.length).fill(null);
     }
     
@@ -410,6 +577,7 @@ function updateMainChartOnly(aumHistory, spyNormalized, ma60Data) {
         performanceChart.data.labels = labels;
         performanceChart.data.datasets[0].data = aumValues;
         performanceChart.data.datasets[1].data = ma60Values;
+        performanceChart.data.datasets[1].hidden = !ChartState.overlays.trend;
         performanceChart.data.datasets[2].data = spyNormalized;
         performanceChart.data.datasets[2].hidden = !ChartState.overlays.spy;
         // Update Static dataset
@@ -454,96 +622,111 @@ function createMainPerformanceChart(perfCtx, labels, aumValues, ma60Values, spyN
         data: {
             labels: labels,
             datasets: [
+                // Tier 1: Hero - Actual Portfolio
                 {
                     label: 'Portfolio AUM',
                     data: aumValues,
-                    borderColor: '#06d6a0',
+                    borderColor: '#10b981', // Institutional Emerald
                     fill: false,
-                    tension: 0.3,
+                    tension: 0.1, // Sharper
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    borderWidth: 2
+                    borderWidth: 2,  // Thinner professional line
+                    order: 1
                 },
+                // Reference: 60-Day MA
                 {
                     label: '60-Day MA',
                     data: ma60Values,
-                    borderColor: 'rgba(161, 161, 170, 0.9)',
+                    borderColor: 'rgba(113, 113, 122, 0.5)', // Zinc-500 muted
                     fill: false,
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0,
-                    borderWidth: 0.8
+                    borderWidth: 1,
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.trend : true,
+                    order: 4
                 },
+                // Tier 2: Benchmark - SPY
                 {
                     label: 'SPY (Benchmark)',
                     data: spyNormalized,
-                    borderColor: '#ef476f',
+                    borderColor: '#71717a',  // Zinc-500 neutral
                     fill: false,
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false,
+                    order: 3
                 },
+                // Tier 2: Benchmark - Static
                 {
                     label: 'Static Strategy',
                     data: getStaticDataForDefault(aumHistory),
-                    borderColor: '#8b5cf6',  // Purple color
-                    borderDash: [4, 2],
+                    borderColor: '#a1a1aa',  // Zinc-400 lighter
                     fill: false,
-                    tension: 0.3,
+                    tension: 0.1,
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true,
+                    order: 2
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: false, // Disable animation for faster updates
+            animation: false, 
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: { display: false },
                 tooltip: { enabled: false }
             },
-            onHover: createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNormalized, performanceChart?.data?.datasets?.[3]?.data || getStaticDataForDefault(aumHistory)),
+            onHover: createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNormalized, null),
             scales: {
                 x: {
                     grid: {
-                        color: (ctx) => monthBoundaryIndices.includes(ctx.index) ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.01)',
-                        lineWidth: (ctx) => monthBoundaryIndices.includes(ctx.index) ? 0.5 : 0
+                        display: false, // No vertical grid
+                        drawBorder: false
                     },
                     ticks: {
-                        color: '#64748b',
-                        font: { size: 10, weight: 'bold' },
+                        color: '#52525b', // Zinc-600
+                        font: { size: 10, family: 'Roboto Mono' },
                         maxRotation: 0,
                         autoSkip: false,
                         callback: (value, index) => labels[index] || ''
                     }
                 },
                 y: {
-                    grid: { color: 'rgba(255, 255, 255, 0.02)' },
+                    grid: { 
+                        color: '#27272a', // Zinc-900 very subtle
+                        drawBorder: false
+                    },
                     ticks: {
-                        color: '#64748b',
+                        color: '#52525b', // Zinc-600
                         callback: (value) => {
+                            if (value >= 1000000000) return '₩' + (value / 1000000000).toFixed(2) + 'B';
                             if (value >= 1000000) return '₩' + (value / 1000000).toFixed(2) + 'M';
                             if (value >= 1000) return '₩' + (value / 1000).toFixed(0) + 'K';
-                            return '₩' + value;
+                            return '₩' + value.toLocaleString();
                         },
-                        font: { size: 10 }
+                        font: { size: 10, family: 'Roboto Mono' }
                     }
                 }
             }
         }
     });
+    
+    // Switch to Default Info Header
+    switchInfoHeaderMode('default');
 }
 
 /**
  * Create hover handler for main chart (closure to capture data)
- * @param {Array} staticData - Static strategy values (optional)
+ * For Default Timeline mode - shows AUM, Daily Return, Alpha vs SPY
  */
 function createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNormalized, staticData) {
     return function(event, elements, chart) {
-        const infoBar = document.getElementById('main-chart-info');
+        const infoBar = document.getElementById('info-header-default');
         if (!infoBar || elements.length === 0) return;
         
         const idx = elements[0].index;
@@ -554,31 +737,37 @@ function createMainChartHoverHandler(aumHistory, aumValues, ma60Values, spyNorma
         const dateStr = date.toLocaleDateString('en-US', { 
             weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
         });
-        infoBar.querySelector('.info-date').textContent = dateStr;
+        const dateEl = infoBar.querySelector('.info-date');
+        if (dateEl) dateEl.textContent = dateStr;
         
-        document.getElementById('info-aum').textContent = '₩' + Math.round(aumValues[idx]).toLocaleString();
-        document.getElementById('info-ma').textContent = ma60Values[idx] ? '₩' + Math.round(ma60Values[idx]).toLocaleString() : '--';
-        document.getElementById('info-spy').textContent = spyNormalized[idx] ? '₩' + Math.round(spyNormalized[idx]).toLocaleString() : '--';
+        // AUM
+        const aumEl = document.getElementById('info-default-aum');
+        if (aumEl) aumEl.textContent = '₩' + Math.round(aumValues[idx]).toLocaleString();
         
-        // Static value - get from chart dataset directly for accurate data
-        const staticVal = chart?.data?.datasets?.[3]?.data?.[idx] || (staticData && staticData[idx]);
-        const infoStatic = document.getElementById('info-static');
-        if (infoStatic) {
-            infoStatic.textContent = staticVal ? '₩' + Math.round(staticVal).toLocaleString() : '--';
+        // Daily Return
+        const dailyEl = document.getElementById('info-default-daily');
+        if (dailyEl) {
+            if (idx > 0 && aumValues[idx - 1]) {
+                const dailyReturn = ((aumValues[idx] - aumValues[idx - 1]) / aumValues[idx - 1] * 100).toFixed(2);
+                dailyEl.textContent = (dailyReturn > 0 ? '+' : '') + dailyReturn + '%';
+                dailyEl.className = 'info-value ' + (dailyReturn >= 0 ? 'positive' : 'negative');
+            } else {
+                dailyEl.textContent = '--';
+                dailyEl.className = 'info-value';
+            }
         }
         
-        if (spyNormalized[idx] && aumValues[idx]) {
-            const alpha = ((aumValues[idx] - spyNormalized[idx]) / spyNormalized[idx] * 100).toFixed(2);
-            const alphaEl = document.getElementById('info-alpha');
-            alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
-            alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
-        }
-        
-        if (idx > 0 && aumValues[idx - 1]) {
-            const dailyReturn = ((aumValues[idx] - aumValues[idx - 1]) / aumValues[idx - 1] * 100).toFixed(2);
-            const dailyEl = document.getElementById('info-daily');
-            dailyEl.textContent = (dailyReturn > 0 ? '+' : '') + dailyReturn + '%';
-            dailyEl.className = 'info-value ' + (dailyReturn >= 0 ? 'positive' : 'negative');
+        // Alpha vs SPY
+        const alphaEl = document.getElementById('info-default-alpha');
+        if (alphaEl) {
+            if (spyNormalized[idx] && aumValues[idx]) {
+                const alpha = ((aumValues[idx] - spyNormalized[idx]) / spyNormalized[idx] * 100).toFixed(2);
+                alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
+                alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
+            } else {
+                alphaEl.textContent = '--';
+                alphaEl.className = 'info-value';
+            }
         }
     };
 }
@@ -671,8 +860,8 @@ function rebuildUnderwaterChart(aumHistory, spyNormalized, labels) {
                     fill: false,
                     tension: 0.3,
                     pointRadius: 0,
-                    borderWidth: 1.5,
-                    hidden: !ChartState.overlays.spy
+                    borderWidth: 1.5
+                    // Always visible - not tied to ChartState.overlays.spy
                 }
             ]
         },
@@ -692,14 +881,45 @@ function rebuildUnderwaterChart(aumHistory, spyNormalized, labels) {
                         color: (ctx) => ctx.tick.value === 0 ? '#06b6d4' : 'rgba(255, 255, 255, 0.08)',
                         lineWidth: (ctx) => ctx.tick.value === 0 ? 2 : 0.5
                     },
-                    ticks: {
-                        color: '#64748b',
-                        font: { size: 9 },
-                        callback: (value) => value.toFixed(0) + '%'
+                    // Psychological Anchor: Correction Threshold (-10%)
+                    afterBuildTicks: function(scale) {
+                        // Ensure -10 is in range if feasible, but auto-scale usually handles it
                     }
                 }
             }
-        }
+        },
+        plugins: [
+            {
+                id: 'psychologicalAnchor',
+                beforeDraw: (chart) => {
+                    const ctx = chart.ctx;
+                    const yAxis = chart.scales.y;
+                    const yValue = -10; // -10%
+                    
+                    if (yValue < yAxis.min || yValue > yAxis.max) return;
+                    
+                    const yPixel = yAxis.getPixelForValue(yValue);
+                    const xStart = chart.scales.x.left;
+                    const xEnd = chart.scales.x.right;
+                    
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(xStart, yPixel);
+                    ctx.lineTo(xEnd, yPixel);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.stroke();
+                    
+                    // Label
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.font = '9px Inter';
+                    ctx.textAlign = 'right';
+                    ctx.fillText('Correction Threshold (-10%)', xEnd - 6, yPixel - 6);
+                    ctx.restore();
+                }
+            }
+        ]
     });
 }
 
@@ -940,46 +1160,53 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
         data: {
             labels: labels,
             datasets: [
+                // Tier 1: Hero - Actual Portfolio
                 {
                     label: 'Portfolio AUM',
                     data: aumValues,
                     borderColor: '#06d6a0',
-                    fill: false,  // No fill
+                    fill: false,
                     tension: 0.3,
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    borderWidth: 2
+                    borderWidth: 3,  // Thick for Hero
+                    order: 1  // Draw on top
                 },
+                // Reference: 60-Day MA
                 {
                     label: '60-Day MA',
                     data: ma60Values,
-                    borderColor: 'rgba(161, 161, 170, 0.9)',  // Cool gray, solid and visible
-                    // Removed borderDash for solid line
+                    borderColor: 'rgba(161, 161, 170, 0.6)',
                     fill: false,
                     tension: 0.3,
                     pointRadius: 0,
-                    borderWidth: 0.8  // Half of SPY (1.5) approx
+                    borderWidth: 0.8,
+                    order: 4
                 },
+                // Tier 2: Benchmark - SPY (70% opacity)
                 {
                     label: 'SPY (Benchmark)',
                     data: spyNormalized,
-                    borderColor: '#ef476f',
+                    borderColor: 'rgba(239, 71, 111, 0.7)',  // 70% opacity
                     fill: false,
                     tension: 0.3,
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.spy : false,
+                    order: 3
                 },
+                // Tier 2: Benchmark - Static (80% opacity, SOLID line)
                 {
                     label: 'Static Strategy',
                     data: getStaticDataForDefault(aumHistory),
-                    borderColor: '#8b5cf6',  // Purple
-                    borderDash: [4, 2],
+                    borderColor: 'rgba(139, 92, 246, 0.8)',  // 80% opacity
+                    // REMOVED borderDash - Solid line for historical data
                     fill: false,
                     tension: 0.3,
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true
+                    hidden: typeof ChartState !== 'undefined' ? !ChartState.overlays.static : true,
+                    order: 2
                 }
             ]
         },
@@ -1000,7 +1227,7 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                 // External info bar - update on hover
             },
             onHover: function(event, elements, chart) {
-                const infoBar = document.getElementById('main-chart-info');
+                const infoBar = document.getElementById('info-header-default');
                 if (!infoBar) return;
                 
                 if (elements.length > 0) {
@@ -1013,42 +1240,38 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                         const dateStr = date.toLocaleDateString('en-US', { 
                             weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
                         });
-                        infoBar.querySelector('.info-date').textContent = dateStr;
+                        const dateEl = infoBar.querySelector('.info-date');
+                        if (dateEl) dateEl.textContent = dateStr;
                         
                         // AUM
-                        const aumEl = document.getElementById('info-aum');
-                        aumEl.textContent = '₩' + Math.round(aumValues[idx]).toLocaleString();
+                        const aumEl = document.getElementById('info-default-aum');
+                        if (aumEl) aumEl.textContent = '₩' + Math.round(aumValues[idx]).toLocaleString();
                         
-                        // 60MA
-                        const maEl = document.getElementById('info-ma');
-                        const maVal = ma60Values[idx];
-                        maEl.textContent = maVal ? '₩' + Math.round(maVal).toLocaleString() : '--';
-                        
-                        // SPY normalized value
-                        const spyEl = document.getElementById('info-spy');
-                        const spyVal = spyNormalized[idx];
-                        spyEl.textContent = spyVal ? '₩' + Math.round(spyVal).toLocaleString() : '--';
-                        
-                        // Alpha (vs SPY)
-                        const alphaEl = document.getElementById('info-alpha');
-                        if (spyVal && aumValues[idx]) {
-                            const alpha = ((aumValues[idx] - spyVal) / spyVal * 100).toFixed(2);
-                            alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
-                            alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
-                        } else {
-                            alphaEl.textContent = '--';
-                            alphaEl.className = 'info-value';
+                        // Daily Return
+                        const dailyEl = document.getElementById('info-default-daily');
+                        if (dailyEl) {
+                            if (idx > 0 && aumValues[idx - 1]) {
+                                const dailyReturn = ((aumValues[idx] - aumValues[idx - 1]) / aumValues[idx - 1] * 100).toFixed(2);
+                                dailyEl.textContent = (dailyReturn > 0 ? '+' : '') + dailyReturn + '%';
+                                dailyEl.className = 'info-value ' + (dailyReturn >= 0 ? 'positive' : 'negative');
+                            } else {
+                                dailyEl.textContent = '--';
+                                dailyEl.className = 'info-value';
+                            }
                         }
                         
-                        // Daily return
-                        const dailyEl = document.getElementById('info-daily');
-                        if (idx > 0 && aumValues[idx - 1]) {
-                            const dailyReturn = ((aumValues[idx] - aumValues[idx - 1]) / aumValues[idx - 1] * 100).toFixed(2);
-                            dailyEl.textContent = (dailyReturn > 0 ? '+' : '') + dailyReturn + '%';
-                            dailyEl.className = 'info-value ' + (dailyReturn >= 0 ? 'positive' : 'negative');
-                        } else {
-                            dailyEl.textContent = '--';
-                            dailyEl.className = 'info-value';
+                        // Alpha (vs SPY)
+                        const alphaEl = document.getElementById('info-default-alpha');
+                        const spyVal = spyNormalized[idx];
+                        if (alphaEl) {
+                            if (spyVal && aumValues[idx]) {
+                                const alpha = ((aumValues[idx] - spyVal) / spyVal * 100).toFixed(2);
+                                alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
+                                alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
+                            } else {
+                                alphaEl.textContent = '--';
+                                alphaEl.className = 'info-value';
+                            }
                         }
                     }
                 }
@@ -1157,9 +1380,10 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                     const label = histogramData.labels[idx];
                     const count = histogramData.counts[idx];
                     
-                    infoBar.querySelector('.info-date').textContent = label + '%';
-                    const valEl = document.getElementById('info-histogram');
-                    valEl.textContent = count + ' days';
+                    const binEl = document.getElementById('info-histogram-bin');
+                    const daysEl = document.getElementById('info-histogram-days');
+                    if (binEl) binEl.textContent = label + '%';
+                    if (daysEl) daysEl.textContent = count + ' days';
                 }
             },
                 scales: {
@@ -1269,11 +1493,14 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                     const item = cumulativeAlpha[idx];
                     
                     if (item) {
-                        infoBar.querySelector('.info-date').textContent = item.date || '--';
+                        const dateEl = infoBar.querySelector('.info-date');
+                        if (dateEl) dateEl.textContent = item.date || '--';
                         const valEl = document.getElementById('info-cum-alpha');
-                        const val = item.cumulativeAlpha.toFixed(2);
-                        valEl.textContent = (val > 0 ? '+' : '') + val + '%';
-                        valEl.className = 'info-value ' + (item.cumulativeAlpha >= 0 ? 'positive' : 'negative');
+                        if (valEl) {
+                            const val = item.cumulativeAlpha.toFixed(2);
+                            valEl.textContent = (val > 0 ? '+' : '') + val + '%';
+                            valEl.className = 'info-value ' + (item.cumulativeAlpha >= 0 ? 'positive' : 'negative');
+                        }
                     }
                 }
             },
@@ -1372,7 +1599,7 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
         // Calculate Delta (Portfolio DD - SPY DD): positive = outperforming (less loss)
         const deltaDrawdowns = portfolioDrawdowns.map((portDD, idx) => portDD - spyDrawdowns[idx]);
 
-        // Build underwater datasets - SPY is conditional
+        // Build underwater datasets - SPY always visible for comparison
         const underwaterDatasets = [
             {
                 label: 'Portfolio DD',
@@ -1385,12 +1612,8 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                 pointHoverRadius: 4,
                 borderWidth: 2,
                 order: 1  // Draw on top
-            }
-        ];
-        
-        // Add SPY DD only if toggle is ON
-        if (window._showSPY !== false) {
-            underwaterDatasets.push({
+            },
+            {
                 label: 'SPY DD',
                 data: spyDrawdowns,
                 borderColor: 'rgba(239, 71, 111, 0.7)',
@@ -1401,8 +1624,8 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                 pointHoverRadius: 4,
                 borderWidth: 1.5,
                 order: 2  // Draw below
-            });
-        }
+            }
+        ];
 
         underwaterChart = new Chart(underwaterCtx.getContext('2d'), {
             type: 'line',
@@ -1443,29 +1666,33 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
                     const item = aumHistory[idx];
                     
                     if (item) {
-                        infoBar.querySelector('.info-date').textContent = item.date || '--';
+                        const dateEl = infoBar.querySelector('.info-date');
+                        if (dateEl) dateEl.textContent = item.date || '--';
                         
                         // Portfolio Drawdown
                         const portEl = document.getElementById('info-drawdown');
                         const portDD = portfolioDrawdowns[idx];
-                        if (portDD !== undefined) {
+                        if (portEl && portDD !== undefined) {
                             portEl.textContent = portDD.toFixed(2) + '%';
                             portEl.className = 'info-value ' + (portDD >= 0 ? '' : 'negative');
                         }
                         
-                        // SPY Drawdown (only show if SPY toggle is ON)
+                        // SPY Drawdown (Always visible for comparison)
                         const spyEl = document.getElementById('info-spy-dd');
-                        if (spyEl) {
-                            if (window._showSPY !== false) {
-                                const spyDD = spyDrawdowns[idx];
-                                if (spyDD !== undefined) {
-                                    spyEl.textContent = spyDD.toFixed(2) + '%';
-                                    spyEl.className = 'info-value ' + (spyDD >= 0 ? '' : 'negative');
-                                }
-                                spyEl.parentElement.style.display = '';
-                            } else {
-                                spyEl.parentElement.style.display = 'none';
-                            }
+                        const spyDD = spyDrawdowns[idx];
+                        if (spyEl && spyDD !== undefined) {
+                            spyEl.textContent = spyDD.toFixed(2) + '%';
+                            spyEl.className = 'info-value ' + (spyDD >= 0 ? '' : 'negative');
+                        }
+                        
+                        // Delta (Portfolio DD - SPY DD): Positive = Portfolio outperforming
+                        const deltaEl = document.getElementById('info-dd-delta');
+                        if (deltaEl && portDD !== undefined && spyDD !== undefined) {
+                            const delta = portDD - spyDD; // Less negative = better
+                            const deltaSign = delta > 0 ? '+' : '';
+                            deltaEl.textContent = deltaSign + delta.toFixed(2) + '%';
+                            // Green if portfolio DD is less severe (delta > 0)
+                            deltaEl.className = 'info-value ' + (delta >= 0 ? 'positive' : 'negative');
                         }
                         
                         // Calmar Ratio at this point (Cumulative CAGR / MDD at this date)
@@ -1537,6 +1764,9 @@ function updatePerformanceChart(aumHistory, spyNormalized, ma60Data, dailyReturn
             }
         });
     }
+    
+    // Switch to Default Info Header
+    switchInfoHeaderMode('default');
 }
 
 /**
@@ -1552,6 +1782,9 @@ function updatePerformanceChartProjection(cvData) {
 
     // If no cvData, restore original chart and return
     if (!cvData) {
+        // Switch back to Default Info Header
+        switchInfoHeaderMode('default');
+        
         // Reload the original chart (trigger a dashboard refresh would be ideal)
         // For now, just hide projection-related elements
         console.log("🔮 Projection mode disabled - chart will reset on next data update");
@@ -1644,6 +1877,17 @@ function updatePerformanceChartProjection(cvData) {
         ? parseFloat(hypotheticalCache.stats.cagr) / 100  // Convert from percentage
         : portfolioCAGR;
     
+    // Calculate Static reach date for annotations
+    const staticYearsToTarget = Math.log(targetValue / currentAUM) / Math.log(1 + staticCAGR);
+    const staticFinishDate = new Date();
+    staticFinishDate.setMonth(staticFinishDate.getMonth() + Math.round(staticYearsToTarget * 12));
+    
+    // Helper: Format date as "May '28"
+    const formatMonthYear = (date) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return months[date.getMonth()] + " '" + String(date.getFullYear()).slice(-2);
+    };
+    
     const staticData = [];
     for (let i = 0; i < yearLabels.length; i++) {
         const year = inceptionYear + i;
@@ -1658,7 +1902,7 @@ function updatePerformanceChartProjection(cvData) {
     }
     
     const projectionDatasets = [
-        // 0: Portfolio (always visible)
+        // Tier 1: Hero - Portfolio (solid for history, dashed for future)
         {
             label: 'Portfolio',
             data: portfolioData,
@@ -1668,43 +1912,46 @@ function updatePerformanceChartProjection(cvData) {
             tension: 0.3,
             pointRadius: 4,
             pointHoverRadius: 6,
-            borderWidth: 2,
+            borderWidth: 3,  // Thick for Hero
+            order: 1,
             segment: {
-                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],  // Solid history, dashed future
                 borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(20, 184, 166, 0.8)' : '#06d6a0'
             }
         },
-        // 1: SPY Benchmark (toggle controlled)
+        // Tier 2: Benchmark - SPY (70% opacity, solid history, dashed future)
         {
             label: 'SPY Benchmark',
             data: spyData,
-            borderColor: '#ef476f',
+            borderColor: 'rgba(239, 71, 111, 0.7)',  // 70% opacity
             fill: false,
             tension: 0.3,
             pointRadius: 3,
             pointHoverRadius: 5,
             borderWidth: 1.5,
             hidden: !showSPY,
+            order: 3,
             segment: {
-                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],
-                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(239, 71, 111, 0.7)' : '#ef476f'
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [6, 4] : [],  // Solid history, dashed future
+                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(239, 71, 111, 0.5)' : 'rgba(239, 71, 111, 0.7)'
             }
         },
-        // 2: Static Strategy (toggle controlled)
+        // Tier 2: Benchmark - Static (80% opacity, SOLID history, dashed future)
         {
             label: 'Static Strategy',
             data: staticData,
-            borderColor: '#8b5cf6',
+            borderColor: 'rgba(139, 92, 246, 0.8)',  // 80% opacity
             fill: false,
             tension: 0.3,
             pointRadius: 3,
             pointHoverRadius: 5,
             borderWidth: 1.5,
-            borderDash: [4, 2],
+            // REMOVED global borderDash - handled by segment
             hidden: !showStatic,
+            order: 2,
             segment: {
-                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [4, 2] : [],
-                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(139, 92, 246, 0.7)' : '#8b5cf6'
+                borderDash: ctx => ctx.p0DataIndex >= projectionStartIndex ? [4, 2] : [],  // Solid history, dashed future
+                borderColor: ctx => ctx.p0DataIndex >= projectionStartIndex ? 'rgba(139, 92, 246, 0.6)' : 'rgba(139, 92, 246, 0.8)'
             }
         },
         // 3: Target Goal (always visible)
@@ -1755,64 +2002,100 @@ function updatePerformanceChartProjection(cvData) {
                     display: false
                 },
                 tooltip: {
-                    enabled: true,
-                    backgroundColor: 'rgba(15, 20, 32, 0.95)',
-                    titleColor: '#ffffff',
-                    bodyColor: '#94a3b8',
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        title: function() {
-                            // Show target reach info as title
-                            return '🎯 Goal: ₩' + targetValue.toLocaleString();
-                        },
-                        label: function(context) {
-                            if (context.dataset.label === 'Target Goal') return '';
-                            
-                            // Show reach date instead of value
-                            if (context.dataset.label === 'Portfolio') {
-                                const portDate = cvData.portfolioFinishDate;
-                                return '📈 Portfolio: ' + portDate.getFullYear() + '년 ' + (portDate.getMonth() + 1) + '월 도달 예상';
-                            } else if (context.dataset.label === 'SPY Benchmark') {
-                                const spyDate = cvData.benchmarkFinishDate;
-                                return '📊 SPY: ' + spyDate.getFullYear() + '년 ' + (spyDate.getMonth() + 1) + '월 도달 예상';
-                            }
-                            return '';
-                        },
-                        afterBody: function() {
-                            // Show time difference
-                            const portDate = cvData.portfolioFinishDate;
-                            const spyDate = cvData.benchmarkFinishDate;
-                            const diffMonths = Math.round((spyDate - portDate) / (1000 * 60 * 60 * 24 * 30));
-                            if (diffMonths > 0) {
-                                const years = Math.floor(diffMonths / 12);
-                                const months = diffMonths % 12;
-                                let diffText = '⏱️ ';
-                                if (years > 0) diffText += years + '년 ';
-                                if (months > 0) diffText += months + '개월 ';
-                                diffText += '빠름';
-                                return [diffText];
-                            }
-                            return [];
-                        }
-                    }
+                    enabled: false  // Removed tooltip - use on-chart annotations instead
                 },
 
-                // Add annotation for "Now" marker
+                // Smart Axis Labels - show reach dates on X-axis with vertical guide lines
                 annotation: {
                     annotations: {
+                        // ═══════════════════════════════════════════════════
+                        // "Now" vertical line
+                        // ═══════════════════════════════════════════════════
                         nowLine: {
                             type: 'line',
                             xMin: projectionStartIndex,
                             xMax: projectionStartIndex,
-                            borderColor: 'rgba(255, 255, 255, 0.5)',
-                            borderWidth: 2,
+                            borderColor: 'rgba(255, 255, 255, 0.4)',
+                            borderWidth: 1.5,
                             borderDash: [4, 4],
                             label: {
                                 display: true,
                                 content: 'Now',
-                                position: 'start'
+                                position: 'start',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: { size: 9 }
                             }
+                        },
+                        
+                        // ═══════════════════════════════════════════════════
+                        // PORTFOLIO REACH - Vertical Line + X-Axis Badge
+                        // ═══════════════════════════════════════════════════
+                        portfolioReachLine: {
+                            type: 'line',
+                            xMin: Math.min(cvData.timePortfolio + projectionStartIndex, yearLabels.length - 1),
+                            xMax: Math.min(cvData.timePortfolio + projectionStartIndex, yearLabels.length - 1),
+                            yMin: 0,
+                            yMax: targetValue,
+                            borderColor: 'rgba(6, 214, 160, 0.5)',
+                            borderWidth: 1.5,
+                            borderDash: [4, 4]
+                        },
+                        portfolioReachBadge: {
+                            type: 'label',
+                            xValue: Math.min(cvData.timePortfolio + projectionStartIndex, yearLabels.length - 1),
+                            yValue: projYMin,  // At bottom (X-axis)
+                            backgroundColor: 'rgba(6, 214, 160, 0.95)',
+                            color: '#ffffff',
+                            font: { size: 10, weight: 'bold' },
+                            padding: { top: 4, bottom: 4, left: 8, right: 8 },
+                            borderRadius: 12,
+                            content: formatMonthYear(cvData.portfolioFinishDate),
+                            yAdjust: 15  // Push down to X-axis
+                        },
+                        
+                        // ═══════════════════════════════════════════════════
+                        // SPY REACH - Vertical Line + X-Axis Badge
+                        // ═══════════════════════════════════════════════════
+                        spyReachLine: {
+                            type: 'line',
+                            xMin: Math.min(cvData.timeBenchmark + projectionStartIndex, yearLabels.length - 1),
+                            xMax: Math.min(cvData.timeBenchmark + projectionStartIndex, yearLabels.length - 1),
+                            yMin: 0,
+                            yMax: targetValue,
+                            borderColor: 'rgba(239, 71, 111, 0.4)',
+                            borderWidth: 1.5,
+                            borderDash: [4, 4]
+                        },
+                        spyReachBadge: {
+                            type: 'label',
+                            xValue: Math.min(cvData.timeBenchmark + projectionStartIndex, yearLabels.length - 1),
+                            yValue: projYMin,  // At bottom (X-axis)
+                            backgroundColor: 'rgba(100, 116, 139, 0.9)',  // Grey for SPY
+                            color: '#ffffff',
+                            font: { size: 10, weight: 'bold' },
+                            padding: { top: 4, bottom: 4, left: 8, right: 8 },
+                            borderRadius: 12,
+                            content: formatMonthYear(cvData.benchmarkFinishDate),
+                            yAdjust: 15  // Push down to X-axis
+                        },
+                        
+                        // ═══════════════════════════════════════════════════
+                        // TARGET LINE LABEL
+                        // ═══════════════════════════════════════════════════
+                        targetLabel: {
+                            type: 'label',
+                            xValue: 0,
+                            yValue: targetValue,
+                            backgroundColor: 'rgba(250, 204, 21, 0.15)',
+                            color: '#fbbf24',
+                            font: { size: 9, weight: 'bold' },
+                            padding: { top: 3, bottom: 3, left: 6, right: 6 },
+                            borderRadius: 4,
+                            content: 'Goal: ₩' + (targetValue >= 1000000000 ? (targetValue/1000000000).toFixed(1) + 'B' : (targetValue/1000000).toFixed(0) + 'M'),
+                            position: 'start',
+                            xAdjust: 10,
+                            yAdjust: 0
                         }
                     }
                 }
@@ -1835,13 +2118,9 @@ function updatePerformanceChartProjection(cvData) {
                     ticks: {
                         color: '#64748b',
                         callback: function(value) {
-                            if (value >= 100000000) {
-                                return '₩' + (value / 100000000).toFixed(1) + '억';
-                            } else if (value >= 10000000) {
-                                return '₩' + (value / 10000000).toFixed(0) + '천만';
-                            } else if (value >= 1000000) {
-                                return '₩' + (value / 1000000).toFixed(0) + 'M';
-                            }
+                            if (value >= 1000000000) return '₩' + (value / 1000000000).toFixed(2) + 'B';
+                            if (value >= 1000000) return '₩' + (value / 1000000).toFixed(2) + 'M';
+                            if (value >= 1000) return '₩' + (value / 1000).toFixed(0) + 'K';
                             return '₩' + value.toLocaleString();
                         },
                         font: { size: 10 }
@@ -1849,9 +2128,27 @@ function updatePerformanceChartProjection(cvData) {
                     min: projYMin,
                     max: projYMax
                 }
+            },
+            onHover: function(event, elements, chart) {
+                if (elements.length > 0) {
+                    const idx = elements[0].index;
+                    const year = inceptionYear + idx;
+                    const portfolioValue = portfolioData[idx] || 0;
+                    const spyValue = spyData[idx] || 0;
+                    
+                    // Update header to hover state
+                    updateProjectionInfoHeaderHover(year, portfolioValue, spyValue);
+                } else {
+                    // Reset to idle state
+                    updateProjectionInfoHeaderIdle(cvData);
+                }
             }
         }
     });
+    
+    // Switch to Projection Info Header and initialize Idle state
+    switchInfoHeaderMode('projection');
+    updateProjectionInfoHeaderIdle(cvData);
 
     console.log("🔮 Projection chart created:", {
         inceptionYear,
@@ -2026,26 +2323,53 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
     } else {
         console.warn('📊 SPY data not available in hypothetical cache');
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Build Composite 200MA (Adaptive Trend)
+    // ═══════════════════════════════════════════════════════════════════
+    // Stitch Static (Pre-Inception) + Actual (Post-Inception)
+    const compositeData = allDates.map((date, i) => {
+        return actualPortfolioData[i] !== null ? actualPortfolioData[i] : (hypotheticalData[i] || 0);
+    });
+    
+    // Implement local helper (Finance util only provides single-point MA)
+    const calculateMASeries = (values, period) => {
+        const ma = [];
+        for (let i = 0; i < values.length; i++) {
+            if (i < period - 1) {
+                ma.push(null);
+                continue;
+            }
+            let sum = 0;
+            for (let j = 0; j < period; j++) {
+                sum += values[i - j];
+            }
+            ma.push(sum / period);
+        }
+        return ma;
+    };
+    
+    const ma250Data = calculateMASeries(compositeData, 250);
     
     const datasets = [
-        // 0: Actual Portfolio (always visible)
+        // Tier 1: Hero - Actual Portfolio
         {
             label: 'Actual Portfolio',
             data: actualPortfolioData,
             borderColor: '#06d6a0',
             backgroundColor: 'transparent',
-            borderWidth: 2.5,
+            borderWidth: 3,  // Thick for Hero
             fill: false,
             tension: 0.2,
             pointRadius: 0,
             pointHoverRadius: 4,
-            order: 1
+            order: 1  // Draw on top
         },
-        // 1: SPY Benchmark (toggle controlled)
+        // Tier 2: Benchmark - SPY (70% opacity)
         {
             label: 'SPY Benchmark',
             data: spyFullHistoryData,
-            borderColor: '#ef476f',
+            borderColor: 'rgba(239, 71, 111, 0.7)',  // 70% opacity
             backgroundColor: 'transparent',
             borderWidth: 1.5,
             fill: false,
@@ -2055,20 +2379,33 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
             order: 3,
             hidden: !showSPY
         },
-        // 2: Static Strategy (toggle controlled)
+        // Tier 2: Benchmark - Static (80% opacity, SOLID line)
         {
             label: 'Static Strategy',
             data: hypotheticalData,
-            borderColor: '#8b5cf6',
+            borderColor: 'rgba(139, 92, 246, 0.8)',  // 80% opacity
             backgroundColor: 'transparent',
             borderWidth: 1.5,
-            borderDash: [6, 3],
+            // REMOVED borderDash - Solid line for historical data
             fill: false,
             tension: 0.2,
             pointRadius: 0,
             pointHoverRadius: 3,
             order: 2,
             hidden: !showStatic
+        },
+        // Tier 1.5: Adaptive Trend Line - 200MA (Gold)
+        // Calculated on Composite Data (Static 2020-2024 + Actual 2024-Present)
+        {
+            label: '250-Day Trend (Adaptive)',
+            data: ma250Data,
+            borderColor: '#fbbf24', // Amber/Gold
+            borderWidth: 2,         // Thicker for Strategic View
+            pointRadius: 0,
+            fill: false,
+            tension: 0.2,
+            order: 0, // Top priority
+            hidden: !ChartState.overlays.trend 
         }
     ];
     
@@ -2135,23 +2472,7 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
                     }
                 },
                 tooltip: {
-                    enabled: true,
-                    backgroundColor: 'rgba(15, 20, 32, 0.95)',
-                    titleColor: '#ffffff',
-                    bodyColor: '#94a3b8',
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        title: function(context) {
-                            const idx = context[0].dataIndex;
-                            return allDates[idx] || '';
-                        },
-                        label: function(context) {
-                            const value = context.raw;
-                            if (value == null) return '';
-                            return context.dataset.label + ': ₩' + Math.round(value).toLocaleString();
-                        }
-                    }
+                    enabled: false  // Use Info Header instead
                 },
                 annotation: {
                     annotations: {
@@ -2209,13 +2530,9 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
                     ticks: {
                         color: '#64748b',
                         callback: function(value) {
-                            if (value >= 100000000) {
-                                return '₩' + (value / 100000000).toFixed(1) + '억';
-                            } else if (value >= 10000000) {
-                                return '₩' + (value / 10000000).toFixed(0) + '천만';
-                            } else if (value >= 1000000) {
-                                return '₩' + (value / 1000000).toFixed(1) + 'M';
-                            }
+                            if (value >= 1000000000) return '₩' + (value / 1000000000).toFixed(2) + 'B';
+                            if (value >= 1000000) return '₩' + (value / 1000000).toFixed(2) + 'M';
+                            if (value >= 1000) return '₩' + (value / 1000).toFixed(0) + 'K';
                             return '₩' + value.toLocaleString();
                         },
                         font: { size: 10 }
@@ -2223,9 +2540,78 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
                     min: yMin,
                     max: yMax
                 }
+            },
+            onHover: function(event, elements, chart) {
+                const infoBar = document.getElementById('info-header-history');
+                if (!infoBar || elements.length === 0) return;
+                
+                const idx = elements[0].index;
+                const date = allDates[idx];
+                if (!date) return;
+                
+                // Date display
+                const dateEl = infoBar.querySelector('.info-date');
+                if (dateEl) {
+                    const d = new Date(date);
+                    dateEl.textContent = d.toLocaleDateString('en-US', { 
+                        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
+                    });
+                }
+                
+                const isAfterInception = idx >= inceptionIdx;
+                
+                // Toggle header style based on date
+                infoBar.classList.toggle('actual-state', isAfterInception && actualPortfolioData[idx] !== null);
+                
+                // AUM Label + Value
+                const labelEl = document.getElementById('info-history-label');
+                const aumEl = document.getElementById('info-history-aum');
+                
+                // Alpha calculation
+                const alphaEl = document.getElementById('info-history-alpha');
+                
+                if (isAfterInception && actualPortfolioData[idx] !== null) {
+                    // === AFTER INCEPTION: Actual AUM vs SPY ===
+                    if (labelEl) labelEl.textContent = 'Actual AUM';
+                    if (aumEl) aumEl.textContent = '₩' + Math.round(actualPortfolioData[idx]).toLocaleString();
+                    
+                    // Alpha: Actual vs SPY (normalized to inception)
+                    if (alphaEl && spyFullHistoryData[idx] && actualPortfolioData[idx]) {
+                        const alpha = ((actualPortfolioData[idx] - spyFullHistoryData[idx]) / spyFullHistoryData[idx] * 100).toFixed(2);
+                        alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
+                        alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
+                    } else if (alphaEl) {
+                        alphaEl.textContent = '--';
+                        alphaEl.className = 'info-value';
+                    }
+                    
+                } else {
+                    // === BEFORE INCEPTION: Simulated vs SPY (normalized to Static start) ===
+                    if (labelEl) labelEl.textContent = 'Simulated';
+                    if (aumEl) {
+                        aumEl.textContent = hypotheticalData[idx] 
+                            ? '₩' + Math.round(hypotheticalData[idx]).toLocaleString() 
+                            : '--';
+                    }
+                    
+                    // Alpha: Static vs SPY, normalized to Static's start point
+                    if (alphaEl && hypotheticalData[idx] && hypotheticalData[0] && spyFullHistoryData[idx] && spyFullHistoryData[0]) {
+                        // Normalize SPY to Static's starting point
+                        const normalizedSPY = spyFullHistoryData[idx] / spyFullHistoryData[0] * hypotheticalData[0];
+                        const alpha = ((hypotheticalData[idx] - normalizedSPY) / normalizedSPY * 100).toFixed(2);
+                        alphaEl.textContent = (alpha > 0 ? '+' : '') + alpha + '%';
+                        alphaEl.className = 'info-value ' + (alpha >= 0 ? 'positive' : 'negative');
+                    } else if (alphaEl) {
+                        alphaEl.textContent = '--';
+                        alphaEl.className = 'info-value';
+                    }
+                }
             }
         }
     });
+    
+    // Switch to History Info Header
+    switchInfoHeaderMode('hypothetical');
     
     console.log("📊 Hypothetical chart created:", {
         totalPoints,
@@ -2236,279 +2622,238 @@ function updatePerformanceChartWithHypothetical(hypothetical, actualData) {
 }
 
 /**
- * Store reference to refresh function for restoring original chart
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CTR (CONTRIBUTION TO RETURN) CHART
+ * Horizontal bar chart showing each asset's contribution to portfolio returns
+ * ═══════════════════════════════════════════════════════════════════════════
  */
-function setPerformanceChartRefreshCallback(callback) {
-    window._refreshPerformanceChart = callback;
-}
-
 
 /**
- * Update Performance Chart with Hypothetical overlay for Slope Comparison
- * Uses ORIGINAL chart range (Inception~Present) with hypothetical added
- * 
- * @param {Object} hypothetical - Hypothetical trajectory { dates: [], values: [], stats: {} }
- * @param {Object} actualData - Actual portfolio data { dates: [], values: [] }
+ * Create/Update CTR (Contribution to Return) Chart
+ * Horizontal bar chart showing asset contribution breakdown
+ * @param {Object} assetReturns - { ticker: { wtd, ytd, total, contribution, ytdContrib } }
+ * @param {Array} portfolio - Current portfolio with weights
+ * @param {string} viewMode - '1w', 'ytd', or 'total'
  */
-function updatePerformanceChartCompareSlope(hypothetical, actualData) {
-    const perfCtx = document.getElementById('perfChart');
-    if (!perfCtx) {
-        console.warn("Performance chart canvas not found");
-        return;
-    }
+function createCTRChart(assetReturns, portfolio, viewMode = 'total') {
+    const ctx = document.getElementById('ctrChart');
+    if (!ctx) return;
     
-    // Destroy existing chart
-    if (performanceChart) {
-        performanceChart.destroy();
-        performanceChart = null;
-    }
+    // Build contribution data
+    const contributions = [];
+    const totalValue = portfolio.reduce((sum, a) => sum + (a.value || 0), 0);
     
-    // Get original chart data from global storage
-    const aumHistory = window._globalAumHistory;
-    const spyNormalized = window._globalSpyNormalized;
-    const ma60Data = window._globalMa60Data;
-    
-    if (!aumHistory || aumHistory.length < 2) {
-        console.warn("No AUM history for compare slope chart");
-        return;
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 1: Build hypothetical data aligned with actual dates
-    // ═══════════════════════════════════════════════════════════════════
-    
-    // Build date -> hypothetical value map
-    const hypoMap = {};
-    if (hypothetical && hypothetical.dates) {
-        const actualStartValue = actualData?.values?.[0] || aumHistory[0]?.totalValue || 17400000;
+    portfolio.forEach(asset => {
+        const returns = assetReturns[asset.ticker] || { wtd: 0, ytd: 0, total: 0, contribution: 0, ytdContrib: 0 };
+        const actualWeight = totalValue > 0 ? (asset.value / totalValue) : 0;
         
-        // Find inception index in hypothetical
-        const INCEPTION_DATE = '2024-03-12';
-        let inceptionIdx = hypothetical.dates.indexOf(INCEPTION_DATE);
-        if (inceptionIdx === -1) {
-            inceptionIdx = hypothetical.dates.findIndex(d => d >= INCEPTION_DATE);
+        let returnVal, contribVal, avgWeight;
+        
+        if (viewMode === 'total') {
+            returnVal = returns.total || 0;
+            contribVal = (returns.contribution || 0) * 100; // Convert to percentage
+            avgWeight = actualWeight; // Current weight as proxy
+        } else if (viewMode === 'ytd') {
+            returnVal = returns.ytd || 0;
+            contribVal = (returns.ytdContrib || 0) * 100;
+            avgWeight = actualWeight;
+        } else {
+            // WTD (1w)
+            returnVal = returns.wtd || 0;
+            contribVal = actualWeight * returns.wtd * 100; // Weight × Return
+            avgWeight = actualWeight;
         }
         
-        // Scale factor to match actual portfolio at inception
-        const hypoValueAtInception = inceptionIdx >= 0 ? hypothetical.values[inceptionIdx] : hypothetical.values[0];
-        const scaleFactor = actualStartValue / hypoValueAtInception;
-        
-        hypothetical.dates.forEach((date, i) => {
-            hypoMap[date] = hypothetical.values[i] * scaleFactor;
-        });
-        
-        console.log(`📊 Compare Slope: Scale factor ${scaleFactor.toFixed(4)}`);
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 2: Create labels and data arrays
-    // ═══════════════════════════════════════════════════════════════════
-    
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    let lastMonth = -1;
-    
-    const labels = aumHistory.map((item, index) => {
-        const date = new Date(item.date);
-        const month = date.getMonth();
-        
-        if (month !== lastMonth) {
-            lastMonth = month;
-            return monthNames[month];
-        }
-        return '';
-    });
-    
-    // Track month boundaries
-    const monthBoundaryIndices = [];
-    lastMonth = -1;
-    aumHistory.forEach((item, index) => {
-        const date = new Date(item.date);
-        const month = date.getMonth();
-        if (month !== lastMonth) {
-            monthBoundaryIndices.push(index);
-            lastMonth = month;
+        // Only include assets with meaningful contribution or weight
+        if (Math.abs(contribVal) > 0.001 || actualWeight > 0.01) {
+            contributions.push({
+                ticker: asset.ticker,
+                contribution: contribVal,
+                returnVal: returnVal * 100, // Convert to percentage
+                weight: avgWeight * 100 // Convert to percentage
+            });
         }
     });
     
-    const aumValues = aumHistory.map(item => item.totalValue);
-    const ma60Values = ma60Data ? ma60Data.map(item => item.ma) : [];
+    // Sort by contribution (highest positive at top, biggest loser at bottom)
+    contributions.sort((a, b) => b.contribution - a.contribution);
     
-    // Build hypothetical values aligned with aumHistory dates
-    const hypotheticalValues = aumHistory.map(item => {
-        const d = new Date(item.date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-        return hypoMap[dateStr] || null;
+    // Prepare chart data
+    const labels = contributions.map(c => c.ticker);
+    const data = contributions.map(c => c.contribution);
+    const colors = contributions.map(c => {
+        if (c.contribution > 0.01) return 'rgba(0, 227, 204, 0.8)';     // Teal/Green
+        if (c.contribution < -0.01) return 'rgba(255, 69, 58, 0.8)';   // Red/Orange
+        return 'rgba(100, 116, 139, 0.5)';                               // Grey
+    });
+    const borderColors = contributions.map(c => {
+        if (c.contribution > 0.01) return '#00E3CC';
+        if (c.contribution < -0.01) return '#FF453A';
+        return '#64748b';
     });
     
-    console.log(`📊 Compare Slope: ${hypotheticalValues.filter(v => v !== null).length} hypothetical points mapped`);
-    
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 3: Build datasets (same as original + hypothetical)
-    // SPY dataset is conditional based on toggle state
-    // ═══════════════════════════════════════════════════════════════════
-    
-    const datasets = [
-        {
-            label: 'Portfolio AUM',
-            data: aumValues,
-            borderColor: '#06d6a0',
-            fill: false,
-            tension: 0.3,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            borderWidth: 2.5,
-            order: 1
-        },
-        {
-            label: '60-Day MA',
-            data: ma60Values,
-            borderColor: 'rgba(161, 161, 170, 0.9)',
-            fill: false,
-            tension: 0.3,
-            pointRadius: 0,
-            borderWidth: 0.8,
-            order: 3
-        }
-    ];
-    
-    // Add SPY only if toggle is ON
-    if (window._showSPY !== false) {
-        datasets.push({
-            label: 'SPY (Benchmark)',
-            data: spyNormalized,
-            borderColor: '#ef476f',
-            fill: false,
-            tension: 0.3,
-            pointRadius: 0,
-            borderWidth: 1.5,
-            order: 4
-        });
+    // Update total contribution display
+    const totalContrib = contributions.reduce((sum, c) => sum + c.contribution, 0);
+    const totalEl = document.getElementById('info-ctr-value');
+    if (totalEl) {
+        totalEl.textContent = (totalContrib >= 0 ? '+' : '') + totalContrib.toFixed(2) + '%';
+        totalEl.style.color = totalContrib >= 0 ? '#00E3CC' : '#FF453A';
     }
     
-    // Add Hypothetical Strategy
-    datasets.push({
-        label: 'Hypothetical Strategy',
-        data: hypotheticalValues,
-        borderColor: 'rgba(251, 191, 36, 0.8)',  // Amber/Gold color
-        backgroundColor: 'transparent',
-        borderWidth: 2,
-        borderDash: [6, 3],
-        fill: false,
-        tension: 0.3,
-        pointRadius: 0,
-        pointHoverRadius: 3,
-        order: 2
-    });
-
+    // Update label text
+    const labelEl = document.getElementById('info-ctr-label');
+    if (labelEl) {
+        const modeLabel = viewMode === 'ytd' ? 'YTD' : (viewMode === 'total' ? 'TOTAL' : '1W');
+        labelEl.textContent = `${modeLabel} IMPACT`;
+    }
     
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 4: Create chart (same structure as original performance chart)
-    // ═══════════════════════════════════════════════════════════════════
+    // Store contribution data for tooltips
+    const contributionData = contributions;
     
-    performanceChart = new Chart(perfCtx.getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
+    if (ctrChart) {
+        // Update existing chart
+        ctrChart.data.labels = labels;
+        ctrChart.data.datasets[0].data = data;
+        ctrChart.data.datasets[0].backgroundColor = colors;
+        ctrChart.data.datasets[0].borderColor = borderColors;
+        ctrChart.options.plugins.tooltip.callbacks.label = function(context) {
+            const idx = context.dataIndex;
+            const c = contributionData[idx];
+            if (!c) return '';
+            return [
+                `Return: ${c.returnVal >= 0 ? '+' : ''}${c.returnVal.toFixed(2)}%`,
+                `Weight: ${c.weight.toFixed(1)}%`,
+                `Impact: ${c.contribution >= 0 ? '+' : ''}${c.contribution.toFixed(2)}%p`
+            ];
+        };
+        ctrChart.update('none');
+    } else {
+        // Create new chart
+        ctrChart = new Chart(ctx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Contribution',
+                    data: data,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barThickness: 'flex',
+                    maxBarThickness: 24
+                }]
             },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        color: '#94a3b8',
-                        usePointStyle: true,
+            options: {
+                indexAxis: 'y',  // Horizontal bar
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#94a3b8',
                         padding: 12,
-                        font: { size: 10 }
-                    }
-                },
-                tooltip: {
-                    enabled: true,
-                    backgroundColor: 'rgba(15, 20, 32, 0.95)',
-                    titleColor: '#ffffff',
-                    bodyColor: '#94a3b8',
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        title: function(context) {
-                            const idx = context[0].dataIndex;
-                            const item = aumHistory[idx];
-                            if (item) {
-                                const date = new Date(item.date);
-                                return date.toLocaleDateString('en-US', { 
-                                    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
-                                });
+                        cornerRadius: 8,
+                        displayColors: false,
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return tooltipItems[0].label;
+                            },
+                            label: function(context) {
+                                const idx = context.dataIndex;
+                                const c = contributionData[idx];
+                                if (!c) return '';
+                                return [
+                                    `Return: ${c.returnVal >= 0 ? '+' : ''}${c.returnVal.toFixed(2)}%`,
+                                    `Weight: ${c.weight.toFixed(1)}%`,
+                                    `Impact: ${c.contribution >= 0 ? '+' : ''}${c.contribution.toFixed(2)}%p`
+                                ];
                             }
-                            return '';
-                        },
-                        label: function(context) {
-                            const value = context.raw;
-                            if (value == null) return '';
-                            return context.dataset.label + ': ₩' + Math.round(value).toLocaleString();
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: function(context) {
-                            if (monthBoundaryIndices.includes(context.index)) {
-                                return 'rgba(255, 255, 255, 0.1)';
-                            }
-                            return 'rgba(255, 255, 255, 0.01)';
-                        },
-                        lineWidth: function(context) {
-                            if (monthBoundaryIndices.includes(context.index)) {
-                                return 0.5;
-                            }
-                            return 0;
-                        }
-                    },
-                    ticks: {
-                        color: '#64748b',
-                        font: { size: 10, weight: 'bold' },
-                        maxRotation: 0,
-                        autoSkip: false,
-                        callback: function(value, index) {
-                            return labels[index] || '';
                         }
                     }
                 },
-                y: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.02)'
-                    },
-                    ticks: {
-                        color: '#64748b',
-                        callback: function(value) {
-                            if (value >= 1000000) {
-                                return '₩' + (value / 1000000).toFixed(2) + 'M';
-                            } else if (value >= 1000) {
-                                return '₩' + (value / 1000).toFixed(0) + 'K';
-                            }
-                            return '₩' + value;
+                scales: {
+                    x: {
+                        grid: {
+                            color: (ctx) => ctx.tick.value === 0 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.05)',
+                            lineWidth: (ctx) => ctx.tick.value === 0 ? 2 : 0.5
                         },
-                        font: { size: 10 }
+                        ticks: {
+                            color: '#64748b',
+                            font: { size: 9 },
+                            callback: (value) => value.toFixed(1) + '%'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#94a3b8',
+                            font: { size: 10, weight: '500' },
+                            padding: 8
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
     
-    console.log("📊 Compare Slope chart created:", {
-        totalPoints: aumValues.length,
-        hypotheticalMapped: hypotheticalValues.filter(v => v !== null).length,
-        spyPoints: spyNormalized?.length || 0
-    });
+    console.log(`📊 CTR Chart updated: ${contributions.length} assets, total contrib: ${totalContrib.toFixed(2)}%`);
 }
+
+/**
+ * Toggle Adaptive Trend Line visibility (60MA / 200MA)
+ * @param {boolean} visible
+ */
+function toggleTrendLine(visible) {
+    if (typeof ChartState !== 'undefined') {
+        ChartState.setOverlay('trend', visible);
+        
+        // Update Main Chart (60MA / 200MA) - Update visibility without rebuild
+        if (performanceChart) {
+             // 60MA (Default Mode)
+             const dsIndex1 = performanceChart.data.datasets.findIndex(ds => ds.label && ds.label.includes('60-Day'));
+             if (dsIndex1 !== -1) {
+                 performanceChart.setDatasetVisibility(dsIndex1, visible);
+             }
+             
+             // 250MA (History Mode)
+             const dsIndex2 = performanceChart.data.datasets.findIndex(ds => ds.label && ds.label.includes('250-Day'));
+             if (dsIndex2 !== -1) {
+                 performanceChart.setDatasetVisibility(dsIndex2, visible);
+             }
+             
+             performanceChart.update('none');
+        }
+        
+        console.log(`📊 Trend Line visibility: ${visible ? 'ON' : 'OFF'}`);
+    }
+}
+
+// Initialize Trend Line Control
+// Wait for DOM and ChartState
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        const toggle = document.getElementById('toggle-trend-line');
+        if (toggle) {
+            // Sync with state
+            if (typeof ChartState !== 'undefined') {
+                toggle.checked = ChartState.overlays.trend;
+            }
+            
+            // Listen
+            toggle.addEventListener('change', (e) => {
+                toggleTrendLine(e.target.checked);
+            });
+            console.log("✅ Trend Line toggle initialized");
+        } else {
+            console.warn("⚠️ Trend Line toggle not found");
+        }
+    }, 1000); // Slight delay to ensure DOM is ready
+});

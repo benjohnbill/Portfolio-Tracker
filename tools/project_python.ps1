@@ -8,11 +8,35 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$defaultVenvRoot = Join-Path $env:USERPROFILE ".venvs_hub"
-if ($env:USERPROFILE -match "[^\u0000-\u007F]") {
-    $defaultVenvRoot = "C:\venvs_hub"
+$projectRoot = Split-Path -Parent $PSScriptRoot
+
+function Resolve-DynamicVenvRoot {
+    if ($VenvRoot) { return $VenvRoot }
+    if ($env:LIFE_VENV_ROOT) { return $env:LIFE_VENV_ROOT }
+
+    # 1. Search for .venvs_hub upwards from project root
+    $current = $projectRoot
+    while ($current) {
+        $candidate = Join-Path $current ".venvs_hub"
+        if (Test-Path $candidate) { return $candidate }
+        $parent = Split-Path $current -Parent
+        if ($parent -eq $current) { break }
+        $current = $parent
+    }
+
+    # 2. Fallback to drive root \.venvs_hub
+    $driveRootCandidate = Join-Path (Split-Path $projectRoot -Qualifer) "\.venvs_hub"
+    if (Test-Path $driveRootCandidate) { return $driveRootCandidate }
+
+    # 3. Last resort: $HOME\.venvs_hub (if not OneDrive)
+    $homeCandidate = Join-Path $env:USERPROFILE ".venvs_hub"
+    if ($homeCandidate -notmatch "OneDrive") { return $homeCandidate }
+
+    # 4. Final safety fallback for Windows
+    return "C:\.venvs_hub"
 }
-$resolvedVenvRoot = if ($VenvRoot) { $VenvRoot } elseif ($env:LIFE_VENV_ROOT) { $env:LIFE_VENV_ROOT } else { $defaultVenvRoot }
+
+$resolvedVenvRoot = Resolve-DynamicVenvRoot
 $pythonPath = Join-Path (Join-Path $resolvedVenvRoot $ProjectKey) "Scripts\python.exe"
 
 if (-not (Test-Path $pythonPath)) {

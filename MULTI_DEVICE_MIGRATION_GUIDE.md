@@ -19,10 +19,12 @@
 ## 3. 작업 환경 복구 (Recovery Steps)
 
 ### A. Python 백엔드 환경 (Windows 권장)
-OneDrive 환경에서의 경로 문제를 피하기 위해 가상환경을 프로젝트 외부(`C:\venvs_hub`)에 생성합니다.
+OneDrive 환경에서의 경로 문제를 피하기 위해 가상환경을 프로젝트 외부(`.venvs_hub`)에 생성합니다.
+시스템은 프로젝트 루트에서 상위로 올라가며 `.venvs_hub` 폴더를 자동으로 찾습니다. (없을 경우 드라이브 루트 `\.venvs_hub` 사용)
+
 ```powershell
-# 1. 환경 변수 설정
-$env:LIFE_VENV_ROOT = "C:\venvs_hub"
+# 1. (선택사항) 특정 경로를 강제하고 싶을 때만 설정
+# $env:LIFE_VENV_ROOT = "C:\.venvs_hub"
 
 # 2. 부트스트랩 스크립트 실행 (가상환경 생성 및 pre-commit 설치)
 # 이 스크립트는 가상환경을 만들고 pre-commit install을 자동으로 수행합니다.

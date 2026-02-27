@@ -50,12 +50,23 @@ npm run dev
 1.  **필수 문서 읽기:**
     - [ ] `MULTI_DEVICE_MIGRATION_GUIDE.md` (본 문서)
     - [ ] `DOMAIN_MAP.md` (도메인 규칙 및 경계 파악)
-    - [ ] `PHASE_1_REPORT.md` (진행된 작업 상세 확인)
-2.  **환경 검증:**
+2.  **환경 및 동기화 검증:**
     - [ ] `.\tools\project_python.ps1` 실행 가능 여부 확인
-    - [ ] `backend/data/portfolio.db` 존재 확인
+    - [ ] **Sync Check**: `git pull` 이후 `requirements.txt`나 `package.json`이 변경되었는지 확인.
+    - [ ] 만약 의존성 파일이 변경되었다면, `.\tools\bootstrap_env.ps1` (백엔드) 또는 `npm install` (프론트엔드)을 재실행하여 로컬 환경을 코드와 동기화.
 3.  **사용자 인터랙션:**
     - [ ] "보안이 필요한 API 키나 개인 자산 정보를 입력할 준비가 되었나요?"라고 질문하기
+
+---
+
+## 5. 일상적인 동기화 흐름 (Daily Sync / Git Pull)
+이미 환경이 구축된 기기에서 작업을 재개할 때의 절차입니다.
+
+1.  **코드 업데이트**: `git pull origin main`
+2.  **환경 정합성 체크**:
+    - AI는 `git diff HEAD@{1} -- requirements.txt` 등의 명령으로 의존성 변화를 감지해야 합니다.
+    - 변화가 감지되면 즉시 `.\tools\bootstrap_env.ps1`을 실행하여 로컬 가상환경을 업데이트합니다. (이 스크립트는 기존 환경을 유지하면서 부족한 패키지만 추가 설치하므로 빠릅니다.)
+3.  **Pre-commit 갱신**: 가상환경 경로가 물리적으로 이동했다면, `.\tools\project_python.ps1 -m pre_commit install`을 다시 실행하여 Git Hook을 현재 기기 경로로 갱신합니다.
 
 ---
 

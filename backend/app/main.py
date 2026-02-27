@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, timedelta
 import random
+from pydantic import BaseModel
+from typing import Optional
 
 from .database import SessionLocal, engine, Base
 from .models import PortfolioSnapshot, Asset, DailyPrice, Transaction
@@ -11,6 +13,8 @@ from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
 from .services.stress_service import StressService
+
+app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -47,11 +51,6 @@ def on_startup():
             print("Seeding complete.")
     finally:
         db.close()
-
-from pydantic import BaseModel
-from typing import List, Optional
-
-app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
 # Request Models
 class TransactionCreate(BaseModel):

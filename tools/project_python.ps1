@@ -25,7 +25,7 @@ function Resolve-DynamicVenvRoot {
     }
 
     # 2. Fallback to drive root \.venvs_hub
-    $driveRootCandidate = Join-Path (Split-Path $projectRoot -Qualifer) "\.venvs_hub"
+    $driveRootCandidate = Join-Path (Split-Path $projectRoot -Qualifier) "\.venvs_hub"
     if (Test-Path $driveRootCandidate) { return $driveRootCandidate }
 
     # 3. Last resort: $HOME\.venvs_hub (if not OneDrive)

@@ -1,9 +1,1 @@
-flask
-flask-cors
-pandas
-numpy
-yfinance
-finance-datareader
-beautifulsoup4
-requests
-gunicorn
+-r backend/requirements.txt

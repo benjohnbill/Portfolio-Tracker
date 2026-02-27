@@ -1,15 +1,8 @@
 # Seed lock file for cross-device bootstrap.
+# Canonical backend deps live in backend/requirements.txt.
 # After first successful local bootstrap, run:
 #   .\tools\bootstrap_env.ps1 -WriteLock
 # to freeze exact versions on this machine.
 
-flask
-flask-cors
-pandas
-numpy
-yfinance
-finance-datareader
-beautifulsoup4
-requests
-gunicorn
+-r backend/requirements.txt
 

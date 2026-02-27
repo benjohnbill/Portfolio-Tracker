@@ -1,7 +1,15 @@
 import json
 import os
 import random
+import sys
+from pathlib import Path
 from datetime import datetime, timedelta
+
+# Allow running this script from project root without manual PYTHONPATH.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
 from app.models import Asset, DailyPrice, Transaction

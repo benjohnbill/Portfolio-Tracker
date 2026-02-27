@@ -1,0 +1,32 @@
+Portfolio Tracker handoff (updated 2026-02-21)
+
+Current source-of-truth docs:
+- Agent.md
+- Control_Tower_Agent.md
+- Frontend_Agent.md
+- Backend_Agent.md
+- integration_status.md
+
+Why this file exists:
+- Keep short operational context between sessions.
+- Preserve immediate priorities and blockers.
+- Provide optional human summary alongside canonical JSON handoff.
+
+Active ownership split:
+- Codex CLI: control tower, task decomposition, integration acceptance, status sync
+- Frontend agent: UI/interaction/chart/client-state changes
+- Backend agent: Flask API/data-fetch/cache/calculation changes
+
+Current direction:
+- Phase 1 is active: governance and role boundaries are now established.
+- No major codebase refactor yet (planned in Phase 2).
+
+Immediate next checks:
+1) Enforce fixed handoff format for every role output:
+   - What changed
+   - Validation
+   - Risks
+   - Next 3 actions
+   - and publish `orchestration/handoff/*.handoff.json` as canonical artifact
+2) Run first real split ticket with control-tower sequencing.
+3) Prepare Phase 2 baseline docs for runtime flow map and module boundaries.

@@ -1,0 +1,29 @@
+{
+  "trace_id": "trace-portfolio_tracker-stageA-0001",
+  "task_id": "T-portfolio_tracker-stageA-0001",
+  "worker": "docs_worker",
+  "what_changed": [
+    "Aligned project policy to system-level handoff migration and governance precedence.",
+    "Enabled Stage A dual-write handoff workflow (`*.handoff.json` + `handoff.txt`).",
+    "Added context hygiene rules for Gemini CLI via .geminiignore."
+  ],
+  "validation": [
+    {
+      "name": "contract_validation",
+      "command": "python tools/validate_contracts.py --file orchestration/handoff/latest.handoff.json",
+      "outcome": "pending"
+    }
+  ],
+  "risks": [
+    {
+      "severity": "medium",
+      "description": "Legacy sessions may continue to update handoff.txt only until workflow is fully adopted."
+    }
+  ],
+  "next_3_actions": [
+    "Adopt JSON-first handoff path for all new control-tower cycles.",
+    "Validate handoff JSON in each cycle before status sync.",
+    "Review sunset timing for optional handoff.txt retirement."
+  ],
+  "timestamp": "2026-02-23T00:00:00Z"
+}

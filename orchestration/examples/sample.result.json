@@ -1,0 +1,42 @@
+{
+  "trace_id": "trace-portfolio_tracker-0001",
+  "task_id": "T-portfolio_tracker-0001",
+  "worker": "backend_cli",
+  "status": "success",
+  "summary": "Schema validation completed for task/result/handoff contracts using local examples.",
+  "outputs": [
+    {
+      "kind": "report",
+      "path": "orchestration/examples/validation_output.txt",
+      "description": "Contract validation output"
+    }
+  ],
+  "evidence": [
+    {
+      "name": "contract_check",
+      "command": "python tools/validate_contracts.py",
+      "status": "pass",
+      "note": "All sample artifacts validated."
+    }
+  ],
+  "risks": [
+    {
+      "severity": "low",
+      "description": "No mutation performed during baseline check.",
+      "mitigation": "Keep read-only profile for baseline runs."
+    }
+  ],
+  "next_actions": [
+    "Integrate contract check into pre-merge gate",
+    "Create real task artifacts under orchestration/inbox",
+    "Review IDE semi-automation handoff path"
+  ],
+  "human_approval_needed": false,
+  "approval_reason": "",
+  "timestamp": "2026-02-22T12:05:00Z",
+  "metrics": {
+    "duration_sec": 4.5,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

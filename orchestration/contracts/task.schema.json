@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-orchestration/contracts/task.schema.json",
+  "title": "Harness Task Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "task_id",
+    "owner",
+    "assigned_worker",
+    "goal",
+    "inputs",
+    "constraints",
+    "acceptance",
+    "risk",
+    "next_actions",
+    "timestamp"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "owner": {
+      "type": "string",
+      "enum": [
+        "control_tower"
+      ]
+    },
+    "assigned_worker": {
+      "type": "string",
+      "enum": [
+        "backend_cli",
+        "frontend_ide",
+        "android_ide",
+        "docs_worker",
+        "generic_worker"
+      ]
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 4000
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "value"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "folder",
+              "url",
+              "text",
+              "json",
+              "artifact_ref"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allow_write",
+        "allow_execute",
+        "forbidden_paths"
+      ],
+      "properties": {
+        "allow_write": {
+          "type": "boolean"
+        },
+        "allow_execute": {
+          "type": "boolean"
+        },
+        "allowed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbidden_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "note"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires_human_approval": {
+      "type": "boolean",
+      "default": false
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "context_docs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}
+

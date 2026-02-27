@@ -6,8 +6,13 @@ __pycache__/
 
 # Virtual environments
 venv/
+.venv/
+.venvs_hub/
+venv_backup*/
+venv_new/
 env/
 .env
+.env.*
 
 # IDE
 .vscode/
@@ -21,3 +26,16 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Tool caches
+.pre-commit-cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# JS / package caches
+node_modules/
+
+# Python package caches
+site-packages/
+pip-wheel-metadata/

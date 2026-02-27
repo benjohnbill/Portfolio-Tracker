@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "reviewed_at": "2026-02-26",
+  "policy_ref": "SYSTEM_SKILL_GOVERNANCE_POLICY.md",
+  "decision_model": {
+    "approve": "Allowed for controlled project use under current guardrails.",
+    "candidate": "Kept in watchlist; cannot be promoted without checksum and manual SKILL.md review.",
+    "decline": "Rejected for current project scope or risk profile."
+  },
+  "allowed_sources": [
+    "skills.sh:vercel",
+    "skills.sh:anthropic",
+    "skills.sh:community-approved"
+  ],
+  "skills": [
+    {
+      "name": "find-skills",
+      "source": "skills.sh:vercel",
+      "owner": "control_tower",
+      "scope": "project",
+      "disposition": "approve",
+      "status": "candidate",
+      "tier": "pilot",
+      "checksum_sha256": null,
+      "last_reviewed": "2026-02-26",
+      "rollback_plan": "Disable in registry and remove local installed folder under skills/ if installed.",
+      "notes": "Approved for discovery-only use. No pilot/core promotion before checksum and manual SKILL.md safety review."
+    },
+    {
+      "name": "vercel-react-best-practices",
+      "source": "skills.sh:vercel",
+      "owner": "frontend_ide",
+      "scope": "project",
+      "disposition": "candidate",
+      "status": "candidate",
+      "tier": "pilot",
+      "checksum_sha256": null,
+      "last_reviewed": "2026-02-26",
+      "rollback_plan": "Disable in registry and remove local installed folder under skills/ if installed.",
+      "notes": "Technically relevant to Next.js frontend, but checksum/manual review evidence missing."
+    },
+    {
+      "name": "web-design-guidelines",
+      "source": "skills.sh:vercel",
+      "owner": "frontend_ide",
+      "scope": "project",
+      "disposition": "candidate",
+      "status": "candidate",
+      "tier": "pilot",
+      "checksum_sha256": null,
+      "last_reviewed": "2026-02-26",
+      "rollback_plan": "Disable in registry and remove local installed folder under skills/ if installed.",
+      "notes": "Potential UI guidance value. Keep candidate until quality impact is proven in pilot evidence."
+    },
+    {
+      "name": "remotion-best-practices",
+      "source": "skills.sh:community-approved",
+      "owner": "control_tower",
+      "scope": "project",
+      "disposition": "decline",
+      "status": "blocked",
+      "tier": "blocked",
+      "checksum_sha256": null,
+      "last_reviewed": "2026-02-26",
+      "rollback_plan": "Keep blocked and do not install.",
+      "notes": "Out of scope for current Portfolio Tracker roadmap (no remotion/video pipeline)."
+    },
+    {
+      "name": "frontend-design",
+      "source": "skills.sh:community-approved",
+      "owner": "frontend_ide",
+      "scope": "project",
+      "disposition": "candidate",
+      "status": "candidate",
+      "tier": "pilot",
+      "checksum_sha256": null,
+      "last_reviewed": "2026-02-26",
+      "upstream_url": "https://raw.githubusercontent.com/skillcreatorai/Ai-Agent-Skills/main/skills/frontend-design/SKILL.md",
+      "rollback_plan": "Disable in registry and remove local installed folder under skills/ if installed.",
+      "notes": "Candidate only. Allow advisory UI/layout scope after checksum + strict gate + rollback drill."
+    }
+  ]
+}

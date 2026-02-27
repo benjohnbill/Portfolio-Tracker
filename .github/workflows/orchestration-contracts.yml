@@ -1,0 +1,29 @@
+name: Orchestration Contracts
+
+on:
+  push:
+    paths:
+      - "orchestration/**"
+      - "tools/validate_contracts.py"
+      - ".github/workflows/orchestration-contracts.yml"
+  pull_request:
+    paths:
+      - "orchestration/**"
+      - "tools/validate_contracts.py"
+      - ".github/workflows/orchestration-contracts.yml"
+
+jobs:
+  validate-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate orchestration contracts
+        run: python tools/validate_contracts.py
+

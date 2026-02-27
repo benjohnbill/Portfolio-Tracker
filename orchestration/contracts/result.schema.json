@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.agent-orchestration/contracts/result.schema.json",
+  "title": "Harness Result Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "task_id",
+    "worker",
+    "status",
+    "summary",
+    "outputs",
+    "evidence",
+    "risks",
+    "next_actions",
+    "timestamp"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "worker": {
+      "type": "string",
+      "enum": [
+        "backend_cli",
+        "frontend_ide",
+        "android_ide",
+        "docs_worker",
+        "generic_worker"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "partial",
+        "blocked",
+        "failed"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 8000
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "path",
+          "description"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "patch",
+              "file",
+              "report",
+              "log",
+              "artifact"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "info"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "severity",
+          "description"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "mitigation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_approval_needed": {
+      "type": "boolean",
+      "default": false
+    },
+    "approval_reason": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "duration_sec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
+

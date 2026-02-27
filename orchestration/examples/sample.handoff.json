@@ -1,0 +1,29 @@
+{
+  "trace_id": "trace-portfolio_tracker-0001",
+  "task_id": "T-portfolio_tracker-0001",
+  "worker": "backend_cli",
+  "what_changed": [
+    "Added orchestration contract samples for task/result/handoff.",
+    "Added local validation script usage path."
+  ],
+  "validation": [
+    {
+      "name": "contract_validation",
+      "command": "python tools/validate_contracts.py",
+      "outcome": "pass",
+      "evidence_path": "orchestration/examples/validation_output.txt"
+    }
+  ],
+  "risks": [
+    {
+      "severity": "low",
+      "description": "Baseline sample only; no production data touched."
+    }
+  ],
+  "next_3_actions": [
+    "Apply contracts to first real task payload",
+    "Add CI hook for contract validation",
+    "Review approval matrix before enabling limited-write mode"
+  ],
+  "timestamp": "2026-02-22T12:10:00Z"
+}

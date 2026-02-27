@@ -1,0 +1,15 @@
+# Seed lock file for cross-device bootstrap.
+# After first successful local bootstrap, run:
+#   .\tools\bootstrap_env.ps1 -WriteLock
+# to freeze exact versions on this machine.
+
+flask
+flask-cors
+pandas
+numpy
+yfinance
+finance-datareader
+beautifulsoup4
+requests
+gunicorn
+

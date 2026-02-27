@@ -1,0 +1,23 @@
+# Build/runtime caches
+__pycache__/
+.pytest_cache/
+.pre-commit-cache/
+node_modules/
+site-packages/
+
+# Virtual environments
+venv/
+.venv/
+.venvs_hub/
+venv_backup*/
+venv_new/
+env/
+.env
+.env.*
+
+# IDE/system noise
+.vscode/
+.idea/
+*.log
+Thumbs.db
+.DS_Store

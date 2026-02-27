@@ -1,0 +1,53 @@
+{
+  "trace_id": "trace-portfolio_tracker-0001",
+  "task_id": "T-portfolio_tracker-0001",
+  "owner": "control_tower",
+  "assigned_worker": "backend_cli",
+  "goal": "Create a baseline contract validation run and report results using the orchestration workflow.",
+  "inputs": [
+    {
+      "kind": "file",
+      "value": "Agent.md",
+      "description": "Project authority document"
+    },
+    {
+      "kind": "folder",
+      "value": "orchestration/contracts",
+      "description": "Schema contracts directory"
+    }
+  ],
+  "constraints": {
+    "allow_write": false,
+    "allow_execute": false,
+    "allowed_paths": [],
+    "forbidden_paths": [
+      ".git/",
+      ".env",
+      "secrets/"
+    ],
+    "notes": "Read-only baseline check"
+  },
+  "acceptance": [
+    "All three sample artifacts pass schema validation.",
+    "Validation output is attached to evidence."
+  ],
+  "risk": {
+    "level": "low",
+    "note": "Sample validation only, no runtime mutation."
+  },
+  "next_actions": [
+    "Run tools/validate_contracts.py",
+    "Attach output to handoff",
+    "Escalate only if contract mismatch is found"
+  ],
+  "requires_human_approval": false,
+  "timestamp": "2026-02-22T12:00:00Z",
+  "context_docs": [
+    "Agent.md",
+    "Harness_Policy.md"
+  ],
+  "metadata": {
+    "project": "portfolio_tracker",
+    "mode": "single_device"
+  }
+}

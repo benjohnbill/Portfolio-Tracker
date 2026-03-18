@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -65,6 +66,14 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins.append(frontend_url)
+
+# Also allow all origins temporarily for Render MVP testing if explicitly set
+if os.getenv("ALLOW_ALL_ORIGINS") == "true":
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

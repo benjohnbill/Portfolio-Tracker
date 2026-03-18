@@ -33,7 +33,8 @@ export async function getPortfolioHistory(period: string = 'ytd'): Promise<Portf
   }
 
   try {
-    const res = await fetch(`http://localhost:8000/api/portfolio/history?period=${period}`, {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/portfolio/history?period=${period}`, {
       // Ensure Next.js doesn't overly cache this in a way that breaks real-time updates for now
       cache: 'no-store' 
     });

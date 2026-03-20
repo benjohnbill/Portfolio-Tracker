@@ -6,6 +6,37 @@ export interface PortfolioHistoryData {
   daily_return?: number;
 }
 
+export interface PortfolioAllocationData {
+  asset: string;
+  name: string;
+  quantity: number;
+  price: number;
+  value: number;
+  weight: number;
+  source: string;
+}
+
+export interface Asset {
+  id: number;
+  symbol: string;
+  name: string;
+  code: string;
+  source: string;
+}
+
+export interface TransactionCreate {
+  asset_id: number;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  date?: string; // ISO format YYYY-MM-DD
+}
+
+export interface Transaction extends TransactionCreate {
+  id: number;
+  total_amount: number;
+}
+
 // Temporary Mock Data strictly adhering to Backend API schema
 // [{ date: '2024-01-01', total_value: 10000000 }, ...]
 export const mockPortfolioHistory: PortfolioHistoryData[] = [
@@ -45,4 +76,59 @@ export async function getPortfolioHistory(period: string = 'ytd'): Promise<Portf
     // Fallback to mock if API fails while testing
     return mockPortfolioHistory;
   }
+}
+
+/**
+ * Fetches current portfolio allocation (current holdings).
+ */
+export async function getPortfolioAllocation(): Promise<PortfolioAllocationData[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/portfolio/allocation`, {
+      cache: 'no-store' 
+    });
+    if (!res.ok) throw new Error('Failed to fetch from backend');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches all available assets.
+ */
+export async function getAssets(): Promise<Asset[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/assets`, {
+      cache: 'no-store' 
+    });
+    if (!res.ok) throw new Error('Failed to fetch assets');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+/**
+ * Creates a new transaction.
+ */
+export async function createTransaction(data: TransactionCreate): Promise<Transaction> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/transactions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(errorData.detail || 'Failed to create transaction');
+  }
+  
+  return res.json();
 }

@@ -2,4 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
-@plugin "tailwindcss-animate";
+@layer base {
+  :root {
+    --background: 222 47% 4%;
+    --foreground: 213 31% 91%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --popover: 222 47% 4%;
+    --popover-foreground: 213 31% 91%;
+    --border: 223 47% 11%;
+    --input: 223 47% 11%;
+    --card: 222 47% 6%;
+    --card-foreground: 213 31% 91%;
+    --primary: 171 66% 44%;
+    --primary-foreground: 171 66% 10%;
+    --secondary: 222 47% 11%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 216 34% 17%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.neon-glow {
+  text-shadow: 0 0 10px rgba(79, 209, 197, 0.5), 0 0 20px rgba(79, 209, 197, 0.3);
+}
+
+.card-glow {
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5), inset 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-gradient {
+  background: linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(10, 12, 16, 1) 100%);
+}
+
+.neon-border-active {
+  border-left: 3px solid #4fd1c5;
+  background: linear-gradient(90deg, rgba(79, 209, 197, 0.1) 0%, rgba(79, 209, 197, 0) 100%);
+}

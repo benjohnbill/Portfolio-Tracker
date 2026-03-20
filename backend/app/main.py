@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import random
 from pydantic import BaseModel
 from typing import Optional
@@ -26,30 +26,54 @@ def on_startup():
     db = SessionLocal()
     try:
         if db.query(Asset).count() == 0:
-            print("Seeding initial assets and sample transaction...")
+            print("Seeding initial assets and sample transactions...")
             assets = [
                 Asset(symbol="QQQ", name="Invesco QQQ Trust", code="QQQ", source="US"),
                 Asset(symbol="SPY", name="SPDR S&P 500 ETF Trust", code="SPY", source="US"),
                 Asset(symbol="TLT", name="iShares 20+ Year Treasury Bond ETF", code="TLT", source="US"),
                 Asset(symbol="GLDM", name="SPDR Gold MiniShares Trust", code="GLDM", source="US"),
+                Asset(symbol="AAPL", name="Apple Inc.", code="AAPL", source="US"),
                 Asset(symbol="005930", name="Samsung Electronics", code="005930", source="KR"),
                 Asset(symbol="379810", name="KODEX Nasdaq100 TR", code="379810", source="KR"),
             ]
             db.add_all(assets)
             db.commit()
             
-            # Add sample transaction for immediate visualization
+            # Refresh asset IDs
+            qqq = db.query(Asset).filter(Asset.symbol == "QQQ").first()
+            samsung = db.query(Asset).filter(Asset.symbol == "005930").first()
+            spy = db.query(Asset).filter(Asset.symbol == "SPY").first()
+            
+            # Add sample transactions for immediate visualization
             t1 = Transaction(
-                asset_id=1, # QQQ
+                asset_id=qqq.id,
+                type="BUY",
+                quantity=20,
+                price=380.0,
+                total_amount=7600.0,
+                date=datetime.now() - timedelta(days=180)
+            )
+            t2 = Transaction(
+                asset_id=samsung.id,
+                type="BUY",
+                quantity=100,
+                price=72000.0,
+                total_amount=7200000.0,
+                date=datetime.now() - timedelta(days=90)
+            )
+            t3 = Transaction(
+                asset_id=spy.id,
                 type="BUY",
                 quantity=10,
-                price=400.0,
-                total_amount=4000.0,
-                date=date.today() - timedelta(days=365)
+                price=480.0,
+                total_amount=4800.0,
+                date=datetime.now() - timedelta(days=30)
             )
-            db.add(t1)
+            db.add_all([t1, t2, t3])
             db.commit()
-            print("Seeding complete.")
+            print("Database seeded successfully.")
+    except Exception as e:
+        print(f"Error seeding database: {e}")
     finally:
         db.close()
 
@@ -146,9 +170,11 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     db.refresh(new_tx)
     return new_tx
 
+from .services.exchange_service import ExchangeService
+
 @app.get("/api/portfolio/allocation")
 def get_portfolio_allocation(db: Session = Depends(get_db)):
-    """Calculates current holdings and weights"""
+    """Calculates current holdings and weights in KRW"""
     
     # 1. Calculate holdings from transactions
     txs = db.query(Transaction).all()
@@ -169,8 +195,8 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
     if not active_holdings:
         return []
 
-    # 2. Get latest prices (Mock logic for now as DailyPrice might be empty)
-    # Ideally: db.query(DailyPrice).filter(...).order_by(date.desc()).first()
+    # 2. Get latest prices and FX rate
+    current_fx = ExchangeService.get_current_rate()
     
     result = []
     total_value = 0
@@ -189,16 +215,23 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
             last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
             current_price = last_tx.price if last_tx else 100.0 
         
-        value = qty * current_price
-        total_value += value
+        # Calculate value in KRW
+        value_krw = 0
+        if asset.source == "US":
+            value_krw = qty * current_price * current_fx
+        else:
+            value_krw = qty * current_price
+            
+        total_value += value_krw
         
         result.append({
             "asset": asset.symbol,
             "name": asset.name,
             "quantity": qty,
-            "price": current_price,
-            "value": value,
-            "weight": 0
+            "price": current_price, # Original currency price
+            "value": value_krw,      # Always KRW
+            "weight": 0,
+            "source": asset.source
         })
 
     # 3. Calculate weights

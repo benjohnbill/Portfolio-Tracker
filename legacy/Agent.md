@@ -117,9 +117,24 @@ Canonical artifact rule:
 - Primary machine-readable handoff: `orchestration/handoff/*.handoff.json`
 - Optional human summary: `handoff.txt`
 
-## 9) Phase 2 Acceptance Criteria
+## 9) Phase 2 - Execution Status & Tool Scoping
 
-Phase 2 is considered active when:
-- Real-time price updates are implemented (Backend).
-- Transaction input form is working (Frontend).
-- Quantitative metrics (MDD, Sharpe) are displayed on Dashboard.
+Phase 2 is current focus. All tasks must follow the scope below:
+
+### Phase 2.1: Real-time Data Integration (Backend)
+- [ ] Task 1: Integrate `yfinance` & `FinanceDataReader` for live prices.
+- [ ] Task 2: Implement SQLite schema migration for transaction history.
+- **> [Allowed MCPs: database-toolbox, context7]**
+- **> [Forbidden: chrome-devtools]**
+
+### Phase 2.2: Interactive Dashboard (Frontend)
+- [ ] Task 1: Build `PortfolioSummary` cards using `shadcn/ui`.
+- [ ] Task 2: Implement `PerformanceChart` with Recharts.
+- **> [Allowed MCPs: chrome-devtools, context7]**
+- **> [Forbidden: database-toolbox]**
+
+### Phase 2.3: Quantitative Metric Calculation
+- [ ] Task 1: Portfolio risk calculation logic (Sharpe, MDD).
+- **> [Allowed MCPs: context7, exa-mcp-server (for FRED/Macro API docs)]**
+
+## 10) Phase 2 Acceptance Criteria

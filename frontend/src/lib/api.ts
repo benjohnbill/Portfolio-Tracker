@@ -28,7 +28,7 @@ export interface TransactionCreate {
   symbol: string;
   type: 'BUY' | 'SELL';
   quantity: number;
-  price: number;
+  price?: number; // Now optional, backend will auto-fetch if missing
   date?: string; // ISO format YYYY-MM-DD
 }
 

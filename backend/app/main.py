@@ -82,7 +82,7 @@ class TransactionCreate(BaseModel):
     symbol: str  # Users can now input any ticker (e.g., "QQQ", "409820")
     type: str # BUY, SELL
     quantity: float
-    price: float
+    price: Optional[float] = None # Make price optional
     date: Optional[date] = None
 
 # CORS configuration
@@ -159,30 +159,39 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     """Creates a new trade record, automatically creating new assets if they don't exist"""
     symbol_upper = tx.symbol.strip().upper()
     
+    # Auto-detect market source (KR stocks are usually 6 digits)
+    is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
+    source = "KR" if is_kr else "US"
+    
     # 1. Find existing asset or create a new one
     asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
     
     if not asset:
-        # Auto-detect market source (KR stocks are usually 6 digits)
-        is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
-        
         asset = Asset(
             symbol=symbol_upper,
             code=symbol_upper,
             name=symbol_upper, # We can fetch real names later, use symbol as placeholder
-            source="KR" if is_kr else "US"
+            source=source
         )
         db.add(asset)
         db.commit()
         db.refresh(asset)
         
-    # 2. Create the transaction
+    # 2. Auto-fetch price if not provided
+    final_price = tx.price
+    if not final_price or final_price <= 0:
+        fetched_price = PriceService.get_current_price(symbol_upper, source=source)
+        if fetched_price <= 0:
+            raise HTTPException(status_code=400, detail=f"Could not auto-fetch price for {symbol_upper}. Please enter it manually.")
+        final_price = fetched_price
+        
+    # 3. Create the transaction
     new_tx = Transaction(
         asset_id=asset.id,
         type=tx.type,
         quantity=tx.quantity,
-        price=tx.price,
-        total_amount=tx.quantity * tx.price,
+        price=final_price,
+        total_amount=tx.quantity * final_price,
         date=tx.date or date.today()
     )
     db.add(new_tx)

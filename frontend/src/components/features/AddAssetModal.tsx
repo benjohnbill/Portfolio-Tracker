@@ -36,7 +36,13 @@ export function AddAssetModal() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await createTransaction(formData);
+      // If price is 0, send undefined so backend auto-fetches it
+      const submitData = { ...formData };
+      if (!submitData.price) {
+        delete submitData.price;
+      }
+      
+      await createTransaction(submitData);
       setOpen(false);
       // Reset form
       setFormData({
@@ -47,8 +53,6 @@ export function AddAssetModal() {
         date: new Date().toISOString().split('T')[0],
       });
       router.refresh();
-      // Optional: alert or toast
-      // alert('Transaction added successfully!');
     } catch (error) {
       console.error('Error creating transaction:', error);
       alert(error instanceof Error ? error.message : 'Failed to create transaction');
@@ -112,15 +116,15 @@ export function AddAssetModal() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Price</label>
+            <label className="text-sm font-medium">Price (Optional)</label>
             <Input 
               type="number" 
               step="any"
-              placeholder="0.00"
+              placeholder="Leave empty for auto current market price"
               value={formData.price || ''}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-              required
+              onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             />
+            <p className="text-[10px] text-muted-foreground mt-1">If empty, real-time price will be fetched.</p>
           </div>
 
           <div className="space-y-2">

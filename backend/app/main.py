@@ -79,7 +79,7 @@ def on_startup():
 
 # Request Models
 class TransactionCreate(BaseModel):
-    asset_id: int
+    symbol: str  # Users can now input any ticker (e.g., "QQQ", "409820")
     type: str # BUY, SELL
     quantity: float
     price: float
@@ -156,9 +156,29 @@ def get_transactions(db: Session = Depends(get_db)):
 
 @app.post("/api/transactions")
 def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
-    """Creates a new trade record"""
+    """Creates a new trade record, automatically creating new assets if they don't exist"""
+    symbol_upper = tx.symbol.strip().upper()
+    
+    # 1. Find existing asset or create a new one
+    asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
+    
+    if not asset:
+        # Auto-detect market source (KR stocks are usually 6 digits)
+        is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
+        
+        asset = Asset(
+            symbol=symbol_upper,
+            code=symbol_upper,
+            name=symbol_upper, # We can fetch real names later, use symbol as placeholder
+            source="KR" if is_kr else "US"
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+        
+    # 2. Create the transaction
     new_tx = Transaction(
-        asset_id=tx.asset_id,
+        asset_id=asset.id,
         type=tx.type,
         quantity=tx.quantity,
         price=tx.price,

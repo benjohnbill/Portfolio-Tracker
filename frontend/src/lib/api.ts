@@ -25,7 +25,7 @@ export interface Asset {
 }
 
 export interface TransactionCreate {
-  asset_id: number;
+  symbol: string;
   type: 'BUY' | 'SELL';
   quantity: number;
   price: number;

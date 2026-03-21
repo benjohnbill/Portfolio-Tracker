@@ -1,6 +1,7 @@
-import { getPortfolioHistory, getPortfolioAllocation } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
+import { getPortfolioHistory, getPortfolioAllocation, getPortfolioSummary, getActionReport } from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
+import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
 import { AddAssetModal } from '@/components/features/AddAssetModal';
 import { 
   TrendingUp, 
@@ -13,7 +14,12 @@ import {
   ChevronRight,
   Clock,
   Briefcase,
-  BrainCircuit
+  BrainCircuit,
+  AlertTriangle,
+  CheckCircle2,
+  Activity,
+  ArrowRightLeft,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default async function DashboardPage({
@@ -24,22 +30,15 @@ export default async function DashboardPage({
   const params = await searchParams;
   const period = typeof params.period === 'string' ? params.period : 'ytd';
   
-  const [history, allocation] = await Promise.all([
+  const [history, allocation, summary, actionReport] = await Promise.all([
     getPortfolioHistory(period),
-    getPortfolioAllocation()
+    getPortfolioAllocation(),
+    getPortfolioSummary(),
+    getActionReport()
   ]);
   
   if (!history || history.length === 0) {
-    return (
-      <div className="flex justify-center items-center h-64 bg-card rounded-xl border border-dashed border-border p-12">
-        <div className="text-center">
-            <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <div className="text-xl font-medium text-foreground">No portfolio data available yet</div>
-            <p className="text-sm text-muted-foreground mt-1 mb-6">Start by adding your first transaction.</p>
-            <AddAssetModal />
-        </div>
-      </div>
-    );
+    return <div className="p-8 text-white">Loading portfolio data...</div>;
   }
 
   const latestData = history[history.length - 1];
@@ -48,26 +47,46 @@ export default async function DashboardPage({
   const isPositive = delta >= 0;
   const deltaPercent = ((delta / firstData.total_value) * 100).toFixed(1);
 
+  // Calculate daily return from history
+  const yesterdayData = history.length > 1 ? history[history.length - 2] : latestData;
+  const dailyDelta = latestData.total_value - yesterdayData.total_value;
+  const dailyPercent = yesterdayData.total_value > 0 ? ((dailyDelta / yesterdayData.total_value) * 100).toFixed(2) : "0.00";
+  const isDailyPositive = dailyDelta >= 0;
+
+  // Signal processing
+  const vxn = actionReport.signals?.vxn;
+  const mstr = actionReport.signals?.mstr;
+  const ndx = actionReport.signals?.ndx;
+  
+  // Group allocation by account_type
+  const siloedAccounts = allocation.reduce((acc, asset) => {
+    const type = asset.account_type || 'OVERSEAS';
+    if (!acc[type]) acc[type] = { assets: [], total: 0 };
+    acc[type].assets.push(asset);
+    acc[type].total += asset.value;
+    return acc;
+  }, {} as Record<string, { assets: any[], total: number }>);
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2 text-primary mb-1">
-            <Zap className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-wider">Smart Portfolio</span>
+            <BrainCircuit className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Algorithm Status: Active</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Portfolio Overview</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white italic">Friday Routine</h1>
           <div className="flex items-center space-x-2 text-muted-foreground mt-1 text-sm">
              <Clock className="w-3 h-3" />
-             <span>Last updated at 7:42 AM</span>
+             <span>System Last Synced: {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
           </div>
         </div>
         
         <div className="flex items-center space-x-4">
           <div className="flex items-center bg-[#11161d] border border-border/40 p-1 rounded-lg">
-             {['Today', 'Tomorrow', 'Pick date'].map((btn) => (
-               <button key={btn} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${btn === 'Today' ? 'bg-[#1a232e] text-white shadow-sm' : 'text-muted-foreground hover:text-white'}`}>
+             {['Overview', 'Analysis', 'Settings'].map((btn) => (
+               <button key={btn} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${btn === 'Overview' ? 'bg-[#1a232e] text-white shadow-sm' : 'text-muted-foreground hover:text-white'}`}>
                   {btn}
                </button>
              ))}
@@ -76,192 +95,221 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-[#11161d] border-border/40 card-glow overflow-hidden relative">
-           <div className="absolute top-0 right-0 p-3 opacity-10">
-              <Wallet className="w-12 h-12" />
-           </div>
-           <CardContent className="p-6">
-             <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Total Value</p>
-             <div className="flex items-baseline space-x-2">
-                <h3 className="text-2xl font-bold text-white tracking-tight">
-                  {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(latestData.total_value)}
-                </h3>
-             </div>
-             <div className={`flex items-center mt-2 text-xs font-bold ${isPositive ? 'text-primary' : 'text-destructive'}`}>
-                {isPositive ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
-                <span>{isPositive ? '+' : ''}{deltaPercent}% from start</span>
-             </div>
-           </CardContent>
+      {/* Action Center - Urgent Directives */}
+      {actionReport.actions && actionReport.actions.length > 0 && (
+        <Card className="border-primary/50 bg-primary/5 card-glow-primary overflow-hidden">
+          <CardContent className="p-0">
+            <div className="flex items-stretch">
+              <div className="bg-primary px-4 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-black" />
+              </div>
+              <div className="p-4 flex-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-primary flex items-center">
+                    Trade Recommendation Needed
+                    <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-[10px] rounded uppercase tracking-tighter">High Priority</span>
+                  </h3>
+                  <div className="mt-1 space-y-1">
+                    {actionReport.actions.map((act, i) => (
+                      <div key={i} className="text-sm text-white/90">
+                        <span className="font-mono text-primary mr-2">[{act.asset}]</span>
+                        <span className="font-bold underline decoration-primary/30">{act.action}</span>
+                        <span className="mx-2 text-white/40">|</span>
+                        <span className="italic text-white/60 text-xs">{act.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button className="bg-primary hover:bg-primary/90 text-black px-6 py-2 rounded-md text-sm font-bold transition-all shadow-[0_0_15px_rgba(79,209,197,0.4)] flex items-center shrink-0">
+                  Execute Trade <ArrowRightLeft className="w-4 h-4 ml-2" />
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Signal Hub - Market Context */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* VXN Volatility */}
+        <Card className="bg-[#11161d] border-border/40 overflow-hidden relative group">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                <Activity className="w-5 h-5 text-purple-400" />
+              </div>
+              <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${vxn?.is_vix_spike ? 'bg-destructive/20 text-destructive border border-destructive/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+                {vxn?.is_vix_spike ? 'Spike Detected' : 'Normal Vol'}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">VXN Volatility Filter</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <h3 className="text-2xl font-bold text-white tracking-tight">{vxn?.current_vxn.toFixed(2)}</h3>
+              <span className="text-[10px] text-muted-foreground italic">vs Limit {vxn?.threshold_90.toFixed(2)}</span>
+            </div>
+            <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-1000 ${vxn?.is_vix_spike ? 'bg-destructive' : 'bg-purple-500'}`}
+                style={{ width: `${Math.min(100, (vxn?.current_vxn || 0) / (vxn?.threshold_90 || 1) * 90)}%` }}
+              />
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="bg-[#11161d] border-border/40 card-glow overflow-hidden relative">
-           <div className="absolute top-0 right-0 p-3 opacity-10">
-              <Zap className="w-12 h-12 text-primary" />
-           </div>
-           <CardContent className="p-6">
-             <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Invested Capital</p>
-             <h3 className="text-2xl font-bold text-white tracking-tight">
-                {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(latestData.invested || latestData.total_value * 0.9)}
-             </h3>
-             <div className="flex items-center mt-2 text-xs text-muted-foreground font-medium">
-                <span>94.2% allocation</span>
-             </div>
-           </CardContent>
+        {/* MSTR Z-Score */}
+        <Card className="bg-[#11161d] border-border/40 overflow-hidden relative">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Zap className="w-5 h-5 text-primary" />
+              </div>
+              <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${Math.abs(mstr?.z_score || 0) > 2 ? 'bg-amber-500/20 text-amber-400' : 'bg-primary/20 text-primary'}`}>
+                { (mstr?.z_score || 0) < 0 ? 'Value Zone' : (mstr?.z_score || 0) > 3.5 ? 'Overvalued' : 'Fair Range' }
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">MSTR MNAV Z-Score</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <h3 className="text-2xl font-bold text-white tracking-tight">{mstr?.z_score.toFixed(2)}</h3>
+              <span className="text-[10px] text-muted-foreground italic">252d Rolling</span>
+            </div>
+            <div className="mt-4 relative h-6">
+              <div className="absolute top-2.5 w-full h-1 bg-white/10 rounded-full" />
+              <div className="absolute top-2.5 left-1/2 w-0.5 h-2 bg-white/30 -translate-x-1/2" />
+              <div 
+                className="absolute top-1 w-3 h-4 bg-primary border border-black rounded shadow-[0_0_8px_rgba(79,209,197,0.6)] transition-all duration-1000"
+                style={{ left: `${Math.max(0, Math.min(100, ((mstr?.z_score || 0) + 3) / 6 * 100))}%` }}
+              />
+              <div className="flex justify-between text-[8px] text-white/20 mt-4 px-1">
+                <span>-3.0</span>
+                <span>0.0</span>
+                <span>+3.0</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="bg-[#11161d] border-border/40 card-glow overflow-hidden relative">
-           <div className="absolute top-0 right-0 p-3 opacity-10">
-              <ShieldCheck className="w-12 h-12" />
-           </div>
-           <CardContent className="p-6">
-             <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Risk Level</p>
-             <h3 className="text-2xl font-bold text-white tracking-tight">Moderate</h3>
-             <div className="flex items-center mt-2 text-xs text-primary font-bold">
-                <span>Optimized</span>
-             </div>
-           </CardContent>
-        </Card>
-
-        <Card className="bg-[#11161d] border-border/40 card-glow overflow-hidden relative">
-           <div className="absolute top-0 right-0 p-3 opacity-10">
-              <TrendingUp className="w-12 h-12" />
-           </div>
-           <CardContent className="p-6">
-             <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">Daily Return</p>
-             <h3 className="text-2xl font-bold text-primary neon-glow">
-                +1.2%
-             </h3>
-             <div className="flex items-center mt-2 text-xs text-muted-foreground font-medium">
-                <span>Above S&P 500</span>
-             </div>
-           </CardContent>
+        {/* NDX 250MA Status */}
+        <Card className="bg-[#11161d] border-border/40 overflow-hidden relative">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-blue-500/10 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${ndx?.is_above_ma ? 'bg-blue-500/20 text-blue-400' : 'bg-destructive/20 text-destructive'}`}>
+                {ndx?.is_above_ma ? 'NDX Bullish' : 'NDX Bearish'}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Growth Engine (250MA)</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <h3 className="text-2xl font-bold text-white tracking-tight">{ndx?.is_above_ma ? 'RE-LEVERAGE' : 'DE-LEVERAGE'}</h3>
+            </div>
+            <p className="mt-4 text-[10px] text-muted-foreground italic flex items-center">
+              Current: {new Intl.NumberFormat('en-US').format(ndx?.current_price || 0)} 
+              <ChevronRight className="w-2 h-2 mx-1" /> 
+              250MA: {new Intl.NumberFormat('en-US').format(ndx?.ma_250 || 0)}
+            </p>
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Main Content Area (Chart + List) */}
+      <div className="grid gap-8 lg:grid-cols-12">
+        {/* Left Column: Performance & Deviation */}
         <div className="lg:col-span-8 space-y-8">
-          {/* Equity Curve Chart Card */}
           <Card className="bg-[#11161d] border-border/40 card-glow">
-            <div className="p-6 pb-0 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-white">Equity Curve</h3>
-                <p className="text-xs text-muted-foreground mt-1">AI-optimized performance tracking</p>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-bold text-white flex items-center">
+                    Equity Curve <Sparkles className="w-4 h-4 ml-2 text-primary opacity-50" />
+                  </CardTitle>
+                  <CardDescription className="text-xs">Real-time portfolio growth tracking</CardDescription>
+                </div>
+                <div className="flex items-center space-x-2">
+                   <div className={`px-2 py-1 rounded-md text-xs font-bold ${isDailyPositive ? 'text-primary' : 'text-destructive'} bg-white/5`}>
+                      {isDailyPositive ? '+' : ''}{dailyPercent}% Today
+                   </div>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                 <div className="flex items-center space-x-1 px-2 py-1 bg-primary/10 rounded-full border border-primary/20">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                    <span className="text-[10px] font-bold text-primary uppercase">Live</span>
-                 </div>
-              </div>
-            </div>
-            <CardContent className="pt-2">
+            </CardHeader>
+            <CardContent>
               <HistoryChart data={history} />
             </CardContent>
           </Card>
 
-          {/* Holdings List Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-               <h3 className="text-xl font-bold text-white px-1">Holdings & Assets</h3>
-               <button className="text-xs font-bold text-primary hover:underline flex items-center">
-                  View All <ChevronRight className="w-3 h-3 ml-1" />
-               </button>
-            </div>
-            
-            <div className="space-y-3">
-               {allocation.map((asset) => (
-                 <div key={asset.asset} className="bg-[#11161d] border border-border/40 rounded-xl p-4 flex items-center justify-between hover:border-primary/40 transition-all cursor-pointer group">
-                   <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 rounded-lg bg-[#1a232e] border border-border/60 flex items-center justify-center text-sm font-bold text-white">
-                        {asset.asset.substring(0, 1)}
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-white flex items-center">
-                           {asset.name}
-                           <div className="ml-2 px-1.5 py-0.5 bg-primary/10 text-[10px] font-bold text-primary rounded border border-primary/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {(asset.weight * 100).toFixed(1)}%
-                           </div>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5 font-medium">{asset.quantity.toLocaleString()} Shares • {asset.asset}</div>
-                      </div>
-                   </div>
-                   <div className="flex items-center space-x-6 text-right">
-                      <div>
-                        <div className="text-sm font-bold text-white">
-                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(asset.price)}
-                        </div>
-                        <div className="text-[11px] font-bold text-primary">
-                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(asset.value)}
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-white transition-colors" />
-                   </div>
-                 </div>
-               ))}
-            </div>
-          </div>
+          {/* New Section: Core 6 Target Deviation */}
+          <Card className="bg-[#11161d] border-border/40 overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl font-bold text-white flex items-center">
+                Strategy Deviation <Briefcase className="w-4 h-4 ml-2 text-muted-foreground" />
+              </CardTitle>
+              <CardDescription className="text-xs">Current weights vs Core 6 targets (±30% Threshold)</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <TargetDeviationChart allocation={allocation} />
+            </CardContent>
+          </Card>
         </div>
 
-        {/* AI Insight Side Panel */}
+        {/* Right Column: Siloed Holdings */}
         <div className="lg:col-span-4 space-y-6">
-           <div className="relative">
-              <div className="absolute inset-0 bg-primary/5 blur-3xl rounded-full" />
-              <Card className="bg-[#11161d]/80 border-border/40 backdrop-blur-xl relative card-glow">
-                 <CardContent className="p-6">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-6">
-                       <Sparkles className="w-6 h-6 text-primary neon-glow" />
+          <h2 className="text-lg font-bold text-white flex items-center px-1">
+            Account Silos <ShieldCheck className="w-4 h-4 ml-2 text-primary" />
+          </h2>
+          
+          {Object.entries(siloedAccounts).map(([type, data]) => (
+            <Card key={type} className="bg-[#11161d]/60 border-border/40 backdrop-blur-sm">
+              <CardHeader className="p-4 pb-2 border-b border-border/20 flex flex-row items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${type === 'ISA' ? 'bg-blue-400' : type === 'PENSION' ? 'bg-amber-400' : 'bg-primary'}`} />
+                  <CardTitle className="text-sm font-bold text-white">{type} ACCOUNT</CardTitle>
+                </div>
+                <span className="text-xs font-mono text-white/70">
+                  {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(data.total)}
+                </span>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border/20">
+                  {data.assets.map((asset, idx) => (
+                    <div key={idx} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-bold text-white">{asset.asset}</span>
+                          <span className="text-[10px] text-muted-foreground">{asset.quantity} shares</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{asset.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-white">
+                          {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(asset.value)}
+                        </div>
+                        <div className="text-[10px] text-primary">{(asset.weight * 100).toFixed(1)}% weight</div>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Why this portfolio works</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                       AI-optimized asset allocation based on your risk tolerance and current market liquidity.
-                    </p>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
 
-                    <div className="mt-8 space-y-6">
-                       {[
-                         { icon: TrendingUp, title: 'Growth focused', desc: 'Your peak exposure is in Tech sector (Nasdaq 100), capturing current AI expansion.' },
-                         { icon: ShieldCheck, title: 'Risk Hedged', desc: 'TLT and Gold mini-shares provide protection against yield fluctuations.' },
-                         { icon: Wallet, title: 'Optimal Liquidity', desc: 'Cash reserves maintained at 5.8% to capture upcoming market dips.' },
-                       ].map((item) => (
-                         <div key={item.title} className="flex space-x-3">
-                            <item.icon className="w-5 h-5 text-primary mt-0.5" />
-                            <div>
-                               <h4 className="text-sm font-bold text-white">{item.title}</h4>
-                               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.desc}</p>
-                            </div>
-                         </div>
-                       ))}
-                    </div>
-
-                    <div className="mt-10 space-y-3">
-                       <button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 rounded-lg flex items-center justify-center transition-all group">
-                          <Zap className="w-4 h-4 mr-2" />
-                          Rebalance Portfolio
-                       </button>
-                       <button className="w-full bg-[#1a232e] hover:bg-[#253040] text-white border border-border/60 font-bold py-3 rounded-lg flex items-center justify-center transition-all">
-                          <BrainCircuit className="w-4 h-4 mr-2" />
-                          Simulate Market Crash
-                       </button>
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-border/40">
-                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">What if...</p>
-                       <div className="space-y-2">
-                          {[
-                            'What if Bitcoin hits $100k?',
-                            'What if interest rates drop by 1%?',
-                          ].map((text) => (
-                            <div key={text} className="bg-[#1a232e]/50 border border-border/40 p-3 rounded-lg text-[11px] text-muted-foreground hover:text-white cursor-pointer hover:border-border transition-all">
-                               {text}
-                            </div>
-                          ))}
-                       </div>
-                    </div>
-                 </CardContent>
-              </Card>
-           </div>
+          {/* Total Value Summary Footer Card */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Total Portfolio Value</p>
+                  <h3 className="text-xl font-bold text-white mt-1">
+                    {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.total_value)}
+                  </h3>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Invested</p>
+                  <p className="text-sm font-bold text-white">
+                    {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.invested_capital)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

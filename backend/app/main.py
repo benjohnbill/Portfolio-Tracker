@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -8,7 +8,7 @@ import random
 from pydantic import BaseModel
 from typing import Optional
 
-from .database import SessionLocal, engine, Base
+from .database import SessionLocal, engine, Base, get_db
 from .models import Asset, Transaction
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
@@ -16,34 +16,15 @@ from .services.macro_service import MacroService
 from .services.stress_service import StressService
 from .services.kis_service import KISService
 from .services.exchange_service import ExchangeService
+from .services.quant_service import QuantService
+from .services.algo_service import AlgoService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
-# Create tables if they don't exist
-Base.metadata.create_all(bind=engine)
-
 @app.on_event("startup")
 def on_startup():
-    """Seed database with initial assets if empty."""
-    db = SessionLocal()
-    try:
-        if db.query(Asset).count() == 0:
-            print("Seeding initial assets...")
-            assets = [
-                Asset(symbol="QQQ", name="Invesco QQQ Trust", code="QQQ", source="US"),
-                Asset(symbol="SPY", name="SPDR S&P 500 ETF Trust", code="SPY", source="US"),
-                Asset(symbol="TLT", name="iShares 20+ Year Treasury Bond ETF", code="TLT", source="US"),
-                Asset(symbol="GLDM", name="SPDR Gold MiniShares Trust", code="GLDM", source="US"),
-                Asset(symbol="MSTR", name="MicroStrategy", code="MSTR", source="US"),
-                Asset(symbol="005930", name="Samsung Electronics", code="005930", source="KR"),
-            ]
-            db.add_all(assets)
-            db.commit()
-            print("Database seeded successfully.")
-    except Exception as e:
-        print(f"Error seeding database: {e}")
-    finally:
-        db.close()
+    """Startup event - Seeding disabled to prevent conflicts during migration."""
+    pass
 
 # Request Models
 class TransactionCreate(BaseModel):
@@ -63,14 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @app.get("/")
 def read_root():
@@ -192,8 +165,13 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
         
         # Special case for Brazil Bond
         if asset.symbol == "BRAZIL_BOND":
-            current_price = brazil_bond_current_value / qty if qty > 0 else 0
-            value_krw = brazil_bond_current_value
+            if brazil_bond_current_value <= 0:
+                last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
+                current_price = last_tx.price if last_tx else 1860000.0
+                value_krw = qty * current_price
+            else:
+                current_price = brazil_bond_current_value / qty if qty > 0 else 0
+                value_krw = brazil_bond_current_value
         else:
             current_price = PriceService.get_current_price(asset.code if asset.source == "KR" else asset.symbol, asset.source)
             if current_price == 0:
@@ -209,7 +187,8 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
             "price": current_price,
             "value": value_krw,
             "weight": 0,
-            "source": asset.source
+            "source": asset.source,
+            "account_type": asset.account_type.value if asset.account_type else "OVERSEAS"
         })
 
     for item in result:
@@ -228,8 +207,24 @@ def get_portfolio_summary(db: Session = Depends(get_db)):
     """Returns high-level performance metrics (CAGR, MDD, Sharpe)."""
     history = PortfolioService.get_equity_curve(db, period="all")
     if not history: return {"total_value": 0, "metrics": {}}
+    
+    # Calculate total invested capital (sum of all BUYs - sum of all SELLs at cost)
+    txs = db.query(Transaction).all()
+    invested_capital = 0
+    for t in txs:
+        if t.type == "BUY":
+            invested_capital += t.total_amount
+        elif t.type == "SELL":
+            # Rough approximation: subtract the original cost basis if we had it, 
+            # but for now we just subtract the sell amount to reflect current net capital out.
+            invested_capital -= t.total_amount
+            
     metrics = PortfolioService.calculate_metrics(history)
-    return {"total_value": history[-1]["total_value"], "metrics": metrics}
+    return {
+        "total_value": history[-1]["total_value"], 
+        "invested_capital": max(0, invested_capital),
+        "metrics": metrics
+    }
 
 @app.get("/api/macro-vitals")
 def get_macro_vitals():
@@ -253,6 +248,64 @@ def get_stress_test(db: Session = Depends(get_db)):
     if total_value == 0: return []
     weights = {sym: val / total_value for sym, val in asset_values.items()}
     return StressService.run_simulation(weights)
+
+@app.get("/api/signals/vxn")
+def get_vxn_signal(db: Session = Depends(get_db)):
+    """Returns the VXN spike signal (current vs 90th percentile)"""
+    try:
+        signal = QuantService.get_vxn_signal(db)
+        if not signal:
+            raise HTTPException(status_code=404, detail="VXN signal data not available. Please run cron update.")
+        return signal
+    except Exception as e:
+        print(f"Error in GET /api/signals/vxn: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/signals/mstr")
+def get_mstr_signal(db: Session = Depends(get_db)):
+    """Returns MSTR MNAV Z-score signal"""
+    try:
+        signal = QuantService.get_mstr_signal(db)
+        if not signal:
+            raise HTTPException(status_code=404, detail="MSTR signal data not available. Ensure corporate actions are seeded.")
+        return signal
+    except Exception as e:
+        print(f"Error in GET /api/signals/mstr: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/algo/action-report")
+def get_action_report(db: Session = Depends(get_db)):
+    """Returns trade recommendations based on market signals and current allocation."""
+    try:
+        report = AlgoService.get_action_report(db)
+        return report
+    except Exception as e:
+        print(f"Error in GET /api/algo/action-report: {e}")
+        raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
+
+@app.post("/api/cron/update-signals")
+def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Secure endpoint for periodic data updates via GitHub Actions"""
+    expected_secret = os.getenv("CRON_SECRET")
+    if not expected_secret or x_cron_secret != expected_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing cron secret"
+        )
+    
+    try:
+        vxn_updated = QuantService.update_vxn_history(db)
+        mstr_seeded = QuantService.seed_mstr_corporate_actions(db)
+        
+        return {
+            "status": "success", 
+            "message": "VXN history updated and MSTR actions verified.",
+            "vxn_updated": vxn_updated,
+            "mstr_seeded": mstr_seeded
+        }
+    except Exception as e:
+        print(f"Error in POST /api/cron/update-signals: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def generate_mock_history(start_date, end_date):
     mock_data = []

@@ -5,7 +5,7 @@
 ---
 
 ## 0. 참조 (System Reference)
-- **상위 시스템 프로토콜:** [SYSTEM_SKILL_ENVIRONMENT_SYNC.md](D:\OneDrive\바탕 화면\Life_System\02_Core_Resources\01_Agent_Orchastration_System\SYSTEM_SKILL_ENVIRONMENT_SYNC.md)
+- **상위 시스템 프로토콜:** [SYSTEM_SKILL_ENVIRONMENT_SYNC.md](D:\OneDrive\Desktop\Life_System\02_Core_Resources\01_Agent_Orchastration_System\SYSTEM_SKILL_ENVIRONMENT_SYNC.md)
 
 ---
 

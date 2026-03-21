@@ -17,9 +17,9 @@ export function HistoryChart({ data }: HistoryChartProps) {
   }));
 
   const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('en-US', { 
+    new Intl.NumberFormat('ko-KR', { 
       style: 'currency', 
-      currency: 'USD', 
+      currency: 'KRW', 
       maximumFractionDigits: 0 
     }).format(val);
 
@@ -49,7 +49,8 @@ export function HistoryChart({ data }: HistoryChartProps) {
             dy={10}
           />
           <YAxis 
-            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} 
+            domain={['auto', 'auto']}
+            tickFormatter={(value) => `₩${(value / 10000).toFixed(0)}만`} 
             stroke="#64748b" 
             fontSize={10} 
             tickLine={false} 

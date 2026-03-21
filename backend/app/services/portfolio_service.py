@@ -8,6 +8,35 @@ from ..models import Transaction, Asset
 
 class PortfolioService:
     @staticmethod
+    def _latest_numeric(values, default: float = 0.0) -> float:
+        """Safely read the latest numeric value from a pandas Series/DataFrame slice."""
+        if values is None:
+            return default
+
+        try:
+            latest = values.iloc[-1]
+        except Exception:
+            return default
+
+        # yfinance may return a DataFrame for Close prices even with a single ticker.
+        if isinstance(latest, pd.Series):
+            latest = latest.dropna()
+            if latest.empty:
+                return default
+            latest = latest.iloc[0]
+
+        try:
+            if pd.isna(latest):
+                return default
+        except Exception:
+            return default
+
+        try:
+            return float(latest)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
     def get_equity_curve(db: Session, period: str = "1y"):
         """
         Calculates the daily total value of the portfolio in KRW.
@@ -87,7 +116,8 @@ class PortfolioService:
             
             # Get current FX rate
             date_key = pd.Timestamp(current_date)
-            current_fx = float(fx_history[:date_key].iloc[-1]) if not fx_history[:date_key].empty else 1400.0
+            fx_slice = fx_history[:date_key]
+            current_fx = PortfolioService._latest_numeric(fx_slice, default=1400.0)
             
             # Calculate total value in KRW
             daily_value_krw = 0
@@ -97,15 +127,21 @@ class PortfolioService:
                 asset = assets[aid]
                 
                 # Special Case: KIS Brazil Bond
-                if asset.symbol == "BRAZIL_BOND" and current_date == today:
-                    daily_value_krw += brazil_bond_current_value
+                if asset.symbol == "BRAZIL_BOND":
+                    if current_date == today and brazil_bond_current_value > 0:
+                        daily_value_krw += brazil_bond_current_value
+                    else:
+                        # Fallback for historical/failed KIS API: use last transaction price
+                        # Note: In a real scenario, we'd want historical price data for bonds too.
+                        # For now, we use the buy price as a proxy if API fails or for historical dates.
+                        daily_value_krw += qty * 1864532.0 
                     continue
                 
                 # Check if aid exists in price_data to avoid KeyError
                 if aid in price_data:
                     prices = price_data[aid][:date_key]
                     if not prices.empty:
-                        price = float(prices.iloc[-1])
+                        price = PortfolioService._latest_numeric(prices)
                         # If US asset, convert to KRW
                         if asset.source == "US":
                             daily_value_krw += qty * price * current_fx
@@ -119,12 +155,13 @@ class PortfolioService:
                 # Calculate Benchmark (Normalized SPY)
                 spy_val = 0
                 if not spy_history[:date_key].empty:
-                    current_spy_price = float(spy_history[:date_key].iloc[-1])
-                    if initial_spy_price is None:
+                    current_spy_price = PortfolioService._latest_numeric(spy_history[:date_key])
+                    if initial_spy_price is None and current_spy_price > 0:
                         initial_spy_price = current_spy_price
                     
                     # Benchmark value = (Current SPY / Initial SPY) * Initial Portfolio Value
-                    spy_val = (current_spy_price / initial_spy_price) * initial_portfolio_value
+                    if initial_spy_price and initial_spy_price > 0:
+                        spy_val = (current_spy_price / initial_spy_price) * initial_portfolio_value
 
                 history.append({
                     "date": current_date.isoformat(),

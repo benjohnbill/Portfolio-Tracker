@@ -1,7 +1,13 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
+import enum
 from .database import Base
+
+class AccountType(enum.Enum):
+    ISA = "ISA"
+    OVERSEAS = "OVERSEAS"
+    PENSION = "PENSION"
 
 class Asset(Base):
     __tablename__ = "assets"
@@ -11,6 +17,7 @@ class Asset(Base):
     code = Column(String)  # e.g., "379810" or "BIL"
     name = Column(String)
     source = Column(String)  # "KR" or "US"
+    account_type = Column(Enum(AccountType), default=AccountType.OVERSEAS)
 
     prices = relationship("DailyPrice", back_populates="asset")
     transactions = relationship("Transaction", back_populates="asset")
@@ -39,11 +46,25 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     asset_id = Column(Integer, ForeignKey("assets.id"))
     type = Column(String)  # "BUY", "SELL", "DEPOSIT", "WITHDRAW"
     quantity = Column(Float)  # Shares
     price = Column(Float)     # Unit Price
     total_amount = Column(Float) # quantity * price
+    account_type = Column(Enum(AccountType), default=AccountType.OVERSEAS)
 
     asset = relationship("Asset", back_populates="transactions")
+
+class VXNHistory(Base):
+    __tablename__ = "vxn_history"
+
+    date = Column(Date, primary_key=True, index=True)
+    close = Column(Float)
+
+class MSTRCorporateAction(Base):
+    __tablename__ = "mstr_corporate_actions"
+
+    date = Column(Date, primary_key=True, index=True)
+    btc_holdings = Column(Float)
+    outstanding_shares = Column(Float)

@@ -14,6 +14,7 @@ export interface PortfolioAllocationData {
   value: number;
   weight: number;
   source: string;
+  account_type: string;
 }
 
 export interface Asset {
@@ -48,6 +49,67 @@ export const mockPortfolioHistory: PortfolioHistoryData[] = [
   { date: '2024-01-08', total_value: 10350000 },
   { date: '2024-01-09', total_value: 10500000 },
 ];
+
+export interface PortfolioSummary {
+  total_value: number;
+  invested_capital: number;
+  metrics: {
+    total_return: number;
+    cagr: number;
+    mdd: number;
+    volatility: number;
+    sharpe_ratio: number;
+  };
+}
+
+export interface SignalVXN {
+  current_vxn: number;
+  ma_50: number;
+  threshold_90: number;
+  is_vix_spike: boolean;
+}
+
+export interface SignalMSTR {
+  current_mnav: number;
+  current_mnav_ratio: number;
+  rolling_mean: number;
+  rolling_std: number;
+  z_score: number;
+  last_updated: string;
+}
+
+export interface SignalNDX {
+  current_price: number;
+  ma_250: number;
+  is_above_ma: boolean;
+}
+
+export interface SignalAsset {
+  price: number;
+  ma_250: number;
+  rsi: number;
+}
+
+export interface SignalData {
+  vxn: SignalVXN | null;
+  mstr: SignalMSTR | null;
+  ndx: SignalNDX | null;
+  gldm: SignalAsset;
+  tlt: SignalAsset;
+  timestamp: string;
+}
+
+export interface AccountAction {
+  asset: string;
+  action: string;
+  reason: string;
+}
+
+export interface ActionReport {
+  signals: SignalData;
+  account_status: Record<string, number>;
+  actions: AccountAction[];
+}
 
 /**
  * Fetches portfolio history either from Mock or the Backend.
@@ -132,3 +194,60 @@ export async function createTransaction(data: TransactionCreate): Promise<Transa
   
   return res.json();
 }
+
+/**
+ * Fetches portfolio summary metrics.
+ */
+export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/portfolio/summary`, {
+      cache: 'no-store' 
+    });
+    if (!res.ok) throw new Error('Failed to fetch summary');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return {
+      total_value: 0,
+      invested_capital: 0,
+      metrics: {
+        total_return: 0,
+        cagr: 0,
+        mdd: 0,
+        volatility: 0,
+        sharpe_ratio: 0,
+      }
+    };
+  }
+}
+
+/**
+ * Fetches trade recommendations based on market signals and current allocation.
+ */
+export async function getActionReport(): Promise<ActionReport> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/algo/action-report`, {
+      cache: 'no-store' 
+    });
+    if (!res.ok) throw new Error('Failed to fetch action report');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    // Return a default empty report to avoid UI crashes
+    return {
+      signals: {
+        vxn: null,
+        mstr: null,
+        ndx: null,
+        gldm: { price: 0, ma_250: 0, rsi: 0 },
+        tlt: { price: 0, ma_250: 0, rsi: 0 },
+        timestamp: new Date().toISOString()
+      },
+      account_status: {},
+      actions: []
+    };
+  }
+}
+

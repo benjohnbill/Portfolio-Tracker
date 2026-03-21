@@ -9,4 +9,4 @@ services:
         value: 3.11.0
       - key: ALLOW_ALL_ORIGINS
         value: "true"
-      # IMPORTANT: Remember to add DATABASE_URL, KIS_APP_KEY, KIS_APP_SECRET in the Render Dashboard
+      # DATABASE_URL, KIS_APP_KEY, KIS_APP_SECRET should be set in the Render Dashboard

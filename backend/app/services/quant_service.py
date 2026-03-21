@@ -1,0 +1,354 @@
+import yfinance as yf
+import pandas as pd
+from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
+from datetime import datetime, timedelta
+from ..models import VXNHistory, MSTRCorporateAction
+
+class QuantService:
+    @staticmethod
+    def update_vxn_history(db: Session):
+        """
+        Use yfinance to download historical data for ^VXN (Nasdaq 100 Volatility Index).
+        Fetch the last 3 years of daily data.
+        Upsert the records (Date, Close) into the vxn_history table.
+        """
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=3 * 365)
+        
+        ticker = "^VXN"
+        try:
+            # Download data
+            df = yf.download(ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
+            
+            if df.empty:
+                print("No data found for ^VXN")
+                return False
+                
+            # Handle potential MultiIndex columns in newer yfinance versions
+            if isinstance(df.columns, pd.MultiIndex):
+                # If there's a multi-index, we want the 'Close' column for '^VXN'
+                if ('Close', ticker) in df.columns:
+                    close_data = df[('Close', ticker)]
+                else:
+                    # Fallback to just 'Close' if it's simpler
+                    close_data = df['Close']
+            else:
+                close_data = df['Close']
+
+            # close_data could be a Series or a DataFrame with one column
+            if isinstance(close_data, pd.DataFrame):
+                close_data = close_data.iloc[:, 0]
+
+            count = 0
+            for date_idx, close_val in close_data.items():
+                if pd.isna(close_val):
+                    continue
+                
+                # date_idx is a Timestamp
+                target_date = date_idx.date()
+                val = float(close_val)
+                
+                stmt = insert(VXNHistory).values(
+                    date=target_date,
+                    close=val
+                )
+                
+                # Use SQLAlchemy's on_conflict_do_update for PostgreSQL
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['date'],
+                    set_=dict(close=val)
+                )
+                
+                db.execute(stmt)
+                count += 1
+                
+            db.commit()
+            print(f"Successfully updated {count} records for ^VXN history.")
+            return True
+            
+        except Exception as e:
+            print(f"Error updating VXN history: {e}")
+            db.rollback()
+            return False
+
+    @staticmethod
+    def get_vxn_signal(db: Session):
+        """
+        Read all records from vxn_history into a pandas DataFrame.
+        Calculate the 50-day Moving Average (50MA) of the 'close' price.
+        Calculate the 90th percentile threshold of the 'close' price over the entire 3-year history.
+        Identify the latest 'close' price.
+        Return a signal dictionary.
+        """
+        try:
+            # Query all records
+            query = db.query(VXNHistory).order_by(VXNHistory.date.asc())
+            df = pd.read_sql(query.statement, db.bind)
+            
+            if df.empty:
+                print("No VXN history found in database.")
+                return None
+                
+            # Ensure 'close' is float
+            df['close'] = df['close'].astype(float)
+            
+            # Calculate the 50-day Moving Average (50MA)
+            df['ma_50'] = df['close'].rolling(window=50).mean()
+            
+            # Calculate the 90th percentile threshold over the entire 3-year history
+            threshold_90 = df['close'].quantile(0.9)
+            
+            # Identify the latest record
+            latest = df.iloc[-1]
+            current_vxn = float(latest['close'])
+            ma_50 = float(latest['ma_50']) if not pd.isna(latest['ma_50']) else 0.0
+            
+            return {
+                "current_vxn": current_vxn,
+                "ma_50": ma_50,
+                "threshold_90": float(threshold_90),
+                "is_vix_spike": bool(current_vxn > threshold_90)
+            }
+            
+        except Exception as e:
+            print(f"Error calculating VXN signal: {e}")
+            return None
+
+    @staticmethod
+    def seed_mstr_corporate_actions(db: Session):
+        """
+        Check if mstr_corporate_actions table is empty.
+        If empty, seed with dummy historical data.
+        """
+        count = db.query(MSTRCorporateAction).count()
+        if count == 0:
+            dummy_data = [
+                {"date": "2023-01-01", "btc_holdings": 132500, "outstanding_shares": 11200000},
+                {"date": "2023-06-01", "btc_holdings": 152333, "outstanding_shares": 14100000},
+                {"date": "2024-01-01", "btc_holdings": 189150, "outstanding_shares": 16800000},
+                {"date": "2024-03-01", "btc_holdings": 214246, "outstanding_shares": 17500000},
+            ]
+            for data in dummy_data:
+                action = MSTRCorporateAction(
+                    date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
+                    btc_holdings=data["btc_holdings"],
+                    outstanding_shares=data["outstanding_shares"]
+                )
+                db.add(action)
+            db.commit()
+            print("Successfully seeded MSTR corporate actions.")
+            return True
+        return False
+
+    @staticmethod
+    def get_mstr_signal(db: Session):
+        """
+        Calculate MNAV and Z-score for MSTR.
+        """
+        try:
+            # 1. Download 1.5 years (380 trading days approx) of Daily Close prices
+            end_date = datetime.now()
+            # 1.5 years is about 547 days. 252 trading days is 1 year. 
+            # 380 trading days is about 1.5 years.
+            start_date = end_date - timedelta(days=600) # Use 600 days to be safe
+            
+            mstr_ticker = "MSTR"
+            btc_ticker = "BTC-USD"
+            
+            mstr_data = yf.download(mstr_ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
+            btc_data = yf.download(btc_ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
+            
+            if mstr_data.empty or btc_data.empty:
+                print("Failed to download MSTR or BTC data.")
+                return None
+
+            # Handle potential MultiIndex
+            if isinstance(mstr_data.columns, pd.MultiIndex):
+                mstr_close = mstr_data['Close'][mstr_ticker]
+            else:
+                mstr_close = mstr_data['Close']
+                
+            if isinstance(btc_data.columns, pd.MultiIndex):
+                btc_close = btc_data['Close'][btc_ticker]
+            else:
+                btc_close = btc_data['Close']
+
+            # 2. Read records from mstr_corporate_actions
+            actions_query = db.query(MSTRCorporateAction).order_by(MSTRCorporateAction.date.asc())
+            actions_df = pd.read_sql(actions_query.statement, db.bind)
+            
+            if actions_df.empty:
+                print("No MSTR corporate actions found.")
+                return None
+            
+            # 3. Prepare datasets for merging
+            # Reset index and ensure date is datetime for merge_asof
+            mstr_df = pd.DataFrame({"mstr_close": mstr_close}).reset_index()
+            mstr_df.rename(columns={"Date": "date"}, inplace=True)
+            mstr_df['date'] = pd.to_datetime(mstr_df['date']).dt.tz_localize(None) # Remove timezone for alignment
+            
+            btc_df = pd.DataFrame({"btc_close": btc_close}).reset_index()
+            btc_df.rename(columns={"Date": "date"}, inplace=True)
+            btc_df['date'] = pd.to_datetime(btc_df['date']).dt.tz_localize(None)
+            
+            actions_df['date'] = pd.to_datetime(actions_df['date']).dt.tz_localize(None)
+            
+            # Ensure they are sorted by date
+            mstr_df.sort_values('date', inplace=True)
+            btc_df.sort_values('date', inplace=True)
+            actions_df.sort_values('date', inplace=True)
+            
+            # 4. Use merge_asof to align BTC to MSTR trading days
+            df = pd.merge_asof(mstr_df, btc_df, on='date', direction='backward')
+            
+            # 5. Use merge_asof to align Corporate Actions to MSTR trading days
+            df = pd.merge_asof(df, actions_df, on='date', direction='backward')
+            
+            # 6. Drop rows where we don't have corporate action data yet (before first seed)
+            df.dropna(subset=['btc_holdings', 'outstanding_shares'], inplace=True)
+            
+            if df.empty:
+                print("DataFrame is empty after merging and dropping NaNs.")
+                return None
+                
+            # 7. Calculate MNAV
+            # MNAV = (BTC_Close * btc_holdings) / outstanding_shares
+            df['mnav'] = (df['btc_close'] * df['btc_holdings']) / df['outstanding_shares']
+            df['mnav_ratio'] = df['mstr_close'] / df['mnav']
+            
+            # 8. Calculate Rolling Stats (252-day window)
+            # Use mnav_ratio for Z-score calculation as it's more standard for premium evaluation
+            df['rolling_mean'] = df['mnav_ratio'].rolling(window=252).mean()
+            df['rolling_std'] = df['mnav_ratio'].rolling(window=252).std()
+            
+            # 9. Calculate current Z-score
+            latest = df.iloc[-1]
+            current_mnav = float(latest['mnav'])
+            current_mnav_ratio = float(latest['mnav_ratio'])
+            rolling_mean = float(latest['rolling_mean'])
+            rolling_std = float(latest['rolling_std'])
+            
+            z_score = 0.0
+            if not pd.isna(rolling_std) and rolling_std != 0:
+                z_score = (current_mnav_ratio - rolling_mean) / rolling_std
+            elif pd.isna(rolling_std):
+                print("Warning: Rolling standard deviation is NaN. Need more data (252 rows minimum).")
+                
+            return {
+                "current_mnav": current_mnav,
+                "current_mnav_ratio": current_mnav_ratio,
+                "rolling_mean": rolling_mean if not pd.isna(rolling_mean) else 0.0,
+                "rolling_std": rolling_std if not pd.isna(rolling_std) else 0.0,
+                "z_score": z_score,
+                "last_updated": end_date.isoformat()
+            }
+            
+        except Exception as e:
+            print(f"Error calculating MSTR signal: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    @staticmethod
+    def get_rsi(ticker: str, period: str = "1y", window: int = 14):
+        """
+        Calculate Relative Strength Index (RSI).
+        """
+        try:
+            data = yf.download(ticker, period=period, progress=False)
+            if data.empty:
+                return 0.0
+            
+            # Handle MultiIndex
+            if isinstance(data.columns, pd.MultiIndex):
+                # Check for ('Close', ticker)
+                if ('Close', ticker) in data.columns:
+                    close = data[('Close', ticker)]
+                else:
+                    close = data['Close'].iloc[:, 0]
+            else:
+                close = data['Close']
+            
+            # Handle if close is a DataFrame
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+
+            delta = close.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+            
+            # Standard RSI uses Wilder's smoothing or EMA, but let's stick to SMA for simplicity
+            # unless specified. SMA gain/loss is standard for some too.
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50.0
+        except Exception as e:
+            print(f"Error calculating RSI for {ticker}: {e}")
+            return 50.0
+
+    @staticmethod
+    def get_moving_average(ticker: str, period: str = "2y", window: int = 250):
+        """
+        Calculate Simple Moving Average (SMA).
+        """
+        try:
+            data = yf.download(ticker, period=period, progress=False)
+            if data.empty:
+                return 0.0
+                
+            # Handle MultiIndex
+            if isinstance(data.columns, pd.MultiIndex):
+                if ('Close', ticker) in data.columns:
+                    close = data[('Close', ticker)]
+                else:
+                    close = data['Close'].iloc[:, 0]
+            else:
+                close = data['Close']
+
+            # Handle if close is a DataFrame
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+                
+            ma = close.rolling(window=window).mean()
+            return float(ma.iloc[-1]) if not pd.isna(ma.iloc[-1]) else 0.0
+        except Exception as e:
+            print(f"Error calculating MA for {ticker}: {e}")
+            return 0.0
+
+    @staticmethod
+    def get_ndx_status():
+        """
+        Returns current NDX price and its 250MA.
+        """
+        try:
+            ticker = "^NDX"
+            data = yf.download(ticker, period="2y", progress=False)
+            if data.empty:
+                return None
+                
+            # Handle MultiIndex
+            if isinstance(data.columns, pd.MultiIndex):
+                if ('Close', ticker) in data.columns:
+                    close = data[('Close', ticker)]
+                else:
+                    close = data['Close'].iloc[:, 0]
+            else:
+                close = data['Close']
+
+            # Handle if close is a DataFrame
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+                
+            current_price = float(close.iloc[-1])
+            ma_250_series = close.rolling(window=250).mean()
+            current_ma_250 = float(ma_250_series.iloc[-1]) if not pd.isna(ma_250_series.iloc[-1]) else 0.0
+            
+            return {
+                "current_price": current_price,
+                "ma_250": current_ma_250,
+                "is_above_ma": current_price > current_ma_250
+            }
+        except Exception as e:
+            print(f"Error getting NDX status: {e}")
+            return None

@@ -1,0 +1,18 @@
+name: Daily Quant Update (ELT Pipeline)
+
+on:
+  schedule:
+    # Run every day at 21:00 UTC (which is 06:00 KST next day, safely after US market close)
+    - cron: '0 21 * * 1-5' # Runs Mon-Fri UTC (Tue-Sat morning KST)
+  workflow_dispatch: # Allow manual triggering from GitHub UI
+
+jobs:
+  update-signals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Backend ELT Pipeline
+        run: |
+          curl -X POST "https://portfolio-tracker-f8a3.onrender.com/api/cron/update-signals" \
+          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+          -H "Content-Type: application/json"
+          echo "Daily Quant Update triggered at $(date)"

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import pandas as pd
 from .price_service import PriceService
 from .exchange_service import ExchangeService
+from .kis_service import KISService
 from ..models import Transaction, Asset
 
 class PortfolioService:
@@ -10,8 +11,11 @@ class PortfolioService:
     def get_equity_curve(db: Session, period: str = "1y"):
         """
         Calculates the daily total value of the portfolio in KRW.
-        Includes currency conversion and SPY benchmark comparison.
+        Includes currency conversion, SPY benchmark comparison, and KIS Brazil Bond sync.
         """
+        # Fetch real-time Brazil Bond value from KIS
+        brazil_bond_current_value = KISService.get_brazil_bond_value()
+
         # 1. Get transactions and setup date range
         transactions = db.query(Transaction).order_by(Transaction.date).all()
         if not transactions:
@@ -26,14 +30,40 @@ class PortfolioService:
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = today.strftime('%Y-%m-%d')
 
-        # 2. Fetch all necessary data in bulk
+        # 2. Fetch all necessary data
         asset_ids = list(set(t.asset_id for t in transactions))
         assets = {a.id: a for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()}
         
-        # Prices, Exchange Rates, and Benchmark
-        price_data = {aid: PriceService.get_historical_prices(a.code if a.source == "KR" else a.symbol, start_date_str, end_date_str, a.source) for aid, a in assets.items()}
+        # Split assets by source for optimization
+        us_symbols = [a.symbol for a in assets.values() if a.source == "US"]
+        us_symbol_to_id = {a.symbol: a.id for a in assets.values() if a.source == "US"}
+        
+        price_data = {}
+        
+        # Bulk fetch US prices (O(1) network call)
+        if us_symbols:
+            # Ensure SPY benchmark is included in the bulk fetch
+            if "SPY" not in us_symbols:
+                us_symbols.append("SPY")
+                
+            bulk_us_prices = PriceService.get_historical_prices_bulk(us_symbols, start_date_str, end_date_str)
+            for symbol in us_symbols:
+                if symbol in bulk_us_prices.columns:
+                    # Only add to price_data if the symbol is actually in our assets
+                    if symbol in us_symbol_to_id:
+                        aid = us_symbol_to_id[symbol]
+                        price_data[aid] = bulk_us_prices[symbol].dropna()
+                    
+            spy_history = bulk_us_prices["SPY"].dropna() if "SPY" in bulk_us_prices.columns else pd.Series()
+        else:
+            spy_history = PriceService.get_historical_prices("SPY", start_date_str, end_date_str, "US")
+
+        # Fetch KR prices individually (FDR doesn't support bulk well)
+        for aid, a in assets.items():
+            if a.source == "KR":
+                price_data[aid] = PriceService.get_historical_prices(a.code, start_date_str, end_date_str, "KR")
+
         fx_history = ExchangeService.get_usd_krw_history(start_date_str, end_date_str)
-        spy_history = PriceService.get_historical_prices("SPY", start_date_str, end_date_str, "US")
 
         # 3. Calculate daily values
         history = []
@@ -64,14 +94,23 @@ class PortfolioService:
             for aid, qty in current_holdings.items():
                 if qty <= 0: continue
                 
-                prices = price_data[aid][:date_key]
-                if not prices.empty:
-                    price = float(prices.iloc[-1])
-                    # If US asset, convert to KRW
-                    if assets[aid].source == "US":
-                        daily_value_krw += qty * price * current_fx
-                    else:
-                        daily_value_krw += qty * price
+                asset = assets[aid]
+                
+                # Special Case: KIS Brazil Bond
+                if asset.symbol == "BRAZIL_BOND" and current_date == today:
+                    daily_value_krw += brazil_bond_current_value
+                    continue
+                
+                # Check if aid exists in price_data to avoid KeyError
+                if aid in price_data:
+                    prices = price_data[aid][:date_key]
+                    if not prices.empty:
+                        price = float(prices.iloc[-1])
+                        # If US asset, convert to KRW
+                        if asset.source == "US":
+                            daily_value_krw += qty * price * current_fx
+                        else:
+                            daily_value_krw += qty * price
             
             if daily_value_krw > 0:
                 if initial_portfolio_value is None:
@@ -98,12 +137,6 @@ class PortfolioService:
             current_date += timedelta(days=1)
 
         # 4. Calculate daily returns
-        for i in range(1, len(history)):
-            history[i]["daily_return"] = (history[i]["total_value"] - history[i-1]["total_value"]) / history[i-1]["total_value"]
-
-        return history
-
-        # 6. Calculate daily returns
         for i in range(1, len(history)):
             prev_val = history[i-1]["total_value"]
             curr_val = history[i]["total_value"]

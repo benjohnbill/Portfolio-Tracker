@@ -37,10 +37,29 @@ class PriceService:
         try:
             if source == "US":
                 df = yf.download(symbol, start=start_date, end=end_date)
-                return df['Close']
+                return df['Close'].squeeze()
             elif source == "KR":
                 df = fdr.DataReader(symbol, start_date, end_date)
-                return df['Close']
+                return df['Close'].squeeze()
         except Exception as e:
             print(f"Error fetching history for {symbol}: {e}")
             return pd.Series()
+
+    @staticmethod
+    def get_historical_prices_bulk(symbols: list, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        Fetches historical daily closing prices for multiple US symbols simultaneously.
+        """
+        if not symbols:
+            return pd.DataFrame()
+            
+        try:
+            df = yf.download(symbols, start=start_date, end=end_date)
+            if len(symbols) == 1:
+                close_df = pd.DataFrame(df['Close'])
+                close_df.columns = symbols
+                return close_df
+            return df['Close']
+        except Exception as e:
+            print(f"Error fetching bulk history for {symbols}: {e}")
+            return pd.DataFrame()

@@ -9,11 +9,13 @@ from pydantic import BaseModel
 from typing import Optional
 
 from .database import SessionLocal, engine, Base
-from .models import PortfolioSnapshot, Asset, DailyPrice, Transaction
+from .models import Asset, Transaction
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
 from .services.stress_service import StressService
+from .services.kis_service import KISService
+from .services.exchange_service import ExchangeService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -22,54 +24,20 @@ Base.metadata.create_all(bind=engine)
 
 @app.on_event("startup")
 def on_startup():
-    """Seed database with initial assets and sample transactions if empty."""
+    """Seed database with initial assets if empty."""
     db = SessionLocal()
     try:
         if db.query(Asset).count() == 0:
-            print("Seeding initial assets and sample transactions...")
+            print("Seeding initial assets...")
             assets = [
                 Asset(symbol="QQQ", name="Invesco QQQ Trust", code="QQQ", source="US"),
                 Asset(symbol="SPY", name="SPDR S&P 500 ETF Trust", code="SPY", source="US"),
                 Asset(symbol="TLT", name="iShares 20+ Year Treasury Bond ETF", code="TLT", source="US"),
                 Asset(symbol="GLDM", name="SPDR Gold MiniShares Trust", code="GLDM", source="US"),
-                Asset(symbol="AAPL", name="Apple Inc.", code="AAPL", source="US"),
+                Asset(symbol="MSTR", name="MicroStrategy", code="MSTR", source="US"),
                 Asset(symbol="005930", name="Samsung Electronics", code="005930", source="KR"),
-                Asset(symbol="379810", name="KODEX Nasdaq100 TR", code="379810", source="KR"),
             ]
             db.add_all(assets)
-            db.commit()
-            
-            # Refresh asset IDs
-            qqq = db.query(Asset).filter(Asset.symbol == "QQQ").first()
-            samsung = db.query(Asset).filter(Asset.symbol == "005930").first()
-            spy = db.query(Asset).filter(Asset.symbol == "SPY").first()
-            
-            # Add sample transactions for immediate visualization
-            t1 = Transaction(
-                asset_id=qqq.id,
-                type="BUY",
-                quantity=20,
-                price=380.0,
-                total_amount=7600.0,
-                date=datetime.now() - timedelta(days=180)
-            )
-            t2 = Transaction(
-                asset_id=samsung.id,
-                type="BUY",
-                quantity=100,
-                price=72000.0,
-                total_amount=7200000.0,
-                date=datetime.now() - timedelta(days=90)
-            )
-            t3 = Transaction(
-                asset_id=spy.id,
-                type="BUY",
-                quantity=10,
-                price=480.0,
-                total_amount=4800.0,
-                date=datetime.now() - timedelta(days=30)
-            )
-            db.add_all([t1, t2, t3])
             db.commit()
             print("Database seeded successfully.")
     except Exception as e:
@@ -79,25 +47,14 @@ def on_startup():
 
 # Request Models
 class TransactionCreate(BaseModel):
-    symbol: str  # Users can now input any ticker (e.g., "QQQ", "409820")
+    symbol: str
     type: str # BUY, SELL
     quantity: float
-    price: Optional[float] = None # Make price optional
-    date: Optional[date] = None
+    price: Optional[float] = None
+    date: Optional[str] = None # Change to str for easier Pydantic parsing from JSON
 
 # CORS configuration
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-
-frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
-    origins.append(frontend_url)
-
-# Also allow all origins temporarily for Render MVP testing if explicitly set
-if os.getenv("ALLOW_ALL_ORIGINS") == "true":
-    origins = ["*"]
+origins = ["*"] # Broaden for local development
 
 app.add_middleware(
     CORSMiddleware,
@@ -119,10 +76,6 @@ def get_db():
 def read_root():
     return {"message": "Welcome to Portfolio Tracker API"}
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
 @app.get("/api/assets")
 def get_assets(db: Session = Depends(get_db)):
     """Returns list of all available assets"""
@@ -141,7 +94,6 @@ def get_assets(db: Session = Depends(get_db)):
 def get_transactions(db: Session = Depends(get_db)):
     """Returns list of executed trades"""
     txs = db.query(Transaction).order_by(Transaction.date.desc()).all()
-    
     return [
         {
             "id": t.id,
@@ -159,18 +111,16 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     """Creates a new trade record, automatically creating new assets if they don't exist"""
     symbol_upper = tx.symbol.strip().upper()
     
-    # Auto-detect market source (KR stocks are usually 6 digits)
-    is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
-    source = "KR" if is_kr else "US"
-    
     # 1. Find existing asset or create a new one
     asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
     
     if not asset:
+        is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
+        source = "KR" if is_kr else "US"
         asset = Asset(
             symbol=symbol_upper,
             code=symbol_upper,
-            name=symbol_upper, # We can fetch real names later, use symbol as placeholder
+            name=symbol_upper,
             source=source
         )
         db.add(asset)
@@ -180,52 +130,59 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     # 2. Auto-fetch price if not provided
     final_price = tx.price
     if not final_price or final_price <= 0:
-        fetched_price = PriceService.get_current_price(symbol_upper, source=source)
+        if symbol_upper == "BRAZIL_BOND":
+            fetched_price = KISService.get_brazil_bond_value()
+        else:
+            # Use the newly determined source
+            fetched_price = PriceService.get_current_price(symbol_upper, source=source)
+            
         if fetched_price <= 0:
-            raise HTTPException(status_code=400, detail=f"Could not auto-fetch price for {symbol_upper}. Please enter it manually.")
-        final_price = fetched_price
+            # Fallback for BRAZIL_BOND if API is slow/down
+            if symbol_upper == "BRAZIL_BOND":
+                final_price = 1000.0 # Temporary placeholder
+            else:
+                raise HTTPException(status_code=400, detail=f"Could not auto-fetch price for {symbol_upper}. Please enter it manually.")
+        else:
+            final_price = fetched_price
         
-    # 3. Create the transaction
+    # 3. Parse date
+    try:
+        final_date = datetime.strptime(tx.date, "%Y-%m-%d").date() if tx.date else date.today()
+    except:
+        # Handle MM/DD/YYYY format if frontend sends it
+        try:
+            final_date = datetime.strptime(tx.date, "%m/%d/%Y").date()
+        except:
+            final_date = date.today()
+
+    # 4. Create the transaction
     new_tx = Transaction(
         asset_id=asset.id,
         type=tx.type,
         quantity=tx.quantity,
         price=final_price,
         total_amount=tx.quantity * final_price,
-        date=tx.date or date.today()
+        date=final_date
     )
     db.add(new_tx)
     db.commit()
     db.refresh(new_tx)
     return new_tx
 
-from .services.exchange_service import ExchangeService
-
 @app.get("/api/portfolio/allocation")
 def get_portfolio_allocation(db: Session = Depends(get_db)):
     """Calculates current holdings and weights in KRW"""
-    
-    # 1. Calculate holdings from transactions
     txs = db.query(Transaction).all()
     holdings = {} # {asset_id: quantity}
-    
     for t in txs:
-        if t.asset_id not in holdings:
-            holdings[t.asset_id] = 0
-        
-        if t.type == "BUY":
-            holdings[t.asset_id] += t.quantity
-        elif t.type == "SELL":
-            holdings[t.asset_id] -= t.quantity
+        if t.asset_id not in holdings: holdings[t.asset_id] = 0
+        holdings[t.asset_id] += t.quantity if t.type == "BUY" else -t.quantity
 
-    # Filter out zero holdings
     active_holdings = {k: v for k, v in holdings.items() if v > 0.0001}
-    
-    if not active_holdings:
-        return []
+    if not active_holdings: return []
 
-    # 2. Get latest prices and FX rate
     current_fx = ExchangeService.get_current_rate()
+    brazil_bond_current_value = KISService.get_brazil_bond_value()
     
     result = []
     total_value = 0
@@ -233,37 +190,28 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
     for asset_id, qty in active_holdings.items():
         asset = db.query(Asset).filter(Asset.id == asset_id).first()
         
-        # Fetch real price from PriceService
-        current_price = PriceService.get_current_price(
-            symbol=asset.code if asset.source == "KR" else asset.symbol,
-            source=asset.source
-        )
-        
-        # Fallback to last transaction price if real-time fetch fails
-        if current_price == 0:
-            last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
-            current_price = last_tx.price if last_tx else 100.0 
-        
-        # Calculate value in KRW
-        value_krw = 0
-        if asset.source == "US":
-            value_krw = qty * current_price * current_fx
+        # Special case for Brazil Bond
+        if asset.symbol == "BRAZIL_BOND":
+            current_price = brazil_bond_current_value / qty if qty > 0 else 0
+            value_krw = brazil_bond_current_value
         else:
-            value_krw = qty * current_price
+            current_price = PriceService.get_current_price(asset.code if asset.source == "KR" else asset.symbol, asset.source)
+            if current_price == 0:
+                last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
+                current_price = last_tx.price if last_tx else 100.0 
+            value_krw = qty * current_price * (current_fx if asset.source == "US" else 1.0)
             
         total_value += value_krw
-        
         result.append({
             "asset": asset.symbol,
             "name": asset.name,
             "quantity": qty,
-            "price": current_price, # Original currency price
-            "value": value_krw,      # Always KRW
+            "price": current_price,
+            "value": value_krw,
             "weight": 0,
             "source": asset.source
         })
 
-    # 3. Calculate weights
     for item in result:
         item["weight"] = item["value"] / total_value if total_value > 0 else 0
         
@@ -271,114 +219,48 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
 
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
-    """
-    Returns portfolio value history for charts based on real transactions.
-    Period: 1m, 3m, 6m, 1y, all
-    """
+    """Returns portfolio value history for charts based on real transactions."""
     history = PortfolioService.get_equity_curve(db, period)
-
-    # If no real data, fallback to mock data for development
-    if not history:
-        today = date.today()
-        start_date = today - timedelta(days=365)
-        return generate_mock_history(start_date, today)
-
-    return history
+    return history if history else generate_mock_history(date.today() - timedelta(days=30), date.today())
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):
-    """
-    Returns high-level performance metrics (CAGR, MDD, Sharpe).
-    """
+    """Returns high-level performance metrics (CAGR, MDD, Sharpe)."""
     history = PortfolioService.get_equity_curve(db, period="all")
-    if not history:
-        # Return default/empty metrics if no data
-        return {
-            "total_value": 0,
-            "metrics": {
-                "total_return": 0,
-                "cagr": 0,
-                "mdd": 0,
-                "volatility": 0,
-                "sharpe_ratio": 0
-            }
-        }
-    
+    if not history: return {"total_value": 0, "metrics": {}}
     metrics = PortfolioService.calculate_metrics(history)
-    latest_value = history[-1]["total_value"]
-
-    return {
-        "total_value": latest_value,
-        "metrics": metrics
-    }
+    return {"total_value": history[-1]["total_value"], "metrics": metrics}
 
 @app.get("/api/macro-vitals")
 def get_macro_vitals():
-    """
-    Returns Net Liquidity and Real Yield data from FRED.
-    """
-    data = MacroService.get_macro_vitals()
-    if not data:
-        return {"status": "loading", "message": "Fetching macro data..."}
-    return data
+    return MacroService.get_macro_vitals() or {"status": "loading"}
 
 @app.get("/api/stress-test")
 def get_stress_test(db: Session = Depends(get_db)):
-    """
-    Simulates portfolio performance during historical crises (2020, 2022).
-    """
-    # 1. Calculate current weights (Reuse logic from allocation endpoint)
     txs = db.query(Transaction).all()
     holdings = {}
-    for t in txs:
-        holdings[t.asset_id] = holdings.get(t.asset_id, 0) + (t.quantity if t.type == "BUY" else -t.quantity)
-    
+    for t in txs: holdings[t.asset_id] = holdings.get(t.asset_id, 0) + (t.quantity if t.type == "BUY" else -t.quantity)
     active_holdings = {aid: qty for aid, qty in holdings.items() if qty > 0.0001}
-    
-    if not active_holdings:
-        return []
-
-    # Calculate total value to determine weights
+    if not active_holdings: return []
     total_value = 0
-    asset_values = {} # {symbol: value}
-    
+    asset_values = {}
     for aid, qty in active_holdings.items():
         asset = db.query(Asset).filter(Asset.id == aid).first()
-        # Get simplified current price (mock/last tx for speed)
-        last_tx = db.query(Transaction).filter(Transaction.asset_id == aid).order_by(Transaction.date.desc()).first()
-        price = last_tx.price if last_tx else 100.0
-        
+        price = PriceService.get_current_price(asset.symbol, asset.source)
         val = qty * price
         asset_values[asset.symbol] = val
         total_value += val
-    
-    if total_value == 0:
-        return []
-
-    # 2. Prepare weights dict for simulation
+    if total_value == 0: return []
     weights = {sym: val / total_value for sym, val in asset_values.items()}
-    
-    # 3. Run Simulation
     return StressService.run_simulation(weights)
 
 def generate_mock_history(start_date, end_date):
-    """Generates mock data for frontend testing"""
     mock_data = []
     current_date = start_date
-    value = 10000000 # 10 million KRW start
-    
+    value = 10000000
     while current_date <= end_date:
-        # Random daily fluctuation (-1% to +1.2%)
         change_pct = random.uniform(-0.01, 0.012)
         value = value * (1 + change_pct)
-        
-        mock_data.append({
-            "date": current_date.isoformat(),
-            "total_value": int(value),
-            "cash": 500000,
-            "invested": int(value - 500000),
-            "daily_return": change_pct * 100
-        })
+        mock_data.append({"date": current_date.isoformat(), "total_value": int(value), "daily_return": change_pct * 100})
         current_date += timedelta(days=1)
-    
     return mock_data

@@ -1,0 +1,4 @@
+symbol,type,quantity,price,date
+# Example:
+# QQQ,BUY,10,400.50,2024-01-15
+# DBMF,SELL,5,30.20,2024-02-01

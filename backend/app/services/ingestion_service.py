@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import func
 
-from app.models import Asset, RawDailyPrice, PortfolioSnapshot
-from app.services.portfolio_service import PortfolioService
+from ..models import Asset, RawDailyPrice, PortfolioSnapshot
+from .portfolio_service import PortfolioService
 
 class PriceIngestionService:
     @staticmethod

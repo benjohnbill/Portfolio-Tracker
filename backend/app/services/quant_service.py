@@ -144,35 +144,23 @@ class QuantService:
     @staticmethod
     def get_mstr_signal(db: Session):
         """
-        Calculate MNAV and Z-score for MSTR.
+        Calculate MNAV and Z-score for MSTR using cached raw_daily_prices.
         """
         try:
-            # 1. Download 1.5 years (380 trading days approx) of Daily Close prices
-            end_date = datetime.now()
-            # 1.5 years is about 547 days. 252 trading days is 1 year. 
-            # 380 trading days is about 1.5 years.
-            start_date = end_date - timedelta(days=600) # Use 600 days to be safe
+            from ..models import RawDailyPrice
+            # 1. Fetch MSTR and BTC from DB
+            mstr_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "MSTR").order_by(RawDailyPrice.date.asc())
+            mstr_data = pd.read_sql(mstr_query.statement, db.bind)
             
-            mstr_ticker = "MSTR"
-            btc_ticker = "BTC-USD"
-            
-            mstr_data = yf.download(mstr_ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
-            btc_data = yf.download(btc_ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
-            
+            btc_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "BTC-USD").order_by(RawDailyPrice.date.asc())
+            btc_data = pd.read_sql(btc_query.statement, db.bind)
+
             if mstr_data.empty or btc_data.empty:
-                print("Failed to download MSTR or BTC data.")
+                print("Failed to find MSTR or BTC data in local DB.")
                 return None
 
-            # Handle potential MultiIndex
-            if isinstance(mstr_data.columns, pd.MultiIndex):
-                mstr_close = mstr_data['Close'][mstr_ticker]
-            else:
-                mstr_close = mstr_data['Close']
-                
-            if isinstance(btc_data.columns, pd.MultiIndex):
-                btc_close = btc_data['Close'][btc_ticker]
-            else:
-                btc_close = btc_data['Close']
+            mstr_close = mstr_data['close_price']
+            btc_close = btc_data['close_price']
 
             # 2. Read records from mstr_corporate_actions
             actions_query = db.query(MSTRCorporateAction).order_by(MSTRCorporateAction.date.asc())
@@ -251,35 +239,23 @@ class QuantService:
             return None
 
     @staticmethod
-    def get_rsi(ticker: str, period: str = "1y", window: int = 14):
+    def get_rsi(ticker: str, db: Session, window: int = 14):
         """
-        Calculate Relative Strength Index (RSI).
+        Calculate Relative Strength Index (RSI) from cached DB data.
         """
         try:
-            data = yf.download(ticker, period=period, progress=False)
+            from ..models import RawDailyPrice
+            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == ticker).order_by(RawDailyPrice.date.asc())
+            data = pd.read_sql(query.statement, db.bind)
+            
             if data.empty:
-                return 0.0
+                return 50.0
             
-            # Handle MultiIndex
-            if isinstance(data.columns, pd.MultiIndex):
-                # Check for ('Close', ticker)
-                if ('Close', ticker) in data.columns:
-                    close = data[('Close', ticker)]
-                else:
-                    close = data['Close'].iloc[:, 0]
-            else:
-                close = data['Close']
-            
-            # Handle if close is a DataFrame
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-
+            close = data['close_price']
             delta = close.diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
             
-            # Standard RSI uses Wilder's smoothing or EMA, but let's stick to SMA for simplicity
-            # unless specified. SMA gain/loss is standard for some too.
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs))
             return float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else 50.0
@@ -288,28 +264,19 @@ class QuantService:
             return 50.0
 
     @staticmethod
-    def get_moving_average(ticker: str, period: str = "2y", window: int = 250):
+    def get_moving_average(ticker: str, db: Session, window: int = 250):
         """
-        Calculate Simple Moving Average (SMA).
+        Calculate Simple Moving Average (SMA) from cached DB data.
         """
         try:
-            data = yf.download(ticker, period=period, progress=False)
+            from ..models import RawDailyPrice
+            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == ticker).order_by(RawDailyPrice.date.asc())
+            data = pd.read_sql(query.statement, db.bind)
+            
             if data.empty:
                 return 0.0
                 
-            # Handle MultiIndex
-            if isinstance(data.columns, pd.MultiIndex):
-                if ('Close', ticker) in data.columns:
-                    close = data[('Close', ticker)]
-                else:
-                    close = data['Close'].iloc[:, 0]
-            else:
-                close = data['Close']
-
-            # Handle if close is a DataFrame
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-                
+            close = data['close_price']
             ma = close.rolling(window=window).mean()
             return float(ma.iloc[-1]) if not pd.isna(ma.iloc[-1]) else 0.0
         except Exception as e:
@@ -317,29 +284,20 @@ class QuantService:
             return 0.0
 
     @staticmethod
-    def get_ndx_status():
+    def get_ndx_status(db: Session):
         """
-        Returns current NDX price and its 250MA.
+        Returns current NDX price and its 250MA from cached DB data.
         """
         try:
-            ticker = "^NDX"
-            data = yf.download(ticker, period="2y", progress=False)
+            ticker = "QQQ" # Proxy for NDX to avoid caching index ticker separately if not needed, or use ^NDX if cached
+            from ..models import RawDailyPrice
+            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == ticker).order_by(RawDailyPrice.date.asc())
+            data = pd.read_sql(query.statement, db.bind)
+            
             if data.empty:
                 return None
                 
-            # Handle MultiIndex
-            if isinstance(data.columns, pd.MultiIndex):
-                if ('Close', ticker) in data.columns:
-                    close = data[('Close', ticker)]
-                else:
-                    close = data['Close'].iloc[:, 0]
-            else:
-                close = data['Close']
-
-            # Handle if close is a DataFrame
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-                
+            close = data['close_price']
             current_price = float(close.iloc[-1])
             ma_250_series = close.rolling(window=250).mean()
             current_ma_250 = float(ma_250_series.iloc[-1]) if not pd.isna(ma_250_series.iloc[-1]) else 0.0

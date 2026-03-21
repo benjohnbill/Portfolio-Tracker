@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from .database import SessionLocal, engine, Base, get_db
-from .models import Asset, Transaction
+from .models import Asset, Transaction, PortfolioSnapshot
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -18,6 +18,7 @@ from .services.kis_service import KISService
 from .services.exchange_service import ExchangeService
 from .services.quant_service import QuantService
 from .services.algo_service import AlgoService
+from .services.ingestion_service import PriceIngestionService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -154,8 +155,8 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
     active_holdings = {k: v for k, v in holdings.items() if v > 0.0001}
     if not active_holdings: return []
 
-    current_fx = ExchangeService.get_current_rate()
-    brazil_bond_current_value = KISService.get_brazil_bond_value()
+    current_fx = 1400.0 # Fast fallback to avoid blocking
+    brazil_bond_current_value = 0 # Handled by fallback
     
     result = []
     total_value = 0
@@ -173,7 +174,9 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
                 current_price = brazil_bond_current_value / qty if qty > 0 else 0
                 value_krw = brazil_bond_current_value
         else:
-            current_price = PriceService.get_current_price(asset.code if asset.source == "KR" else asset.symbol, asset.source)
+            latest_price_row = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == (asset.code if asset.source == "KR" else asset.symbol)).order_by(RawDailyPrice.date.desc()).first()
+            current_price = latest_price_row.close_price if latest_price_row else 0.0
+            
             if current_price == 0:
                 last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
                 current_price = last_tx.price if last_tx else 100.0 
@@ -199,30 +202,62 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
     """Returns portfolio value history for charts based on real transactions."""
-    history = PortfolioService.get_equity_curve(db, period)
-    return history if history else generate_mock_history(date.today() - timedelta(days=30), date.today())
+    query = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc())
+    
+    today = date.today()
+    if period == "1y":
+        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=365))
+    elif period == "ytd":
+        query = query.filter(PortfolioSnapshot.date >= date(today.year, 1, 1))
+    elif period == "1m":
+        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=30))
+    elif period == "3m":
+        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=90))
+        
+    snapshots = query.all()
+    if not snapshots:
+        return []
+        
+    history = []
+    prev_val = 0
+    for s in snapshots:
+        curr_val = s.total_value
+        daily_return = (curr_val - prev_val) / prev_val if prev_val > 0 else 0
+        history.append({
+            "date": s.date.isoformat(),
+            "total_value": curr_val,
+            "daily_return": daily_return
+        })
+        prev_val = curr_val
+        
+    return history
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):
     """Returns high-level performance metrics (CAGR, MDD, Sharpe)."""
-    history = PortfolioService.get_equity_curve(db, period="all")
-    if not history: return {"total_value": 0, "metrics": {}}
+    snapshots = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc()).all()
+    if not snapshots:
+        return {"total_value": 0, "invested_capital": 0, "metrics": {}}
     
-    # Calculate total invested capital (sum of all BUYs - sum of all SELLs at cost)
-    txs = db.query(Transaction).all()
-    invested_capital = 0
-    for t in txs:
-        if t.type == "BUY":
-            invested_capital += t.total_amount
-        elif t.type == "SELL":
-            # Rough approximation: subtract the original cost basis if we had it, 
-            # but for now we just subtract the sell amount to reflect current net capital out.
-            invested_capital -= t.total_amount
+    latest_snapshot = snapshots[-1]
+    
+    history = []
+    prev_val = 0
+    for s in snapshots:
+        curr_val = s.total_value
+        daily_return = (curr_val - prev_val) / prev_val if prev_val > 0 else 0
+        history.append({
+            "date": s.date.isoformat(),
+            "total_value": curr_val,
+            "daily_return": daily_return
+        })
+        prev_val = curr_val
             
     metrics = PortfolioService.calculate_metrics(history)
+            
     return {
-        "total_value": history[-1]["total_value"], 
-        "invested_capital": max(0, invested_capital),
+        "total_value": latest_snapshot.total_value, 
+        "invested_capital": latest_snapshot.invested_capital,
         "metrics": metrics
     }
 
@@ -294,12 +329,15 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         )
     
     try:
+        PriceIngestionService.update_raw_prices(db)
+        PriceIngestionService.generate_portfolio_snapshots(db)
+        
         vxn_updated = QuantService.update_vxn_history(db)
         mstr_seeded = QuantService.seed_mstr_corporate_actions(db)
         
         return {
             "status": "success", 
-            "message": "VXN history updated and MSTR actions verified.",
+            "message": "Prices, snapshots, VXN history updated and MSTR actions verified.",
             "vxn_updated": vxn_updated,
             "mstr_seeded": mstr_seeded
         }

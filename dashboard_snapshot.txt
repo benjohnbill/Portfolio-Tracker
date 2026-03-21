@@ -1,0 +1,95 @@
+uid=1_0 RootWebArea url="http://localhost:3000/"
+  uid=1_1 ignored
+    uid=1_2 ignored
+      uid=1_3 generic
+      uid=1_4 generic
+        uid=1_5 ignored
+      uid=1_6 generic
+        uid=1_7 alert atomic live="assertive" relevant="additions text"
+      uid=1_8 generic
+        uid=1_9 generic
+        uid=1_10 dialog "Failed to compile" description="This error occurred during the build process and can only be dismissed by fixing the error." modal
+          uid=1_11 generic
+          uid=1_12 ignored
+            uid=1_13 ignored
+              uid=1_14 heading "Failed to compile" level="4"
+                uid=1_15 StaticText "Failed to compile"
+            uid=1_16 generic
+              uid=1_17 ignored
+                uid=1_18 generic
+                  uid=1_19 StaticText "./src/components/ui/sheet.tsx:5:0
+"
+                  uid=1_20 StaticText "Module not found"
+                  uid=1_21 StaticText ": Can't resolve '"
+                  uid=1_22 StaticText "@radix-ui/react-dialog"
+                  uid=1_23 StaticText "'
+"
+                  uid=1_24 StaticText " "
+                  uid=1_25 StaticText " 3 |"
+                  uid=1_26 StaticText " "
+                  uid=1_27 StaticText "import"
+                  uid=1_28 StaticText " "
+                  uid=1_29 StaticText "*"
+                  uid=1_30 StaticText " "
+                  uid=1_31 StaticText "as"
+                  uid=1_32 StaticText " "
+                  uid=1_33 StaticText "React"
+                  uid=1_34 StaticText " "
+                  uid=1_35 StaticText "from"
+                  uid=1_36 StaticText " "
+                  uid=1_37 StaticText ""react""
+                  uid=1_38 StaticText "
+"
+                  uid=1_39 StaticText " "
+                  uid=1_40 StaticText " 4 |"
+                  uid=1_41 StaticText " "
+                  uid=1_42 StaticText "import"
+                  uid=1_43 StaticText " { "
+                  uid=1_44 StaticText "XIcon"
+                  uid=1_45 StaticText " } "
+                  uid=1_46 StaticText "from"
+                  uid=1_47 StaticText " "
+                  uid=1_48 StaticText ""lucide-react""
+                  uid=1_49 StaticText "
+"
+                  uid=1_50 StaticText ">"
+                  uid=1_51 StaticText " 5 |"
+                  uid=1_52 StaticText " "
+                  uid=1_53 StaticText "import"
+                  uid=1_54 StaticText " "
+                  uid=1_55 StaticText "*"
+                  uid=1_56 StaticText " "
+                  uid=1_57 StaticText "as"
+                  uid=1_58 StaticText " "
+                  uid=1_59 StaticText "SheetPrimitive"
+                  uid=1_60 StaticText " "
+                  uid=1_61 StaticText "from"
+                  uid=1_62 StaticText " "
+                  uid=1_63 StaticText ""@radix-ui/react-dialog""
+                  uid=1_64 StaticText "
+"
+                  uid=1_65 StaticText " "
+                  uid=1_66 StaticText " 6 |"
+                  uid=1_67 StaticText "
+"
+                  uid=1_68 StaticText " "
+                  uid=1_69 StaticText " 7 |"
+                  uid=1_70 StaticText " "
+                  uid=1_71 StaticText "import"
+                  uid=1_72 StaticText " { cn } "
+                  uid=1_73 StaticText "from"
+                  uid=1_74 StaticText " "
+                  uid=1_75 StaticText ""@/lib/utils""
+                  uid=1_76 StaticText "
+"
+                  uid=1_77 StaticText " "
+                  uid=1_78 StaticText " 8 |"
+                  uid=1_79 StaticText "
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/components/features/AddAssetModal.tsx"
+              uid=1_80 contentinfo
+                uid=1_81 paragraph
+                  uid=1_82 StaticText "This error occurred during the build process and can only be dismissed by fixing the error."

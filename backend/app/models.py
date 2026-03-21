@@ -32,15 +32,19 @@ class DailyPrice(Base):
 
     asset = relationship("Asset", back_populates="prices")
 
+class RawDailyPrice(Base):
+    __tablename__ = "raw_daily_prices"
+    date = Column(Date, primary_key=True)
+    ticker = Column(String, primary_key=True)
+    close_price = Column(Float)
+
 class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"
 
-    id = Column(Integer, primary_key=True, index=True)
-    date = Column(Date, unique=True, index=True)
+    date = Column(Date, primary_key=True)
     total_value = Column(Float)
+    invested_capital = Column(Float)
     cash_balance = Column(Float)
-    invested_amount = Column(Float)
-    daily_return = Column(Float, nullable=True)
 
 class Transaction(Base):
     __tablename__ = "transactions"

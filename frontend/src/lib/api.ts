@@ -112,31 +112,21 @@ export interface ActionReport {
 }
 
 /**
- * Fetches portfolio history either from Mock or the Backend.
- * Backend endpoint when ready: http://localhost:8000/api/portfolio/history
+ * Fetches portfolio history from the Backend.
+ * Backend endpoint: http://localhost:8000/api/portfolio/history
  */
-export async function getPortfolioHistory(period: string = 'ytd'): Promise<PortfolioHistoryData[]> {
-  const USE_MOCK = false; // Using real backend now
-
-  if (USE_MOCK) {
-    // Simulate network delay
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(mockPortfolioHistory), 500);
-    });
-  }
-
+export async function getPortfolioHistory(period: string = 'all'): Promise<PortfolioHistoryData[]> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/portfolio/history?period=${period}`, {
-      // Ensure Next.js doesn't overly cache this in a way that breaks real-time updates for now
       cache: 'no-store' 
     });
     if (!res.ok) throw new Error('Failed to fetch from backend');
     return res.json();
   } catch (error) {
     console.error('API Error:', error);
-    // Fallback to mock if API fails while testing
-    return mockPortfolioHistory;
+    // Return empty list instead of confusing mock data
+    return [];
   }
 }
 

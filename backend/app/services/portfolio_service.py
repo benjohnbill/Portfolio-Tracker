@@ -4,7 +4,7 @@ import pandas as pd
 from .price_service import PriceService
 from .exchange_service import ExchangeService
 from .kis_service import KISService
-from ..models import Transaction, Asset
+from ..models import Transaction, Asset, RawDailyPrice
 
 class PortfolioService:
     @staticmethod
@@ -55,6 +55,9 @@ class PortfolioService:
         
         if period == "1y":
             start_date = max(start_date, today - timedelta(days=365))
+        elif period == "all" or period == "max":
+            # Start from the first transaction
+            start_date = transactions[0].date.date()
         
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = today.strftime('%Y-%m-%d')
@@ -63,34 +66,34 @@ class PortfolioService:
         asset_ids = list(set(t.asset_id for t in transactions))
         assets = {a.id: a for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()}
         
-        # Split assets by source for optimization
-        us_symbols = [a.symbol for a in assets.values() if a.source == "US"]
-        us_symbol_to_id = {a.symbol: a.id for a in assets.values() if a.source == "US"}
+        symbols_to_fetch = [a.symbol for a in assets.values() if a.symbol and a.symbol != "BRAZIL_BOND"]
+        if "SPY" not in symbols_to_fetch:
+            symbols_to_fetch.append("SPY")
+        
+        raw_prices = db.query(RawDailyPrice).filter(
+            RawDailyPrice.ticker.in_(symbols_to_fetch),
+            RawDailyPrice.date >= start_date,
+            RawDailyPrice.date <= today
+        ).all()
         
         price_data = {}
-        
-        # Bulk fetch US prices (O(1) network call)
-        if us_symbols:
-            # Ensure SPY benchmark is included in the bulk fetch
-            if "SPY" not in us_symbols:
-                us_symbols.append("SPY")
-                
-            bulk_us_prices = PriceService.get_historical_prices_bulk(us_symbols, start_date_str, end_date_str)
-            for symbol in us_symbols:
-                if symbol in bulk_us_prices.columns:
-                    # Only add to price_data if the symbol is actually in our assets
-                    if symbol in us_symbol_to_id:
-                        aid = us_symbol_to_id[symbol]
-                        price_data[aid] = bulk_us_prices[symbol].dropna()
-                    
-            spy_history = bulk_us_prices["SPY"].dropna() if "SPY" in bulk_us_prices.columns else pd.Series()
-        else:
-            spy_history = PriceService.get_historical_prices("SPY", start_date_str, end_date_str, "US")
+        spy_history = pd.Series(dtype=float)
 
-        # Fetch KR prices individually (FDR doesn't support bulk well)
-        for aid, a in assets.items():
-            if a.source == "KR":
-                price_data[aid] = PriceService.get_historical_prices(a.code, start_date_str, end_date_str, "KR")
+        if raw_prices:
+            df_prices = pd.DataFrame([{
+                "date": pd.to_datetime(rp.date),
+                "ticker": rp.ticker,
+                "close_price": rp.close_price
+            } for rp in raw_prices])
+            
+            df_pivot = df_prices.pivot(index='date', columns='ticker', values='close_price')
+            
+            symbol_to_id = {a.symbol: a.id for a in assets.values()}
+            for symbol in df_pivot.columns:
+                if symbol in symbol_to_id:
+                    price_data[symbol_to_id[symbol]] = df_pivot[symbol].dropna()
+                if symbol == "SPY":
+                    spy_history = df_pivot["SPY"].dropna()
 
         fx_history = ExchangeService.get_usd_krw_history(start_date_str, end_date_str)
 

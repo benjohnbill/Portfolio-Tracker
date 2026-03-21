@@ -1,4 +1,5 @@
 import { getPortfolioHistory, getPortfolioAllocation, getPortfolioSummary, getActionReport } from '@/lib/api';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
 import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
@@ -85,10 +86,17 @@ export default async function DashboardPage({
         
         <div className="flex items-center space-x-4">
           <div className="flex items-center bg-[#11161d] border border-border/40 p-1 rounded-lg">
-             {['Overview', 'Analysis', 'Settings'].map((btn) => (
-               <button key={btn} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${btn === 'Overview' ? 'bg-[#1a232e] text-white shadow-sm' : 'text-muted-foreground hover:text-white'}`}>
-                  {btn}
-               </button>
+             {[
+               { label: '1 Year', value: '1y' },
+               { label: 'All Time', value: 'all' }
+             ].map((opt) => (
+               <Link 
+                 key={opt.value} 
+                 href={`/?period=${opt.value}`}
+                 className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${period === opt.value ? 'bg-[#1a232e] text-white shadow-sm' : 'text-muted-foreground hover:text-white'}`}
+               >
+                  {opt.label}
+               </Link>
              ))}
           </div>
           <AddAssetModal />

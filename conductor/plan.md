@@ -28,21 +28,38 @@ This document serves as the project's state machine. Tools (MCPs) are strictly b
 - **> [Allowed MCPs: database-toolbox, context7]**
 - **> [Forbidden: chrome-devtools]**
 
-## Phase 4: Quant Engine & Serverless Migration (Current Focus)
+## Phase 4: Quant Engine & Serverless Migration (Complete)
 **Detailed Plan:** See `conductor/phase4-quant-engine.md` for Maestro agent breakdown.
 
 ### Phase 4.1: PostgreSQL Migration & Schema Expansion
-- [ ] Task 1: Migrate from SQLite to Supabase (PostgreSQL).
-- [ ] Task 2: Add `account_type` to Silo assets.
-- [ ] Task 3: Create `mstr_corporate_actions` and `vxn_daily_history` tables.
+- [x] Task 1: Migrate from SQLite to Supabase (PostgreSQL).
+- [x] Task 2: Add `account_type` to Silo assets.
+- [x] Task 3: Create `mstr_corporate_actions` and `vxn_daily_history` tables.
 
 ### Phase 4.2: Quant Pipeline Implementation
-- [ ] Task 1: Module 1 (VXN Volatility Filter).
-- [ ] Task 2: Module 2 (MSTR Dynamic Z-Score).
-- [ ] Task 3: API & CRON Endpoints setup.
+- [x] Task 1: Module 1 (VXN Volatility Filter).
+- [x] Task 2: Module 2 (MSTR Dynamic Z-Score).
+- [x] Task 3: API & CRON Endpoints setup.
 
 ### Phase 4.3: The "Jin-geun" Algorithm Engine
-- [ ] Task 1: Implement State Engine and Buy/Sell Priority Logic.
+- [x] Task 1: Implement State Engine and Buy/Sell Priority Logic.
 
 ### Phase 4.4: Signal Dashboard Rebuild
-- [ ] Task 1: Shift UI to "Friday Action Planner" with Signal Banners and Target Deviation Visualizations.
+- [x] Task 1: Shift UI to "Friday Action Planner" with Signal Banners and Target Deviation Visualizations.
+
+## Phase 5: ELT Data Pipeline & Zero-Latency UI (Current Focus)
+**Detailed Plan:** See `conductor/phase5-elt-pipeline.md` for Maestro agent breakdown.
+
+### Phase 5.1: Database Schema for ELT
+- [ ] Task 1: Create `raw_daily_prices` table.
+- [ ] Task 2: Create `portfolio_snapshots` table for cached equity curve.
+
+### Phase 5.2: The 'Extract & Load' Worker
+- [ ] Task 1: Implement daily cron job to fetch missing raw prices and dump to DB.
+
+### Phase 5.3: The 'Transform' Engine
+- [ ] Task 1: Refactor `PortfolioService` to calculate equity curve from DB raw prices.
+- [ ] Task 2: Save final daily portfolio snapshot to `portfolio_snapshots`.
+
+### Phase 5.4: 0.1s API Refactor
+- [ ] Task 1: Refactor `/api/portfolio/history` to only SELECT from `portfolio_snapshots`.

@@ -13,6 +13,7 @@ venv_new/
 env/
 .env
 .env.*
+!backend/.env.example
 
 # IDE
 .vscode/
@@ -35,6 +36,7 @@ Thumbs.db
 
 # JS / package caches
 node_modules/
+*.tsbuildinfo
 
 # Python package caches
 site-packages/

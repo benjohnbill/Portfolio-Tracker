@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
 import random
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
 
 from .database import SessionLocal, engine, Base, get_db
-from .models import Asset, Transaction, PortfolioSnapshot
+from .models import Asset, Transaction, PortfolioSnapshot, RawDailyPrice
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -19,6 +19,8 @@ from .services.exchange_service import ExchangeService
 from .services.quant_service import QuantService
 from .services.algo_service import AlgoService
 from .services.ingestion_service import PriceIngestionService
+from .services.annotation_service import AnnotationService
+from .services.report_service import ReportService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -35,6 +37,25 @@ class TransactionCreate(BaseModel):
     price: Optional[float] = None
     date: Optional[str] = None # Change to str for easier Pydantic parsing from JSON
 
+
+class WeeklyReportGenerateRequest(BaseModel):
+    week_ending: Optional[str] = None
+    include_summary: bool = False
+
+
+class EventAnnotationCreate(BaseModel):
+    week_ending: str
+    level: int
+    title: str
+    summary: str
+    status: str = "active"
+    affected_buckets: List[str] = Field(default_factory=list)
+    affected_sleeves: List[str] = Field(default_factory=list)
+    duration: Optional[str] = None
+    decision_impact: Optional[str] = None
+    source: str = "manual"
+    event_date: Optional[str] = None
+
 # CORS configuration
 origins = ["*"] # Broaden for local development
 
@@ -49,6 +70,11 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Portfolio Tracker API"}
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/api/assets")
 def get_assets(db: Session = Depends(get_db)):
@@ -100,6 +126,8 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         db.add(asset)
         db.commit()
         db.refresh(asset)
+    else:
+        source = asset.source
         
     # 2. Auto-fetch price if not provided
     final_price = tx.price
@@ -146,58 +174,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
 @app.get("/api/portfolio/allocation")
 def get_portfolio_allocation(db: Session = Depends(get_db)):
     """Calculates current holdings and weights in KRW"""
-    txs = db.query(Transaction).all()
-    holdings = {} # {asset_id: quantity}
-    for t in txs:
-        if t.asset_id not in holdings: holdings[t.asset_id] = 0
-        holdings[t.asset_id] += t.quantity if t.type == "BUY" else -t.quantity
-
-    active_holdings = {k: v for k, v in holdings.items() if v > 0.0001}
-    if not active_holdings: return []
-
-    current_fx = 1400.0 # Fast fallback to avoid blocking
-    brazil_bond_current_value = 0 # Handled by fallback
-    
-    result = []
-    total_value = 0
-    
-    for asset_id, qty in active_holdings.items():
-        asset = db.query(Asset).filter(Asset.id == asset_id).first()
-        
-        # Special case for Brazil Bond
-        if asset.symbol == "BRAZIL_BOND":
-            if brazil_bond_current_value <= 0:
-                last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
-                current_price = last_tx.price if last_tx else 1860000.0
-                value_krw = qty * current_price
-            else:
-                current_price = brazil_bond_current_value / qty if qty > 0 else 0
-                value_krw = brazil_bond_current_value
-        else:
-            latest_price_row = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == (asset.code if asset.source == "KR" else asset.symbol)).order_by(RawDailyPrice.date.desc()).first()
-            current_price = latest_price_row.close_price if latest_price_row else 0.0
-            
-            if current_price == 0:
-                last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
-                current_price = last_tx.price if last_tx else 100.0 
-            value_krw = qty * current_price * (current_fx if asset.source == "US" else 1.0)
-            
-        total_value += value_krw
-        result.append({
-            "asset": asset.symbol,
-            "name": asset.name,
-            "quantity": qty,
-            "price": current_price,
-            "value": value_krw,
-            "weight": 0,
-            "source": asset.source,
-            "account_type": asset.account_type.value if asset.account_type else "OVERSEAS"
-        })
-
-    for item in result:
-        item["weight"] = item["value"] / total_value if total_value > 0 else 0
-        
-    return sorted(result, key=lambda x: x["value"], reverse=True)
+    return PortfolioService.get_portfolio_allocation(db)
 
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
@@ -235,31 +212,7 @@ def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):
     """Returns high-level performance metrics (CAGR, MDD, Sharpe)."""
-    snapshots = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc()).all()
-    if not snapshots:
-        return {"total_value": 0, "invested_capital": 0, "metrics": {}}
-    
-    latest_snapshot = snapshots[-1]
-    
-    history = []
-    prev_val = 0
-    for s in snapshots:
-        curr_val = s.total_value
-        daily_return = (curr_val - prev_val) / prev_val if prev_val > 0 else 0
-        history.append({
-            "date": s.date.isoformat(),
-            "total_value": curr_val,
-            "daily_return": daily_return
-        })
-        prev_val = curr_val
-            
-    metrics = PortfolioService.calculate_metrics(history)
-            
-    return {
-        "total_value": latest_snapshot.total_value, 
-        "invested_capital": latest_snapshot.invested_capital,
-        "metrics": metrics
-    }
+    return PortfolioService.get_portfolio_summary(db)
 
 @app.get("/api/macro-vitals")
 def get_macro_vitals():
@@ -318,6 +271,70 @@ def get_action_report(db: Session = Depends(get_db)):
         print(f"Error in GET /api/algo/action-report: {e}")
         raise HTTPException(status_code=500, detail=f"Calculation error: {str(e)}")
 
+
+@app.get("/api/reports/weekly")
+def list_weekly_reports(limit: int = 12, db: Session = Depends(get_db)):
+    return ReportService.list_reports(db, limit=limit)
+
+
+@app.get("/api/reports/weekly/latest")
+def get_latest_weekly_report(db: Session = Depends(get_db)):
+    try:
+        return ReportService.get_latest_report(db)
+    except Exception as e:
+        print(f"Error in GET /api/reports/weekly/latest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/reports/weekly/{week_ending}")
+def get_weekly_report(week_ending: str, db: Session = Depends(get_db)):
+    try:
+        parsed = datetime.strptime(week_ending, "%Y-%m-%d").date()
+        report = ReportService.get_report_by_week(db, parsed)
+        if not report:
+            raise HTTPException(status_code=404, detail="Weekly report not found")
+        return report
+    except ValueError:
+        raise HTTPException(status_code=400, detail="week_ending must be YYYY-MM-DD")
+
+
+@app.post("/api/reports/weekly/generate")
+def generate_weekly_report(payload: WeeklyReportGenerateRequest, db: Session = Depends(get_db)):
+    try:
+        week_ending = datetime.strptime(payload.week_ending, "%Y-%m-%d").date() if payload.week_ending else None
+        return ReportService.generate_weekly_report(db, week_ending=week_ending, include_summary=payload.include_summary)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="week_ending must be YYYY-MM-DD")
+    except Exception as e:
+        print(f"Error in POST /api/reports/weekly/generate: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/reports/weekly/annotations")
+def create_weekly_annotation(payload: EventAnnotationCreate, db: Session = Depends(get_db)):
+    try:
+        week_ending = datetime.strptime(payload.week_ending, "%Y-%m-%d").date()
+        event_date = datetime.strptime(payload.event_date, "%Y-%m-%d").date() if payload.event_date else None
+        return AnnotationService.create_annotation(
+            db,
+            week_ending=week_ending,
+            level=payload.level,
+            title=payload.title,
+            summary=payload.summary,
+            status=payload.status,
+            affected_buckets=payload.affected_buckets,
+            affected_sleeves=payload.affected_sleeves,
+            duration=payload.duration,
+            decision_impact=payload.decision_impact,
+            source=payload.source,
+            event_date=event_date,
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+    except Exception as e:
+        print(f"Error in POST /api/reports/weekly/annotations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/cron/update-signals")
 def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = Depends(get_db)):
     """Secure endpoint for periodic data updates via GitHub Actions"""
@@ -334,12 +351,21 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         
         vxn_updated = QuantService.update_vxn_history(db)
         mstr_seeded = QuantService.seed_mstr_corporate_actions(db)
+        weekly_report = ReportService.generate_weekly_report(
+            db,
+            include_summary=os.getenv("WEEKLY_REPORT_LLM_PROVIDER") in {"openai", "gemini"}
+            and bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY_MAIN")),
+        )
         
         return {
             "status": "success", 
-            "message": "Prices, snapshots, VXN history updated and MSTR actions verified.",
+            "message": "Prices, snapshots, VXN history updated and weekly report generated.",
             "vxn_updated": vxn_updated,
-            "mstr_seeded": mstr_seeded
+            "mstr_seeded": mstr_seeded,
+            "weekly_report": {
+                "weekEnding": weekly_report.get("weekEnding"),
+                "score": weekly_report.get("score", {}).get("total"),
+            },
         }
     except Exception as e:
         print(f"Error in POST /api/cron/update-signals: {e}")

@@ -44,7 +44,7 @@ class AlgoService:
         # 2. Fetch Signals from QuantService
         vxn_signal = QuantService.get_vxn_signal(db)
         mstr_signal = QuantService.get_mstr_signal(db)
-        ndx_status = QuantService.get_ndx_status()
+        ndx_status = QuantService.get_ndx_status(db)
         
         # Additional signals for GLDM and TLT (using US tickers for reliable TA)
         # TODO: Refactor these to use a MarketSignals cache table instead of live fetching

@@ -4,7 +4,7 @@ import pandas as pd
 from .price_service import PriceService
 from .exchange_service import ExchangeService
 from .kis_service import KISService
-from ..models import Transaction, Asset, RawDailyPrice
+from ..models import Transaction, Asset, RawDailyPrice, PortfolioSnapshot
 
 class PortfolioService:
     @staticmethod
@@ -42,13 +42,13 @@ class PortfolioService:
         Calculates the daily total value of the portfolio in KRW.
         Includes currency conversion, SPY benchmark comparison, and KIS Brazil Bond sync.
         """
-        # Fetch real-time Brazil Bond value from KIS
-        brazil_bond_current_value = KISService.get_brazil_bond_value()
-
         # 1. Get transactions and setup date range
         transactions = db.query(Transaction).order_by(Transaction.date).all()
         if not transactions:
             return []
+
+        has_brazil_bond = any(getattr(tx.asset, 'symbol', None) == 'BRAZIL_BOND' for tx in transactions if getattr(tx, 'asset', None))
+        brazil_bond_current_value = KISService.get_brazil_bond_value() if has_brazil_bond else 0.0
 
         start_date = transactions[0].date.date()
         today = date.today()
@@ -232,4 +232,102 @@ class PortfolioService:
             "mdd": float(mdd),
             "volatility": float(volatility),
             "sharpe_ratio": float(sharpe_ratio)
+        }
+
+    @staticmethod
+    def calculate_invested_capital(db: Session) -> float:
+        transactions = db.query(Transaction).all()
+        invested = 0.0
+        for tx in transactions:
+            if tx.type == "BUY":
+                invested += float(tx.total_amount or (tx.quantity * tx.price) or 0.0)
+            elif tx.type == "SELL":
+                invested -= float(tx.total_amount or (tx.quantity * tx.price) or 0.0)
+        return max(invested, 0.0)
+
+    @staticmethod
+    def get_portfolio_allocation(db: Session):
+        txs = db.query(Transaction).all()
+        holdings = {}
+        for tx in txs:
+            holdings[tx.asset_id] = holdings.get(tx.asset_id, 0.0) + (tx.quantity if tx.type == "BUY" else -tx.quantity)
+
+        active_holdings = {asset_id: qty for asset_id, qty in holdings.items() if qty > 0.0001}
+        if not active_holdings:
+            return []
+
+        current_fx = ExchangeService.get_current_rate()
+        has_brazil_bond = False
+        for asset_id in active_holdings:
+            asset = db.query(Asset).filter(Asset.id == asset_id).first()
+            if asset and asset.symbol == "BRAZIL_BOND":
+                has_brazil_bond = True
+                break
+        brazil_bond_current_value = KISService.get_brazil_bond_value() if has_brazil_bond else 0.0
+        result = []
+        total_value = 0.0
+
+        for asset_id, qty in active_holdings.items():
+            asset = db.query(Asset).filter(Asset.id == asset_id).first()
+            if not asset:
+                continue
+
+            if asset.symbol == "BRAZIL_BOND":
+                if brazil_bond_current_value > 0:
+                    current_price = brazil_bond_current_value / qty if qty > 0 else 0.0
+                    value_krw = brazil_bond_current_value
+                else:
+                    last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
+                    current_price = last_tx.price if last_tx else 1860000.0
+                    value_krw = qty * current_price
+            else:
+                latest_price_row = db.query(RawDailyPrice).filter(
+                    RawDailyPrice.ticker == (asset.code if asset.source == "KR" else asset.symbol)
+                ).order_by(RawDailyPrice.date.desc()).first()
+                current_price = latest_price_row.close_price if latest_price_row else 0.0
+                if current_price == 0:
+                    last_tx = db.query(Transaction).filter(Transaction.asset_id == asset_id).order_by(Transaction.date.desc()).first()
+                    current_price = last_tx.price if last_tx else 100.0
+                value_krw = qty * current_price * (current_fx if asset.source == "US" else 1.0)
+
+            total_value += value_krw
+            result.append({
+                "asset": asset.symbol,
+                "name": asset.name,
+                "quantity": qty,
+                "price": current_price,
+                "value": value_krw,
+                "weight": 0.0,
+                "source": asset.source,
+                "account_type": asset.account_type.value if asset.account_type else "OVERSEAS",
+            })
+
+        for item in result:
+            item["weight"] = item["value"] / total_value if total_value > 0 else 0.0
+
+        return sorted(result, key=lambda item: item["value"], reverse=True)
+
+    @staticmethod
+    def get_portfolio_summary(db: Session):
+        snapshots = db.query(PortfolioSnapshot).count()
+        if snapshots == 0:
+            return {
+                "total_value": 0,
+                "invested_capital": 0,
+                "metrics": PortfolioService.calculate_metrics([]),
+            }
+
+        history = PortfolioService.get_equity_curve(db, period="all")
+        if not history:
+            return {
+                "total_value": 0,
+                "invested_capital": 0,
+                "metrics": PortfolioService.calculate_metrics([]),
+            }
+
+        latest = history[-1]
+        return {
+            "total_value": latest["total_value"],
+            "invested_capital": PortfolioService.calculate_invested_capital(db),
+            "metrics": PortfolioService.calculate_metrics(history),
         }

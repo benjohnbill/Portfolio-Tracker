@@ -159,9 +159,6 @@ class QuantService:
                 print("Failed to find MSTR or BTC data in local DB.")
                 return None
 
-            mstr_close = mstr_data['close_price']
-            btc_close = btc_data['close_price']
-
             # 2. Read records from mstr_corporate_actions
             actions_query = db.query(MSTRCorporateAction).order_by(MSTRCorporateAction.date.asc())
             actions_df = pd.read_sql(actions_query.statement, db.bind)
@@ -170,14 +167,13 @@ class QuantService:
                 print("No MSTR corporate actions found.")
                 return None
             
-            # 3. Prepare datasets for merging
-            # Reset index and ensure date is datetime for merge_asof
-            mstr_df = pd.DataFrame({"mstr_close": mstr_close}).reset_index()
-            mstr_df.rename(columns={"Date": "date"}, inplace=True)
-            mstr_df['date'] = pd.to_datetime(mstr_df['date']).dt.tz_localize(None) # Remove timezone for alignment
-            
-            btc_df = pd.DataFrame({"btc_close": btc_close}).reset_index()
-            btc_df.rename(columns={"Date": "date"}, inplace=True)
+            # 3. Prepare datasets for merging using explicit date columns from the DB query
+            mstr_df = mstr_data[['date', 'close_price']].copy()
+            mstr_df.rename(columns={"close_price": "mstr_close"}, inplace=True)
+            mstr_df['date'] = pd.to_datetime(mstr_df['date']).dt.tz_localize(None)
+
+            btc_df = btc_data[['date', 'close_price']].copy()
+            btc_df.rename(columns={"close_price": "btc_close"}, inplace=True)
             btc_df['date'] = pd.to_datetime(btc_df['date']).dt.tz_localize(None)
             
             actions_df['date'] = pd.to_datetime(actions_df['date']).dt.tz_localize(None)
@@ -229,7 +225,7 @@ class QuantService:
                 "rolling_mean": rolling_mean if not pd.isna(rolling_mean) else 0.0,
                 "rolling_std": rolling_std if not pd.isna(rolling_std) else 0.0,
                 "z_score": z_score,
-                "last_updated": end_date.isoformat()
+                "last_updated": latest['date'].isoformat() if hasattr(latest['date'], 'isoformat') else str(latest['date'])
             }
             
         except Exception as e:

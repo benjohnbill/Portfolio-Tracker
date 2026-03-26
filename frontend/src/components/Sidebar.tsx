@@ -14,6 +14,7 @@ import {
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/', active: true },
+  { icon: FileText, label: 'Weekly Report', href: '/reports/weekly', active: false },
   { icon: Calendar, label: 'Portfolio', href: '#' },
   { icon: BrainCircuit, label: 'AI Intelligence', href: '#' },
   { icon: Focus, label: 'Analysis Mode', href: '#' },

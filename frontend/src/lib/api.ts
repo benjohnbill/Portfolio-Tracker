@@ -111,6 +111,118 @@ export interface ActionReport {
   actions: AccountAction[];
 }
 
+export interface WeeklyBucketSummary {
+  bucket: string;
+  state: 'supportive' | 'neutral' | 'adverse' | string;
+  confidence: string;
+  summary: string;
+}
+
+export interface WeeklyIndicator {
+  key: string;
+  bucket: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  trend: string;
+  state: string;
+  source: string;
+  observationDate: string | null;
+  releaseDate: string | null;
+  knownAsOf: string;
+}
+
+export interface WeeklyReport {
+  weekEnding: string;
+  generatedAt: string;
+  logicVersion: string;
+  status: string;
+  dataFreshness: {
+    portfolioAsOf: string | null;
+    signalsAsOf: string | null;
+    macroKnownAsOf: string | null;
+    staleFlags: string[];
+  };
+  portfolioSnapshot: {
+    totalValueKRW: number;
+    investedCapitalKRW: number;
+    metrics: {
+      totalReturn: number;
+      cagr: number;
+      mdd: number;
+      volatility: number;
+      sharpeRatio: number;
+    };
+    allocation: PortfolioAllocationData[];
+    targetDeviation: {
+      category: string;
+      currentWeight: number;
+      targetWeight: number;
+      deviation: number;
+      needsRebalance: boolean;
+      score: number;
+      max: number;
+    }[];
+  };
+  macroSnapshot: {
+    overallState: string;
+    buckets: WeeklyBucketSummary[];
+    indicators: WeeklyIndicator[];
+    knownAsOf: string;
+  };
+  signalsSnapshot: {
+    vxn: { current: number | null; ma50: number | null; threshold90: number | null; isSpike: boolean | null };
+    ndxTrend: { currentPrice: number | null; ma250: number | null; isAboveMA: boolean | null };
+    mstr: { zScore: number | null; mnavRatio: number | null };
+    stressTest: { worstScenario: string | null; worstReturn: number | null; worstMdd: number | null; alphaVsSpy: number | null };
+  };
+  score: {
+    total: number;
+    fit: number;
+    alignment: number;
+    postureDiversification: number;
+    bucketBreakdown: { name: string; score: number; max: number; state: string; explanation: string }[];
+    positives: string[];
+    negatives: string[];
+  };
+  triggeredRules: {
+    ruleId: string;
+    severity: string;
+    source: string;
+    message: string;
+    affectedSleeves: string[];
+  }[];
+  recommendation: {
+    stance: string;
+    actions: { asset: string; action: string; reason: string }[];
+    rationale: string[];
+  };
+  eventAnnotations: {
+    eventId: string;
+    level: number;
+    status: string;
+    title: string;
+    summary: string;
+    affectedBuckets: string[];
+    affectedSleeves: string[];
+    duration: string | null;
+    decisionImpact: string | null;
+  }[];
+  userAction: unknown;
+  outcomeWindow: unknown;
+  notes: unknown;
+  llmSummary: null | {
+    provider: string;
+    model: string;
+    generatedAt: string;
+    headline: string;
+    keyChanges: string[];
+    whyScoreChanged: string;
+    actionFocus: string;
+    watchItems: string[];
+  };
+}
+
 /**
  * Fetches portfolio history from the Backend.
  * Backend endpoint: http://localhost:8000/api/portfolio/history
@@ -241,3 +353,16 @@ export async function getActionReport(): Promise<ActionReport> {
   }
 }
 
+export async function getLatestWeeklyReport(): Promise<WeeklyReport | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/reports/weekly/latest`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch weekly report');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}

@@ -9,10 +9,16 @@ on:
 jobs:
   update-signals:
     runs-on: ubuntu-latest
+    env:
+      BACKEND_BASE_URL: ${{ secrets.BACKEND_BASE_URL }}
     steps:
+      - name: Validate workflow configuration
+        run: |
+          test -n "$BACKEND_BASE_URL"
+
       - name: Trigger Render Backend ELT Pipeline
         run: |
-          curl -X POST "https://portfolio-tracker-f8a3.onrender.com/api/cron/update-signals" \
-          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-          -H "Content-Type: application/json"
+          curl --fail --show-error --silent -X POST "${BACKEND_BASE_URL}/api/cron/update-signals" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
           echo "Daily Quant Update triggered at $(date)"

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
@@ -72,3 +72,33 @@ class MSTRCorporateAction(Base):
     date = Column(Date, primary_key=True, index=True)
     btc_holdings = Column(Float)
     outstanding_shares = Column(Float)
+
+
+class WeeklyReport(Base):
+    __tablename__ = "weekly_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    week_ending = Column(Date, index=True, unique=True, nullable=False)
+    generated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    logic_version = Column(String, nullable=False, default="weekly-report-v0")
+    status = Column(String, nullable=False, default="final")
+    report_json = Column(JSON, nullable=False)
+    llm_summary_json = Column(JSON, nullable=True)
+
+
+class EventAnnotation(Base):
+    __tablename__ = "event_annotations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    week_ending = Column(Date, index=True, nullable=False)
+    event_date = Column(Date, nullable=True)
+    level = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="active")
+    title = Column(String, nullable=False)
+    summary = Column(String, nullable=False)
+    affected_buckets = Column(JSON, nullable=True)
+    affected_sleeves = Column(JSON, nullable=True)
+    duration = Column(String, nullable=True)
+    decision_impact = Column(String, nullable=True)
+    source = Column(String, nullable=False, default="manual")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

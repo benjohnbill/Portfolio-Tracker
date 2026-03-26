@@ -8,3 +8,5 @@ finance-datareader
 pandas
 psycopg2-binary
 alembic
+openai
+google-genai

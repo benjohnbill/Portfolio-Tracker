@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from ..database import engine
 from ..models import EventAnnotation, PortfolioSnapshot, WeeklyReport
 from .algo_service import AlgoService
 from .llm_service import LLMService
@@ -17,6 +18,11 @@ from .score_service import build_target_deviation, compute_alignment_score, comp
 
 class ReportService:
     LOGIC_VERSION = "weekly-report-v0"
+
+    @staticmethod
+    def _ensure_report_tables() -> None:
+        WeeklyReport.__table__.create(bind=engine, checkfirst=True)
+        EventAnnotation.__table__.create(bind=engine, checkfirst=True)
 
     @staticmethod
     def get_week_ending(target_date: Optional[date] = None) -> date:
@@ -151,6 +157,7 @@ class ReportService:
 
     @staticmethod
     def build_weekly_report(db: Session, week_ending: Optional[date] = None) -> Dict[str, Any]:
+        ReportService._ensure_report_tables()
         week_ending = week_ending or ReportService.get_week_ending()
         summary = PortfolioService.get_portfolio_summary(db)
         allocation = PortfolioService.get_portfolio_allocation(db)
@@ -213,6 +220,7 @@ class ReportService:
 
     @staticmethod
     def generate_weekly_report(db: Session, week_ending: Optional[date] = None, include_summary: bool = False) -> Dict[str, Any]:
+        ReportService._ensure_report_tables()
         week_ending = week_ending or ReportService.get_week_ending()
         report = ReportService.build_weekly_report(db, week_ending)
 
@@ -245,6 +253,7 @@ class ReportService:
 
     @staticmethod
     def get_latest_report(db: Session) -> Dict[str, Any]:
+        ReportService._ensure_report_tables()
         latest = db.query(WeeklyReport).order_by(WeeklyReport.week_ending.desc()).first()
         if latest:
             report = latest.report_json or {}
@@ -254,6 +263,7 @@ class ReportService:
 
     @staticmethod
     def get_report_by_week(db: Session, week_ending: date) -> Optional[Dict[str, Any]]:
+        ReportService._ensure_report_tables()
         record = db.query(WeeklyReport).filter(WeeklyReport.week_ending == week_ending).first()
         if not record:
             return None
@@ -263,6 +273,7 @@ class ReportService:
 
     @staticmethod
     def list_reports(db: Session, limit: int = 12) -> List[Dict[str, Any]]:
+        ReportService._ensure_report_tables()
         rows = db.query(WeeklyReport).order_by(WeeklyReport.week_ending.desc()).limit(limit).all()
         return [
             {

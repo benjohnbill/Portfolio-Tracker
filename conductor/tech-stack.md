@@ -1,24 +1,9 @@
-# Tech Stack
+# conductor/tech-stack.md
 
-## 1. Frontend
-- **Framework:** Next.js 14 (App Router)
-- **Styling:** Tailwind CSS v3
-- **Components:** shadcn/ui
-- **Charts:** Recharts
-- **Package Manager:** `npm` (run `npm run dev` in `frontend/`)
-- **Primary Path:** `frontend/` (Visualization and Interaction)
+Deprecated compatibility shim.
 
-## 2. Backend
-- **Framework:** Python FastAPI (Async)
-- **Database:** SQLite (Local Dev) via SQLAlchemy (ORM)
-- **Data Validation:** Pydantic
-- **Package Manager:** `uv` (Virtual Env)
-- **Primary Path:** `backend/` (Portfolio Core, Market Data, API Server)
-- **Local Run:** `uvicorn backend.app.main:app --reload` (after activating `backend/.venv/Scripts/activate`)
+Current durable rules and setup guidance now live in:
+- `../AGENTS.md`
+- `../docs/local-setup.md`
 
-## 3. Key Services
-- `PriceService`: Real-time & Historical market data.
-- `ExchangeService`: USD/KRW currency conversion.
-- `PortfolioService`: Equity curve calculation & Quant metrics.
-- `MacroService`: Net Liquidity & Real Yield analysis.
-- `StressService`: Historical crisis simulation.
+Archived tech-stack notes live in `../docs/archive/conductor-bootstrap/tech-stack.md`.

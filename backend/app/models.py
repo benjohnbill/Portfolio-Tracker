@@ -9,6 +9,12 @@ class AccountType(enum.Enum):
     OVERSEAS = "OVERSEAS"
     PENSION = "PENSION"
 
+
+class AccountSilo(enum.Enum):
+    ISA_ETF = "ISA_ETF"
+    OVERSEAS_ETF = "OVERSEAS_ETF"
+    BRAZIL_BOND = "BRAZIL_BOND"
+
 class Asset(Base):
     __tablename__ = "assets"
 
@@ -18,6 +24,7 @@ class Asset(Base):
     name = Column(String)
     source = Column(String)  # "KR" or "US"
     account_type = Column(Enum(AccountType), default=AccountType.OVERSEAS)
+    account_silo = Column(Enum(AccountSilo), nullable=True)
 
     prices = relationship("DailyPrice", back_populates="asset")
     transactions = relationship("Transaction", back_populates="asset")
@@ -102,3 +109,17 @@ class EventAnnotation(Base):
     decision_impact = Column(String, nullable=True)
     source = Column(String, nullable=False, default="manual")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CronRunLog(Base):
+    """Logs each cron job execution for operational monitoring."""
+    __tablename__ = "cron_run_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_name = Column(String, nullable=False, index=True)  # e.g., "update-signals"
+    started_at = Column(DateTime, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String, nullable=False, default="running")  # "running", "success", "failed"
+    duration_seconds = Column(Float, nullable=True)
+    error_message = Column(String, nullable=True)
+    details_json = Column(JSON, nullable=True)  # Additional context: records processed, etc.

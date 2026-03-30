@@ -3,13 +3,14 @@ from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import random
+import time
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from .database import SessionLocal, engine, Base, get_db
-from .models import Asset, Transaction, PortfolioSnapshot, RawDailyPrice
+from .models import Asset, Transaction, PortfolioSnapshot, RawDailyPrice, AccountType, AccountSilo, CronRunLog
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -21,6 +22,7 @@ from .services.algo_service import AlgoService
 from .services.ingestion_service import PriceIngestionService
 from .services.annotation_service import AnnotationService
 from .services.report_service import ReportService
+from .services.notification_service import NotificationService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -36,6 +38,8 @@ class TransactionCreate(BaseModel):
     quantity: float
     price: Optional[float] = None
     date: Optional[str] = None # Change to str for easier Pydantic parsing from JSON
+    account_type: Optional[str] = None
+    account_silo: Optional[str] = None
 
 
 class WeeklyReportGenerateRequest(BaseModel):
@@ -110,37 +114,66 @@ def get_transactions(db: Session = Depends(get_db)):
 def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     """Creates a new trade record, automatically creating new assets if they don't exist"""
     symbol_upper = tx.symbol.strip().upper()
+    is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
     
     # 1. Find existing asset or create a new one
     asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
+    if not asset and is_kr:
+        asset = db.query(Asset).filter(Asset.code == symbol_upper, Asset.source == "KR").first()
+
+    requested_type = None
+    if tx.account_type:
+        try:
+            requested_type = AccountType[tx.account_type.upper()]
+        except KeyError:
+            raise HTTPException(status_code=400, detail="Invalid account_type")
+
+    requested_silo = None
+    if tx.account_silo:
+        try:
+            requested_silo = AccountSilo[tx.account_silo.upper()]
+        except KeyError:
+            raise HTTPException(status_code=400, detail="Invalid account_silo")
     
     if not asset:
-        is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
         source = "KR" if is_kr else "US"
         asset = Asset(
-            symbol=symbol_upper,
+            symbol=symbol_upper if not is_kr else symbol_upper,
             code=symbol_upper,
             name=symbol_upper,
-            source=source
+            source=source,
+            account_type=requested_type or (AccountType.ISA if is_kr else AccountType.OVERSEAS),
+            account_silo=requested_silo or (AccountSilo.ISA_ETF if is_kr else AccountSilo.OVERSEAS_ETF),
         )
         db.add(asset)
         db.commit()
         db.refresh(asset)
     else:
         source = asset.source
-        
+
+    if requested_type:
+        asset.account_type = requested_type
+    elif PortfolioService.sync_asset_classification(asset):
+        db.add(asset)
+
+    if requested_silo:
+        asset.account_silo = requested_silo
+        db.add(asset)
+    db.commit()
+    db.refresh(asset)
+         
     # 2. Auto-fetch price if not provided
     final_price = tx.price
     if not final_price or final_price <= 0:
-        if symbol_upper == "BRAZIL_BOND":
+        if asset.account_silo == AccountSilo.BRAZIL_BOND or symbol_upper == "BRAZIL_BOND":
             fetched_price = KISService.get_brazil_bond_value()
         else:
             # Use the newly determined source
-            fetched_price = PriceService.get_current_price(symbol_upper, source=source)
+            fetched_price = PriceService.get_current_price(PortfolioService.get_price_lookup_ticker(asset), source=source)
             
         if fetched_price <= 0:
             # Fallback for BRAZIL_BOND if API is slow/down
-            if symbol_upper == "BRAZIL_BOND":
+            if asset.account_silo == AccountSilo.BRAZIL_BOND or symbol_upper == "BRAZIL_BOND":
                 final_price = 1000.0 # Temporary placeholder
             else:
                 raise HTTPException(status_code=400, detail=f"Could not auto-fetch price for {symbol_upper}. Please enter it manually.")
@@ -164,7 +197,8 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         quantity=tx.quantity,
         price=final_price,
         total_amount=tx.quantity * final_price,
-        date=final_date
+        date=final_date,
+        account_type=asset.account_type or AccountType.OVERSEAS,
     )
     db.add(new_tx)
     db.commit()
@@ -345,16 +379,66 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             detail="Invalid or missing cron secret"
         )
     
+    # Ensure CronRunLog table exists
+    CronRunLog.__table__.create(bind=engine, checkfirst=True)
+    
+    # Start tracking
+    start_time = time.time()
+    started_at = datetime.now(timezone.utc)
+    current_step = "init"
+    
+    # Create initial run log entry
+    run_log = CronRunLog(
+        job_name="update-signals",
+        started_at=started_at,
+        status="running",
+    )
+    db.add(run_log)
+    db.commit()
+    db.refresh(run_log)
+    
     try:
+        current_step = "price_ingestion"
         PriceIngestionService.update_raw_prices(db)
+        
+        current_step = "portfolio_snapshots"
         PriceIngestionService.generate_portfolio_snapshots(db)
         
+        current_step = "vxn_update"
         vxn_updated = QuantService.update_vxn_history(db)
+        
+        current_step = "mstr_seed"
         mstr_seeded = QuantService.seed_mstr_corporate_actions(db)
+        
+        current_step = "weekly_report"
         weekly_report = ReportService.generate_weekly_report(
             db,
             include_summary=os.getenv("WEEKLY_REPORT_LLM_PROVIDER") in {"openai", "gemini"}
             and bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY_MAIN")),
+        )
+        
+        # Calculate duration and update run log
+        duration = time.time() - start_time
+        finished_at = datetime.now(timezone.utc)
+        weekly_score = weekly_report.get("score", {}).get("total")
+        
+        run_log.finished_at = finished_at
+        run_log.status = "success"
+        run_log.duration_seconds = duration
+        run_log.details_json = {
+            "vxn_updated": vxn_updated,
+            "mstr_seeded": mstr_seeded,
+            "weekly_score": weekly_score,
+            "week_ending": weekly_report.get("weekEnding"),
+        }
+        db.commit()
+        
+        # Send success notification
+        NotificationService.send_cron_success(
+            duration_seconds=duration,
+            vxn_updated=vxn_updated,
+            mstr_seeded=mstr_seeded,
+            weekly_score=weekly_score,
         )
         
         return {
@@ -364,12 +448,50 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "mstr_seeded": mstr_seeded,
             "weekly_report": {
                 "weekEnding": weekly_report.get("weekEnding"),
-                "score": weekly_report.get("score", {}).get("total"),
+                "score": weekly_score,
             },
+            "duration_seconds": round(duration, 2),
         }
     except Exception as e:
+        # Calculate duration and update run log with failure
+        duration = time.time() - start_time
+        finished_at = datetime.now(timezone.utc)
+        error_message = str(e)
+        
+        run_log.finished_at = finished_at
+        run_log.status = "failed"
+        run_log.duration_seconds = duration
+        run_log.error_message = error_message
+        run_log.details_json = {"failed_step": current_step}
+        db.commit()
+        
+        # Send failure notification
+        NotificationService.send_cron_failure(
+            error_message=error_message,
+            duration_seconds=duration,
+            step=current_step,
+        )
+        
         print(f"Error in POST /api/cron/update-signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/notifications/test")
+def test_notification(x_cron_secret: Optional[str] = Header(None)):
+    """Test endpoint to verify Telegram notification setup."""
+    expected_secret = os.getenv("CRON_SECRET")
+    if not expected_secret or x_cron_secret != expected_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing cron secret"
+        )
+    
+    success = NotificationService.send_test_message()
+    if success:
+        return {"status": "success", "message": "Test notification sent successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send test notification. Check Telegram configuration.")
+
 
 def generate_mock_history(start_date, end_date):
     mock_data = []

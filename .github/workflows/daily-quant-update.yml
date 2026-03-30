@@ -17,8 +17,20 @@ jobs:
           test -n "$BACKEND_BASE_URL"
 
       - name: Trigger Render Backend ELT Pipeline
+        id: trigger
         run: |
-          curl --fail --show-error --silent -X POST "${BACKEND_BASE_URL}/api/cron/update-signals" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
-          echo "Daily Quant Update triggered at $(date)"
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt of 3..."
+            if curl --fail --show-error --silent -X POST "${BACKEND_BASE_URL}/api/cron/update-signals" \
+              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json"; then
+              echo "Daily Quant Update triggered successfully at $(date)"
+              exit 0
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Attempt $attempt failed. Waiting 30 seconds before retry..."
+              sleep 30
+            fi
+          done
+          echo "All 3 attempts failed"
+          exit 1

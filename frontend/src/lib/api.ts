@@ -15,6 +15,7 @@ export interface PortfolioAllocationData {
   weight: number;
   source: string;
   account_type: string;
+  account_silo?: string;
 }
 
 export interface Asset {
@@ -31,6 +32,8 @@ export interface TransactionCreate {
   quantity: number;
   price?: number; // Now optional, backend will auto-fetch if missing
   date?: string; // ISO format YYYY-MM-DD
+  account_type?: 'ISA' | 'OVERSEAS' | 'PENSION';
+  account_silo?: 'ISA_ETF' | 'OVERSEAS_ETF' | 'BRAZIL_BOND';
 }
 
 export interface Transaction extends TransactionCreate {
@@ -103,6 +106,18 @@ export interface AccountAction {
   asset: string;
   action: string;
   reason: string;
+  rule_id?: string;
+  inputs?: {
+    z_score?: number;
+    mnav_ratio?: number;
+    vxn_current?: number;
+    vxn_threshold?: number;
+    ndx_price?: number;
+    ndx_ma250?: number;
+    thresholds?: Record<string, number>;
+    triggered_by?: string;
+  };
+  logic_version?: string;
 }
 
 export interface ActionReport {
@@ -194,7 +209,7 @@ export interface WeeklyReport {
   }[];
   recommendation: {
     stance: string;
-    actions: { asset: string; action: string; reason: string }[];
+    actions: AccountAction[];
     rationale: string[];
   };
   eventAnnotations: {
@@ -360,6 +375,34 @@ export async function getLatestWeeklyReport(): Promise<WeeklyReport | null> {
       cache: 'no-store'
     });
     if (!res.ok) throw new Error('Failed to fetch weekly report');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getWeeklyReports(limit: number = 24): Promise<Array<{ weekEnding: string; generatedAt: string | null; logicVersion: string; status: string; score: number | null }>> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/reports/weekly?limit=${limit}`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch weekly reports');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReport | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/reports/weekly/${weekEnding}`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch weekly report by week');
     return res.json();
   } catch (error) {
     console.error('API Error:', error);

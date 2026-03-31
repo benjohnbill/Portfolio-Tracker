@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Sidebar } from '@/components/Sidebar';
-import { Search, Bell, Sparkles, User } from 'lucide-react';
+import { Bell, Sparkles, User } from 'lucide-react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,22 +27,17 @@ export default function RootLayout({
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#07090d]">
             {/* Top Bar */}
             <header className="h-20 border-b border-border/40 flex items-center justify-between px-8 bg-background/20 backdrop-blur-sm sticky top-0 z-10">
-              <div className="relative w-full max-w-xl">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  placeholder="Search assets, trends, insights..."
-                  className="w-full bg-[#11161d] border border-border/60 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
+              <div className="w-full max-w-xl text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Portfolio intelligence workspace
               </div>
               <div className="flex items-center space-x-4">
-                <div className="p-2 bg-[#11161d] rounded-md cursor-pointer hover:bg-accent/30 transition-colors">
+                <div className="p-2 bg-[#11161d] rounded-md transition-colors" aria-hidden="true">
                   <Bell className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <div className="p-2 bg-[#11161d] rounded-md cursor-pointer hover:bg-accent/30 transition-colors">
+                <div className="p-2 bg-[#11161d] rounded-md transition-colors" aria-hidden="true">
                   <Sparkles className="w-4 h-4 text-primary" />
                 </div>
-                <div className="flex items-center space-x-3 p-1.5 px-3 bg-[#11161d] rounded-lg border border-border/40 cursor-pointer">
+                <div className="flex items-center space-x-3 p-1.5 px-3 bg-[#11161d] rounded-lg border border-border/40">
                    <User className="w-4 h-4 text-primary" />
                    <span className="text-sm font-medium">Jingeun</span>
                 </div>

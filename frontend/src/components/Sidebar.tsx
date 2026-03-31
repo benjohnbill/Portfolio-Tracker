@@ -7,7 +7,6 @@ import {
   LayoutDashboard, 
   Wallet, 
   Archive,
-  Settings,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
@@ -68,15 +67,6 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-
-      <div className="mt-auto space-y-4 pt-8">
-        <Link href="#" className={`flex items-center px-3 py-2 text-muted-foreground hover:text-white transition-all duration-200 ${collapsed ? 'justify-center' : 'space-x-3'}`} title={collapsed ? 'Settings' : undefined}>
-          <Settings className="w-5 h-5" />
-          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-200 ${collapsed ? 'w-0 opacity-0 -translate-x-2 pointer-events-none' : 'w-auto opacity-100 translate-x-0'}`}>
-            Settings
-          </span>
-        </Link>
-      </div>
     </aside>
   );
 }

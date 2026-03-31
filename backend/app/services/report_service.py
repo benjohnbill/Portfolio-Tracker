@@ -254,12 +254,21 @@ class ReportService:
     @staticmethod
     def get_latest_report(db: Session) -> Dict[str, Any]:
         ReportService._ensure_report_tables()
+        current_week = ReportService.get_week_ending()
+        current_record = db.query(WeeklyReport).filter(WeeklyReport.week_ending == current_week).first()
+
+        if current_record:
+            report = ReportService.build_weekly_report(db, current_week)
+            report["llmSummary"] = current_record.llm_summary_json
+            return report
+
         latest = db.query(WeeklyReport).order_by(WeeklyReport.week_ending.desc()).first()
-        if latest:
+        if latest and latest.week_ending > current_week:
             report = latest.report_json or {}
             report["llmSummary"] = latest.llm_summary_json
             return report
-        return ReportService.generate_weekly_report(db)
+
+        return ReportService.generate_weekly_report(db, week_ending=current_week)
 
     @staticmethod
     def get_report_by_week(db: Session, week_ending: date) -> Optional[Dict[str, Any]]:

@@ -53,7 +53,8 @@ export function TargetDeviationChart({ allocation }: TargetDeviationChartProps) 
   const currentWeights: Record<string, number> = {};
   allocation.forEach(a => {
     const cat = assetToCategory(a.asset);
-    currentWeights[cat] = (currentWeights[cat] || 0) + a.weight;
+    const safeWeight = Number.isFinite(a.weight) ? a.weight : 0;
+    currentWeights[cat] = (currentWeights[cat] || 0) + safeWeight;
   });
 
   const data: DeviationData[] = Object.keys(TARGETS).map(cat => {

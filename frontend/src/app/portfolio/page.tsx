@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { getPortfolioHistory, getPortfolioAllocation, getPortfolioSummary } from '@/lib/api';
+import { getPortfolioPageData } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
 import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
@@ -13,7 +13,12 @@ import {
   Briefcase,
   ShieldCheck,
   ChevronLeft,
+  AlertTriangle,
 } from 'lucide-react';
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
 
 
 export default async function PortfolioPage({
@@ -24,30 +29,91 @@ export default async function PortfolioPage({
   const params = await searchParams;
   const period = typeof params.period === 'string' ? params.period : 'ytd';
 
-  const [history, allocation, summary] = await Promise.all([
-    getPortfolioHistory(period),
-    getPortfolioAllocation(),
-    getPortfolioSummary(),
-  ]);
+  const { history, allocation, summary } = await getPortfolioPageData(period);
+  const historyData = history.data ?? [];
+  const allocationData = allocation.data ?? [];
 
-  if (!history || history.length === 0) {
-    return <div className="p-8 text-white">Loading portfolio analytics...</div>;
+  if (history.error || allocation.error || summary.error) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+        <div>
+          <div className="flex items-center gap-2 text-primary mb-1 text-xs font-bold uppercase tracking-wider">
+            <Briefcase className="w-4 h-4" />
+            <span>Portfolio</span>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-white italic">Long-Horizon Analytics</h1>
+        </div>
+
+        <Card className="bg-[#11161d] border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive" />
+              Portfolio data unavailable
+            </CardTitle>
+            <CardDescription>
+              We could not load the current portfolio analytics. Check the backend/API connection and try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-1">
+            {history.error && <p>History: {history.error}</p>}
+            {allocation.error && <p>Allocation: {allocation.error}</p>}
+            {summary.error && <p>Summary: {summary.error}</p>}
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
-  const latestData = history[history.length - 1];
-  const firstData = history[0];
-  const yesterdayData = history.length > 1 ? history[history.length - 2] : latestData;
-  const dailyDelta = latestData.total_value - yesterdayData.total_value;
-  const dailyPercent = yesterdayData.total_value > 0 ? ((dailyDelta / yesterdayData.total_value) * 100).toFixed(2) : '0.00';
+  if (historyData.length === 0) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+        <div>
+          <div className="flex items-center gap-2 text-primary mb-1 text-xs font-bold uppercase tracking-wider">
+            <Briefcase className="w-4 h-4" />
+            <span>Portfolio</span>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-white italic">Long-Horizon Analytics</h1>
+        </div>
+
+        <Card className="bg-[#11161d] border-border/40">
+          <CardHeader>
+            <CardTitle className="text-white">No portfolio history available</CardTitle>
+            <CardDescription>
+              Portfolio analytics will appear after price snapshots and transaction history are available.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  const safeSummary = summary.data ?? {
+    total_value: 0,
+    invested_capital: 0,
+    metrics: {
+      total_return: 0,
+      cagr: 0,
+      mdd: 0,
+      volatility: 0,
+      sharpe_ratio: 0,
+    },
+  };
+
+  const latestData = historyData[historyData.length - 1];
+  const yesterdayData = historyData.length > 1 ? historyData[historyData.length - 2] : latestData;
+  const latestValue = isFiniteNumber(latestData?.total_value) ? latestData.total_value : 0;
+  const yesterdayValue = isFiniteNumber(yesterdayData?.total_value) ? yesterdayData.total_value : latestValue;
+  const dailyDelta = latestValue - yesterdayValue;
+  const dailyPercent = yesterdayValue > 0 ? ((dailyDelta / yesterdayValue) * 100).toFixed(2) : '0.00';
   const isDailyPositive = dailyDelta >= 0;
 
-  const siloedAccounts = allocation.reduce((acc, asset) => {
+  const siloedAccounts = allocationData.reduce((acc, asset) => {
     const type = asset.account_silo || asset.account_type || 'OVERSEAS';
     if (!acc[type]) acc[type] = { assets: [], total: 0 };
     acc[type].assets.push(asset);
-    acc[type].total += asset.value;
+    acc[type].total += isFiniteNumber(asset.value) ? asset.value : 0;
     return acc;
-  }, {} as Record<string, { assets: typeof allocation; total: number }>);
+  }, {} as Record<string, { assets: typeof allocationData; total: number }>);
 
   const siloLabelMap: Record<string, string> = {
     ISA_ETF: 'ISA',
@@ -114,7 +180,7 @@ export default async function PortfolioPage({
               </div>
             </CardHeader>
             <CardContent>
-              <HistoryChart data={history} />
+              <HistoryChart data={historyData} />
             </CardContent>
           </Card>
 
@@ -126,7 +192,7 @@ export default async function PortfolioPage({
               <CardDescription className="text-xs">Current weights vs Core 6 targets (±30% Threshold)</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
-              <TargetDeviationChart allocation={allocation} />
+              <TargetDeviationChart allocation={allocationData} />
             </CardContent>
           </Card>
         </div>
@@ -140,27 +206,27 @@ export default async function PortfolioPage({
             <CardContent className="grid gap-3 text-sm">
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">Total Value</p>
-                <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.total_value)}</p>
+                <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(safeSummary.total_value)}</p>
               </div>
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">Invested Capital</p>
-                <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.invested_capital)}</p>
+                <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(safeSummary.invested_capital)}</p>
               </div>
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">CAGR</p>
-                <p className="text-white font-semibold">{(summary.metrics.cagr * 100).toFixed(1)}%</p>
+                <p className="text-white font-semibold">{(safeSummary.metrics.cagr * 100).toFixed(1)}%</p>
               </div>
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">MDD</p>
-                <p className="text-white font-semibold">{(summary.metrics.mdd * 100).toFixed(1)}%</p>
+                <p className="text-white font-semibold">{(safeSummary.metrics.mdd * 100).toFixed(1)}%</p>
               </div>
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">Volatility</p>
-                <p className="text-white font-semibold">{(summary.metrics.volatility * 100).toFixed(1)}%</p>
+                <p className="text-white font-semibold">{(safeSummary.metrics.volatility * 100).toFixed(1)}%</p>
               </div>
               <div className="rounded-lg border border-border/40 p-3">
                 <p className="text-xs text-muted-foreground uppercase">Sharpe Ratio</p>
-                <p className="text-white font-semibold">{summary.metrics.sharpe_ratio.toFixed(2)}</p>
+                <p className="text-white font-semibold">{safeSummary.metrics.sharpe_ratio.toFixed(2)}</p>
               </div>
             </CardContent>
           </Card>
@@ -182,8 +248,8 @@ export default async function PortfolioPage({
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y divide-border/20">
-                  {data.assets.map((asset, idx) => (
-                    <div key={idx} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                  {data.assets.map((asset) => (
+                    <div key={`${type}-${asset.asset}`} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-bold text-white">{asset.asset}</span>
@@ -195,7 +261,7 @@ export default async function PortfolioPage({
                         <div className="text-xs font-bold text-white">
                           {new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(asset.value)}
                         </div>
-                        <div className="text-[10px] text-primary">{(asset.weight * 100).toFixed(1)}% weight</div>
+                          <div className="text-[10px] text-primary">{(isFiniteNumber(asset.weight) ? asset.weight * 100 : 0).toFixed(1)}% weight</div>
                       </div>
                     </div>
                   ))}

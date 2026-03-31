@@ -65,6 +65,11 @@ export interface PortfolioSummary {
   };
 }
 
+export interface ApiResult<T> {
+  data: T | null;
+  error: string | null;
+}
+
 export interface SignalVXN {
   current_vxn: number;
   ma_50: number;
@@ -337,6 +342,39 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
       }
     };
   }
+}
+
+export async function getPortfolioPageData(period: string = 'all'): Promise<{
+  history: ApiResult<PortfolioHistoryData[]>;
+  allocation: ApiResult<PortfolioAllocationData[]>;
+  summary: ApiResult<PortfolioSummary>;
+}> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  const fetchJson = async <T>(path: string): Promise<ApiResult<T>> => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { cache: 'no-store' });
+      if (!res.ok) {
+        return { data: null, error: `Request failed (${res.status})` };
+      }
+
+      return { data: await res.json(), error: null };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown API error',
+      };
+    }
+  };
+
+  const [history, allocation, summary] = await Promise.all([
+    fetchJson<PortfolioHistoryData[]>(`/api/portfolio/history?period=${period}`),
+    fetchJson<PortfolioAllocationData[]>('/api/portfolio/allocation'),
+    fetchJson<PortfolioSummary>('/api/portfolio/summary'),
+  ]);
+
+  return { history, allocation, summary };
 }
 
 /**

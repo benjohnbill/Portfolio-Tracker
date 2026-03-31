@@ -11,10 +11,7 @@ interface HistoryChartProps {
 }
 
 export function HistoryChart({ data }: HistoryChartProps) {
-  const chartData = data.map((point) => ({
-    ...point,
-    parsedDate: new Date(point.date),
-  }));
+  const chartData = data.filter((point) => !Number.isNaN(new Date(point.date).getTime()));
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('ko-KR', { 
@@ -40,7 +37,10 @@ export function HistoryChart({ data }: HistoryChartProps) {
           />
           <XAxis 
             dataKey="date" 
-            tickFormatter={(value) => format(new Date(value), 'MMM d')} 
+            tickFormatter={(value) => {
+              const date = new Date(value);
+              return Number.isNaN(date.getTime()) ? '' : format(date, 'MMM d');
+            }} 
             stroke="#64748b" 
             fontSize={10} 
             tickLine={false} 
@@ -67,7 +67,10 @@ export function HistoryChart({ data }: HistoryChartProps) {
               boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
             }}
             itemStyle={{ color: '#4fd1c5' }}
-            labelFormatter={(label) => format(new Date(label), 'MMM d, yyyy')}
+            labelFormatter={(label) => {
+              const date = new Date(label);
+              return Number.isNaN(date.getTime()) ? 'Unknown date' : format(date, 'MMM d, yyyy');
+            }}
             formatter={(value: number) => [formatCurrency(value), 'Portfolio Value']}
           />
           <Area 

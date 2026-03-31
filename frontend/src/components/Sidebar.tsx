@@ -1,92 +1,82 @@
+"use client";
+
 import Link from 'next/link';
+import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
-  Calendar, 
-  BrainCircuit, 
-  Focus, 
-  BarChart3, 
-  FlaskConical, 
-  PenTool, 
-  FileText, 
+  Wallet, 
+  Archive,
   Settings,
-  LogOut
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/', active: true },
-  { icon: FileText, label: 'Weekly Report', href: '/reports/weekly', active: false },
-  { icon: Calendar, label: 'Portfolio', href: '#' },
-  { icon: BrainCircuit, label: 'AI Intelligence', href: '#' },
-  { icon: Focus, label: 'Analysis Mode', href: '#' },
-  { icon: BarChart3, label: 'Insights', href: '#' },
-];
-
-const labItems = [
-  { label: 'Chat Space', href: '#' },
-  { label: 'Prediction', href: '#' },
-  { label: 'Automation', href: '#' },
+  { icon: LayoutDashboard, label: 'This Week', href: '/' },
+  { icon: Wallet, label: 'Portfolio', href: '/portfolio' },
+  { icon: Archive, label: 'Archive', href: '/archive' },
 ];
 
 export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
+
   return (
-    <div className="w-64 h-screen sidebar-gradient border-r border-border/50 flex flex-col p-6 space-y-8 sticky top-0 overflow-y-auto">
-      <div className="flex items-center space-x-3 mb-2">
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+    <aside
+      className={`h-screen sidebar-gradient border-r border-border/50 flex flex-col sticky top-0 overflow-x-hidden overflow-y-auto transition-[width,padding] duration-300 ease-in-out ${collapsed ? 'w-20 p-4' : 'w-64 p-6'} space-y-8`}
+    >
+      <div className={`flex items-center mb-2 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'space-x-3'}`}>
+        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
           <div className="w-4 h-4 rounded-full border-2 border-primary-foreground" />
         </div>
-        <span className="text-xl font-bold tracking-tight text-white">Orbit<span className="text-primary">AI</span></span>
+        <span className={`text-xl font-bold tracking-tight text-white whitespace-nowrap transition-all duration-200 ${collapsed ? 'w-0 opacity-0 -translate-x-2 pointer-events-none' : 'w-auto opacity-100 translate-x-0 ml-3'}`}>
+          Orbit<span className="text-primary">AI</span>
+        </span>
+        </div>
+        <button
+          type="button"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((value) => !value)}
+          className={`shrink-0 rounded-md border border-border/50 bg-[#11161d]/80 p-2 text-muted-foreground transition-all hover:text-white hover:border-primary/40 hover:bg-accent/40 ${collapsed ? 'absolute top-4 right-4' : ''}`}
+        >
+          {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        </button>
       </div>
 
       <nav className="space-y-1">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-2">Main Menu</p>
+        <p className={`text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 transition-all duration-200 ${collapsed ? 'opacity-0 h-0 mb-0 overflow-hidden px-0' : 'opacity-100 px-2'}`}>
+          Main Menu
+        </p>
         {navItems.map((item) => (
           <Link 
             key={item.label} 
             href={item.href}
-            className={`flex items-center space-x-3 px-3 py-2 rounded-md transition-colors ${
-              item.active 
+            className={`flex items-center px-3 py-2 rounded-md transition-all duration-200 ${collapsed ? 'justify-center' : 'space-x-3'} ${
+              (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))
                 ? 'neon-border-active text-white' 
                 : 'text-muted-foreground hover:text-white hover:bg-accent/50'
             }`}
+            title={collapsed ? item.label : undefined}
           >
-            <item.icon className={`w-5 h-5 ${item.active ? 'text-primary' : ''}`} />
-            <span className="text-sm font-medium">{item.label}</span>
+            <item.icon className={`w-5 h-5 shrink-0 ${(item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)) ? 'text-primary' : ''}`} />
+            <span className={`text-sm font-medium whitespace-nowrap transition-all duration-200 ${collapsed ? 'w-0 opacity-0 -translate-x-2 pointer-events-none' : 'w-auto opacity-100 translate-x-0'}`}>
+              {item.label}
+            </span>
           </Link>
         ))}
       </nav>
 
-      <div className="space-y-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">AI Lab</p>
-        <div className="space-y-1 px-2">
-          {labItems.map((item) => (
-            <Link 
-              key={item.label} 
-              href={item.href}
-              className="flex items-center space-x-3 py-2 text-sm text-muted-foreground hover:text-white transition-colors"
-            >
-              <div className="w-1.5 h-1.5 rounded-full border border-muted-foreground" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-
       <div className="mt-auto space-y-4 pt-8">
-        <Link href="#" className="flex items-center space-x-3 px-3 py-2 text-muted-foreground hover:text-white transition-colors">
+        <Link href="#" className={`flex items-center px-3 py-2 text-muted-foreground hover:text-white transition-all duration-200 ${collapsed ? 'justify-center' : 'space-x-3'}`} title={collapsed ? 'Settings' : undefined}>
           <Settings className="w-5 h-5" />
-          <span className="text-sm font-medium">Settings</span>
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-200 ${collapsed ? 'w-0 opacity-0 -translate-x-2 pointer-events-none' : 'w-auto opacity-100 translate-x-0'}`}>
+            Settings
+          </span>
         </Link>
-        <div className="flex items-center justify-between px-3 py-4 border-t border-border/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-accent" />
-            <div className="flex flex-col">
-              <span className="text-xs font-medium text-white">Jingeun</span>
-              <span className="text-[10px] text-muted-foreground">Free plan</span>
-            </div>
-          </div>
-          <LogOut className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-destructive" />
-        </div>
       </div>
-    </div>
+    </aside>
   );
 }

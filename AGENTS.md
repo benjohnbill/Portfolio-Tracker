@@ -1,59 +1,87 @@
-# AGENTS.md
+# PROJECT KNOWLEDGE BASE
 
-Repo-wide guidance for coding agents working in `Portfolio_Tracker`.
+**Generated:** 2026-04-02 Asia/Seoul
+**Commit:** a19f51f
+**Branch:** main
 
-## Read Order
+## OVERVIEW
+Full-stack portfolio review app. Active implementation lives in a Next.js dashboard (`frontend/`) and FastAPI backend (`backend/`).
+
+## READ ORDER
 1. `README.md`
-2. `PLAN.md`
-3. `docs/local-setup.md` (if setup or env context is needed)
+2. `PRODUCT.md` (what this product is, who it's for, scoring model)
+3. `ARCHITECTURE.md` (system design, data pipeline, decision engine, domain glossary)
+4. `PLAN.md`
+5. `docs/local-setup.md` (runtime/env only)
 
-## Active Edit Boundaries
-- Active backend code: `backend/app/`
-- Active frontend code: `frontend/src/`
-- Operational backend scripts: `backend/scripts/`
-- Historical material: `legacy/` — frozen, non-authoritative, do not edit unless explicitly requested
-- Compatibility/archive shims: `conductor/` — do not treat as the primary control plane
+## STRUCTURE
+```text
+.
+├── backend/        # active API, services, migrations, operational scripts
+├── frontend/       # active Next.js app, UI, API client
+├── docs/           # active setup docs + archived conductor material
+├── conductor/      # compatibility shims only
+└── legacy/         # frozen historical material
+```
 
-## Source-of-Truth Rules
-- Current scope and active direction live in `PLAN.md`.
-- Runtime/bootstrap instructions live in `docs/local-setup.md`.
-- This file holds durable repo rules only.
-- If a temporary compatibility file disagrees with `README.md`, `PLAN.md`, or this file, follow these root docs.
+## WHERE TO LOOK
+| Task | Location | Notes |
+|---|---|---|
+| Backend endpoints | `backend/app/main.py` | Keep HTTP layer thin |
+| Backend business logic | `backend/app/services/` | Primary complexity hotspot |
+| DB/env bootstrap | `backend/app/database.py`, `backend/app/models.py`, `backend/app/env_loader.py` | `DATABASE_URL` required |
+| Frontend routes | `frontend/src/app/` | App Router only |
+| Frontend UI | `frontend/src/components/` | Prefer existing `ui/` primitives |
+| Frontend API client | `frontend/src/lib/api.ts` | Update alongside API contract changes |
+| Operational scripts | `backend/scripts/` | One-off helpers, not the primary runtime |
+| Setup/runtime docs | `docs/local-setup.md` | Source of truth for local commands |
 
-## Architecture Rules
-- Keep HTTP endpoints thin in `backend/app/main.py`.
-- Put business/data logic in `backend/app/services/`.
-- Keep schema and DB lifecycle in `backend/app/models.py` and `backend/app/database.py`.
-- Keep frontend UI/domain code in `frontend/src/`.
-- If an API contract changes, update frontend callers in the same task.
-- If persisted schema changes, include a migration strategy.
+## CHILD GUIDES
+- `backend/app/AGENTS.md`
+- `backend/scripts/AGENTS.md`
+- `frontend/src/AGENTS.md`
 
-## Workflow Rules
-- Prefer small, focused changes over broad refactors.
-- Validate changes after edits with the relevant local checks.
-- Do not modify unrelated files to satisfy style-only preferences.
-- When uncertain, follow nearby code conventions in the touched area.
+## CONVENTIONS
+- Active code boundaries: `backend/app/`, `frontend/src/`, `backend/scripts/`
+- Current scope and direction live in `PLAN.md`
+- Root docs are authoritative over compatibility/archive files
+- Frontend uses Next.js App Router + TypeScript + Tailwind + `shadcn/ui`
+- Backend dependencies come from `backend/requirements.txt` (no repo-local `pyproject.toml`)
+- Schema changes require Alembic path verification
 
-## Validation Expectations
-- Frontend changes: run `npm run lint` and `npm run build` in `frontend/` when applicable.
-- Backend changes: run relevant tests or script checks in `backend/`.
-- Schema changes: verify Alembic migration path.
-- Report pre-existing failures separately from issues introduced by your changes.
+## ANTI-PATTERNS
+- Do not edit `legacy/` unless explicitly requested
+- Do not treat `conductor/` as the primary control plane
+- Do not commit secrets, tokens, populated `.env`, or credential files
+- Do not treat generated artifacts as source of truth: `frontend/.next/`, `backend/.venv/`, `**/__pycache__/`, `*.pyc`, `*.tsbuildinfo`
+- Do not modify unrelated files for style-only cleanup
 
-## Environment and Secrets
-- Backend expects `DATABASE_URL` via `backend/.env` or environment variables.
-- Never commit secrets, tokens, or new credential files.
-- Treat committed local environments and generated artifacts as non-authoritative.
+## COMMANDS
+```bash
+# frontend
+cd frontend && npm install
+cd frontend && npm run dev
+cd frontend && npm run lint
+cd frontend && npm run build
 
-## Generated / Non-Authoritative Paths
-- `frontend/.next/`
-- `backend/.venv/`
-- `**/__pycache__/`
-- `*.pyc`
-- `*.tsbuildinfo`
+# backend
+cd backend && pip install -r requirements.txt
+cd backend && uvicorn app.main:app --reload
+# or from repo root
+uvicorn backend.app.main:app --reload
+```
 
-## Frontend Notes
-- Follow Next.js App Router patterns.
-- Prefer existing `shadcn/ui` primitives and project styling patterns.
-- Add `"use client"` only when needed.
-- `frontend/INSTRUCTIONS.md` is optional reference material, not the primary bootstrap doc.
+## CI / DEPLOY NOTES
+- `.github/workflows/daily-quant-update.yml` calls `${BACKEND_BASE_URL}/api/cron/update-signals`
+- `.github/workflows/keep-alive.yml` pings `${BACKEND_BASE_URL}/api/assets`
+- `render.yaml` is the deploy/runtime config; no repo-local Vercel config
+
+## ENV / SECRET NOTES
+- `backend/.env.example` is the tracked placeholder
+- `backend/.env` is local-only and must stay uncommitted
+- Stop if work would change live `DATABASE_URL`, `CRON_SECRET`, `BACKEND_BASE_URL`, or real `KIS_*` values
+
+## VALIDATION EXPECTATIONS
+- Frontend changes: `npm run lint` and `npm run build` in `frontend/`
+- Backend changes: relevant tests or script checks in `backend/`
+- Report pre-existing failures separately from issues introduced by edits

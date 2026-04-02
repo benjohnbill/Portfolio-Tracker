@@ -63,6 +63,14 @@ export interface PortfolioSummary {
     volatility: number;
     sharpe_ratio: number;
   };
+  valuation?: {
+    as_of: string | null;
+    source: string;
+    version: string;
+    period: string;
+    history_points: number;
+    calculated_at: string;
+  };
 }
 
 export interface ApiResult<T> {
@@ -159,6 +167,13 @@ export interface WeeklyReport {
   status: string;
   dataFreshness: {
     portfolioAsOf: string | null;
+    portfolioValuation?: {
+      asOf: string | null;
+      source: string;
+      version: string;
+      period: string;
+      calculatedAt: string;
+    };
     signalsAsOf: string | null;
     macroKnownAsOf: string | null;
     staleFlags: string[];
@@ -211,6 +226,8 @@ export interface WeeklyReport {
     source: string;
     message: string;
     affectedSleeves: string[];
+    inputs?: Record<string, unknown>;
+    logicVersion?: string;
   }[];
   recommendation: {
     stance: string;

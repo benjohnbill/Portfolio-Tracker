@@ -7,13 +7,26 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ..database import engine
-from ..models import EventAnnotation, PortfolioSnapshot, WeeklyReport
+from ..models import EventAnnotation, WeeklyReport
 from .algo_service import AlgoService
 from .llm_service import LLMService
 from .macro_service import MacroService
 from .portfolio_service import PortfolioService
 from .quant_service import QuantService
 from .score_service import build_target_deviation, compute_alignment_score, compute_fit_score, compute_posture_diversification_score
+
+SEVERITY_MAP = {
+    "MSTR_HARD_EXIT": "critical",
+    "MSTR_PROFIT_LOCK": "high",
+    "NDX_SAFETY_MODE": "high",
+    "GLDM_DEFENSIVE": "medium",
+    "TLT_DEFENSIVE": "medium",
+    "MSTR_AGGRESSIVE_BUY": "low",
+    "NDX_GROWTH_MODE": "low",
+    "TLT_REENTRY": "low",
+    "GLDM_REENTRY": "low",
+    "PORTFOLIO_ALIGNMENT_DRIFT": "high",
+}
 
 
 class ReportService:
@@ -30,11 +43,6 @@ class ReportService:
         weekday = current.weekday()
         offset = (weekday - 4) % 7
         return current - timedelta(days=offset)
-
-    @staticmethod
-    def _latest_snapshot_date(db: Session) -> Optional[str]:
-        latest = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.date.desc()).first()
-        return latest.date.isoformat() if latest else None
 
     @staticmethod
     def _normalize_signals(action_report: Dict[str, Any], posture: Dict[str, Any]) -> Dict[str, Any]:
@@ -76,12 +84,15 @@ class ReportService:
         rules: List[Dict[str, Any]] = []
 
         for action in action_report.get("actions", []):
+            rule_id = action.get("rule_id", action.get("asset", "UNKNOWN").replace(" ", "_").upper())
             rules.append({
-                "ruleId": action["asset"].replace(" ", "_").upper(),
-                "severity": "medium",
+                "ruleId": rule_id,
+                "severity": SEVERITY_MAP.get(rule_id, "medium"),
                 "source": "signal",
                 "message": action["reason"],
                 "affectedSleeves": [action["asset"]],
+                "inputs": action.get("inputs"),
+                "logicVersion": action.get("logic_version"),
             })
 
         for bucket in fit_score.get("bucketBreakdown", []):
@@ -160,6 +171,7 @@ class ReportService:
         ReportService._ensure_report_tables()
         week_ending = week_ending or ReportService.get_week_ending()
         summary = PortfolioService.get_portfolio_summary(db)
+        valuation = summary.get("valuation", {})
         allocation = PortfolioService.get_portfolio_allocation(db)
         macro_snapshot = MacroService.get_macro_snapshot()
         action_report = AlgoService.get_action_report(db)
@@ -191,7 +203,14 @@ class ReportService:
             "logicVersion": ReportService.LOGIC_VERSION,
             "status": "final",
             "dataFreshness": {
-                "portfolioAsOf": ReportService._latest_snapshot_date(db),
+                "portfolioAsOf": valuation.get("as_of"),
+                "portfolioValuation": {
+                    "asOf": valuation.get("as_of"),
+                    "source": valuation.get("source"),
+                    "version": valuation.get("version"),
+                    "period": valuation.get("period"),
+                    "calculatedAt": valuation.get("calculated_at"),
+                },
                 "signalsAsOf": action_report.get("signals", {}).get("timestamp"),
                 "macroKnownAsOf": macro_snapshot.get("knownAsOf"),
                 "staleFlags": [],

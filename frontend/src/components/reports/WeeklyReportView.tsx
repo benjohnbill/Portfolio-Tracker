@@ -2,8 +2,15 @@ import Link from 'next/link';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { WeeklyReport } from '@/lib/api';
-import { AlertTriangle, BrainCircuit, CalendarRange, ChevronLeft, ShieldCheck, TrendingUp, Zap, Info, Clock } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, BrainCircuit, CalendarRange, ChevronLeft, ShieldCheck, TrendingUp, Zap, Info, Clock } from 'lucide-react';
 
+const SEVERITY_CONFIG: Record<string, { icon: LucideIcon; color: string; border: string; bg: string; badge: string; label: string }> = {
+  critical: { icon: AlertOctagon, color: 'text-red-500', border: 'border-red-500/40', bg: 'bg-red-500/10', badge: 'bg-red-500/20 text-red-400', label: 'CRITICAL' },
+  high: { icon: AlertTriangle, color: 'text-orange-400', border: 'border-orange-400/40', bg: 'bg-orange-400/10', badge: 'bg-orange-400/20 text-orange-300', label: 'HIGH' },
+  medium: { icon: AlertTriangle, color: 'text-yellow-400', border: 'border-yellow-400/40', bg: 'bg-yellow-400/10', badge: 'bg-yellow-400/20 text-yellow-300', label: 'MEDIUM' },
+  low: { icon: Info, color: 'text-blue-400', border: 'border-blue-400/40', bg: 'bg-blue-400/10', badge: 'bg-blue-400/20 text-blue-300', label: 'LOW' },
+};
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
@@ -69,33 +76,40 @@ export function WeeklyReportView({ report, eyebrow, title, description, backHref
       </div>
 
       {/* Data Freshness Badge */}
-      <div className="flex flex-wrap items-center gap-3 text-xs">
-        <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
-          <Clock className="w-3 h-3 text-muted-foreground" />
-          <span className="text-muted-foreground">Signals:</span>
-          <span className={getFreshnessColor(report.dataFreshness.signalsAsOf)}>
-            {formatRelativeTime(report.dataFreshness.signalsAsOf)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
-          <Clock className="w-3 h-3 text-muted-foreground" />
-          <span className="text-muted-foreground">Portfolio:</span>
-          <span className={getFreshnessColor(report.dataFreshness.portfolioAsOf)}>
-            {formatRelativeTime(report.dataFreshness.portfolioAsOf)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
-          <Clock className="w-3 h-3 text-muted-foreground" />
-          <span className="text-muted-foreground">Macro:</span>
-          <span className={getFreshnessColor(report.dataFreshness.macroKnownAsOf)}>
-            {formatRelativeTime(report.dataFreshness.macroKnownAsOf)}
-          </span>
-        </div>
-        {report.dataFreshness.staleFlags.length > 0 && (
-          <div className="flex items-center gap-1.5 bg-destructive/10 border border-destructive/30 rounded-full px-3 py-1.5 text-destructive">
-            <AlertTriangle className="w-3 h-3" />
-            <span>{report.dataFreshness.staleFlags.length} stale</span>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Signals:</span>
+            <span className={getFreshnessColor(report.dataFreshness.signalsAsOf)}>
+              {formatRelativeTime(report.dataFreshness.signalsAsOf)}
+            </span>
           </div>
+          <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Portfolio:</span>
+            <span className={getFreshnessColor(report.dataFreshness.portfolioAsOf)}>
+              {formatRelativeTime(report.dataFreshness.portfolioAsOf)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-[#11161d] border border-border/40 rounded-full px-3 py-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-muted-foreground">Macro:</span>
+            <span className={getFreshnessColor(report.dataFreshness.macroKnownAsOf)}>
+              {formatRelativeTime(report.dataFreshness.macroKnownAsOf)}
+            </span>
+          </div>
+          {report.dataFreshness.staleFlags.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-destructive/10 border border-destructive/30 rounded-full px-3 py-1.5 text-destructive">
+              <AlertTriangle className="w-3 h-3" />
+              <span>{report.dataFreshness.staleFlags.length} stale</span>
+            </div>
+          )}
+        </div>
+        {report.dataFreshness.portfolioValuation && (
+          <p className="text-xs text-muted-foreground">
+            Portfolio values from <span className="text-white/70 font-medium">{report.dataFreshness.portfolioValuation.source} {report.dataFreshness.portfolioValuation.version}</span> ({report.dataFreshness.portfolioValuation.period} period, as of {report.dataFreshness.portfolioValuation.asOf ? new Date(report.dataFreshness.portfolioValuation.asOf).toLocaleDateString() : 'unknown'})
+          </p>
         )}
       </div>
 
@@ -316,12 +330,28 @@ export function WeeklyReportView({ report, eyebrow, title, description, backHref
             <CardContent className="space-y-3">
               {report.triggeredRules.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No triggered rules this week.</p>
-              ) : report.triggeredRules.map((rule) => (
-                <div key={rule.ruleId} className="rounded-lg border border-border/40 p-3">
-                  <div className="flex items-center gap-2 text-white font-semibold text-sm"><AlertTriangle className="w-4 h-4 text-primary" /> {rule.ruleId}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{rule.message}</p>
-                </div>
-              ))}
+              ) : report.triggeredRules.map((rule) => {
+                const sev = SEVERITY_CONFIG[rule.severity] ?? SEVERITY_CONFIG.medium;
+                const SevIcon = sev.icon;
+                return (
+                  <div key={rule.ruleId} className={`rounded-lg border ${sev.border} ${sev.bg} p-3`}>
+                    <div className="flex items-center gap-2">
+                      <SevIcon className={`w-4 h-4 ${sev.color}`} />
+                      <span className="text-white font-semibold text-sm">{rule.ruleId}</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${sev.badge}`}>{sev.label}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{rule.source}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{rule.message}</p>
+                    {rule.affectedSleeves.length > 0 && (
+                      <div className="flex gap-1 mt-1.5">
+                        {rule.affectedSleeves.map((s) => (
+                          <span key={s} className="text-[10px] bg-white/5 text-muted-foreground px-1.5 py-0.5 rounded">{s}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
 

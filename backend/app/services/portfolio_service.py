@@ -1,12 +1,52 @@
 from sqlalchemy.orm import Session
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 from .price_service import PriceService
 from .exchange_service import ExchangeService
 from .kis_service import KISService
-from ..models import Transaction, Asset, RawDailyPrice, PortfolioSnapshot
+from ..models import Transaction, Asset, RawDailyPrice, AccountType, AccountSilo
 
 class PortfolioService:
+    ISA_KR_CODES = {"379810", "463300", "476760", "453870"}
+    VALUATION_SOURCE = "live_equity_curve"
+    VALUATION_VERSION = "portfolio-valuation-v1"
+
+    @staticmethod
+    def infer_account_type(asset: Asset) -> AccountType:
+        if asset.symbol == "BRAZIL_BOND":
+            return AccountType.OVERSEAS
+        if asset.source == "KR" and (asset.code in PortfolioService.ISA_KR_CODES or asset.symbol in {"QQQ", "CSI300", "TLT", "NIFTY"}):
+            return AccountType.ISA
+        return asset.account_type or AccountType.OVERSEAS
+
+    @staticmethod
+    def infer_account_silo(asset: Asset) -> AccountSilo:
+        if asset.symbol == "BRAZIL_BOND":
+            return AccountSilo.BRAZIL_BOND
+        if asset.source == "KR" and (asset.code in PortfolioService.ISA_KR_CODES or asset.symbol in {"QQQ", "CSI300", "TLT", "NIFTY"}):
+            return AccountSilo.ISA_ETF
+        return asset.account_silo or AccountSilo.OVERSEAS_ETF
+
+    @staticmethod
+    def sync_asset_classification(asset: Asset) -> bool:
+        changed = False
+        inferred_type = PortfolioService.infer_account_type(asset)
+        inferred_silo = PortfolioService.infer_account_silo(asset)
+        if asset.account_type != inferred_type:
+            asset.account_type = inferred_type
+            changed = True
+        if asset.account_silo != inferred_silo:
+            asset.account_silo = inferred_silo
+            changed = True
+        return changed
+
+    @staticmethod
+    def get_price_lookup_ticker(asset: Asset) -> str:
+        """Use market code for KR assets and symbol for US assets."""
+        if asset.source == "KR":
+            return asset.code or asset.symbol
+        return asset.symbol
+
     @staticmethod
     def _latest_numeric(values, default: float = 0.0) -> float:
         """Safely read the latest numeric value from a pandas Series/DataFrame slice."""
@@ -37,6 +77,56 @@ class PortfolioService:
             return default
 
     @staticmethod
+    def _slice_series_to_date(values, date_key: pd.Timestamp) -> pd.Series:
+        """Safely slice a pandas Series up to date_key.
+
+        Returns an empty series when values is empty or index cannot be
+        treated as datetimes, so callers can apply fallback defaults.
+        """
+        if values is None:
+            return pd.Series(dtype=float)
+
+        try:
+            if values.empty:
+                return pd.Series(dtype=float)
+        except Exception:
+            return pd.Series(dtype=float)
+
+        try:
+            if not isinstance(values.index, pd.DatetimeIndex):
+                return pd.Series(dtype=float)
+            return values[:date_key]
+        except Exception:
+            return pd.Series(dtype=float)
+
+    @staticmethod
+    def _resolve_period_start(first_transaction_date: date, today: date, period: str) -> date:
+        normalized_period = (period or "1y").lower()
+        if normalized_period in {"all", "max"}:
+            return first_transaction_date
+        if normalized_period == "ytd":
+            return max(first_transaction_date, date(today.year, 1, 1))
+        if normalized_period == "3m":
+            return max(first_transaction_date, today - timedelta(days=90))
+        if normalized_period == "1m":
+            return max(first_transaction_date, today - timedelta(days=30))
+        if normalized_period == "6m":
+            return max(first_transaction_date, today - timedelta(days=180))
+        # default: 1y
+        return max(first_transaction_date, today - timedelta(days=365))
+
+    @staticmethod
+    def build_valuation_metadata(history, period: str = "all"):
+        return {
+            "as_of": history[-1]["date"] if history else None,
+            "source": PortfolioService.VALUATION_SOURCE,
+            "version": PortfolioService.VALUATION_VERSION,
+            "period": (period or "all").lower(),
+            "history_points": len(history),
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    @staticmethod
     def get_equity_curve(db: Session, period: str = "1y"):
         """
         Calculates the daily total value of the portfolio in KRW.
@@ -47,17 +137,18 @@ class PortfolioService:
         if not transactions:
             return []
 
-        has_brazil_bond = any(getattr(tx.asset, 'symbol', None) == 'BRAZIL_BOND' for tx in transactions if getattr(tx, 'asset', None))
+        has_brazil_bond = any(
+            getattr(tx.asset, 'symbol', None) == 'BRAZIL_BOND' or (
+                getattr(tx.asset, 'account_silo', None) == AccountSilo.BRAZIL_BOND
+            )
+            for tx in transactions if getattr(tx, 'asset', None)
+        )
         brazil_bond_current_value = KISService.get_brazil_bond_value() if has_brazil_bond else 0.0
 
-        start_date = transactions[0].date.date()
+        first_transaction_date = transactions[0].date.date()
         today = date.today()
-        
-        if period == "1y":
-            start_date = max(start_date, today - timedelta(days=365))
-        elif period == "all" or period == "max":
-            # Start from the first transaction
-            start_date = transactions[0].date.date()
+
+        start_date = PortfolioService._resolve_period_start(first_transaction_date, today, period)
         
         start_date_str = start_date.strftime('%Y-%m-%d')
         end_date_str = today.strftime('%Y-%m-%d')
@@ -65,8 +156,17 @@ class PortfolioService:
         # 2. Fetch all necessary data
         asset_ids = list(set(t.asset_id for t in transactions))
         assets = {a.id: a for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()}
+        dirty = False
+        for asset in assets.values():
+            dirty = PortfolioService.sync_asset_classification(asset) or dirty
+        if dirty:
+            db.commit()
         
-        symbols_to_fetch = [a.symbol for a in assets.values() if a.symbol and a.symbol != "BRAZIL_BOND"]
+        symbols_to_fetch = [
+            PortfolioService.get_price_lookup_ticker(a)
+            for a in assets.values()
+            if a.symbol and PortfolioService.infer_account_silo(a) != AccountSilo.BRAZIL_BOND
+        ]
         if "SPY" not in symbols_to_fetch:
             symbols_to_fetch.append("SPY")
         
@@ -88,7 +188,10 @@ class PortfolioService:
             
             df_pivot = df_prices.pivot(index='date', columns='ticker', values='close_price')
             
-            symbol_to_id = {a.symbol: a.id for a in assets.values()}
+            symbol_to_id = {
+                PortfolioService.get_price_lookup_ticker(a): a.id
+                for a in assets.values()
+            }
             for symbol in df_pivot.columns:
                 if symbol in symbol_to_id:
                     price_data[symbol_to_id[symbol]] = df_pivot[symbol].dropna()
@@ -119,7 +222,7 @@ class PortfolioService:
             
             # Get current FX rate
             date_key = pd.Timestamp(current_date)
-            fx_slice = fx_history[:date_key]
+            fx_slice = PortfolioService._slice_series_to_date(fx_history, date_key)
             current_fx = PortfolioService._latest_numeric(fx_slice, default=1400.0)
             
             # Calculate total value in KRW
@@ -130,7 +233,7 @@ class PortfolioService:
                 asset = assets[aid]
                 
                 # Special Case: KIS Brazil Bond
-                if asset.symbol == "BRAZIL_BOND":
+                if PortfolioService.infer_account_silo(asset) == AccountSilo.BRAZIL_BOND:
                     if current_date == today and brazil_bond_current_value > 0:
                         daily_value_krw += brazil_bond_current_value
                     else:
@@ -166,12 +269,14 @@ class PortfolioService:
                     if initial_spy_price and initial_spy_price > 0:
                         spy_val = (current_spy_price / initial_spy_price) * initial_portfolio_value
 
+                alpha = ((daily_value_krw / initial_portfolio_value) - 1) - ((spy_val / initial_portfolio_value) - 1) if initial_portfolio_value and initial_portfolio_value > 0 else 0
                 history.append({
                     "date": current_date.isoformat(),
                     "total_value": int(daily_value_krw),
                     "benchmark_value": int(spy_val),
                     "fx_rate": current_fx,
-                    "daily_return": 0 
+                    "daily_return": 0,
+                    "alpha": round(alpha, 6),
                 })
             
             current_date += timedelta(days=1)
@@ -257,12 +362,17 @@ class PortfolioService:
             return []
 
         current_fx = ExchangeService.get_current_rate()
+        dirty = False
         has_brazil_bond = False
         for asset_id in active_holdings:
             asset = db.query(Asset).filter(Asset.id == asset_id).first()
-            if asset and asset.symbol == "BRAZIL_BOND":
+            if asset:
+                dirty = PortfolioService.sync_asset_classification(asset) or dirty
+            if asset and PortfolioService.infer_account_silo(asset) == AccountSilo.BRAZIL_BOND:
                 has_brazil_bond = True
                 break
+        if dirty:
+            db.commit()
         brazil_bond_current_value = KISService.get_brazil_bond_value() if has_brazil_bond else 0.0
         result = []
         total_value = 0.0
@@ -272,7 +382,10 @@ class PortfolioService:
             if not asset:
                 continue
 
-            if asset.symbol == "BRAZIL_BOND":
+            if PortfolioService.sync_asset_classification(asset):
+                db.add(asset)
+
+            if PortfolioService.infer_account_silo(asset) == AccountSilo.BRAZIL_BOND:
                 if brazil_bond_current_value > 0:
                     current_price = brazil_bond_current_value / qty if qty > 0 else 0.0
                     value_krw = brazil_bond_current_value
@@ -282,7 +395,7 @@ class PortfolioService:
                     value_krw = qty * current_price
             else:
                 latest_price_row = db.query(RawDailyPrice).filter(
-                    RawDailyPrice.ticker == (asset.code if asset.source == "KR" else asset.symbol)
+                    RawDailyPrice.ticker == PortfolioService.get_price_lookup_ticker(asset)
                 ).order_by(RawDailyPrice.date.desc()).first()
                 current_price = latest_price_row.close_price if latest_price_row else 0.0
                 if current_price == 0:
@@ -300,7 +413,10 @@ class PortfolioService:
                 "weight": 0.0,
                 "source": asset.source,
                 "account_type": asset.account_type.value if asset.account_type else "OVERSEAS",
+                "account_silo": asset.account_silo.value if asset.account_silo else PortfolioService.infer_account_silo(asset).value,
             })
+
+        db.commit()
 
         for item in result:
             item["weight"] = item["value"] / total_value if total_value > 0 else 0.0
@@ -309,20 +425,14 @@ class PortfolioService:
 
     @staticmethod
     def get_portfolio_summary(db: Session):
-        snapshots = db.query(PortfolioSnapshot).count()
-        if snapshots == 0:
-            return {
-                "total_value": 0,
-                "invested_capital": 0,
-                "metrics": PortfolioService.calculate_metrics([]),
-            }
-
         history = PortfolioService.get_equity_curve(db, period="all")
+        valuation = PortfolioService.build_valuation_metadata(history, period="all")
         if not history:
             return {
                 "total_value": 0,
                 "invested_capital": 0,
                 "metrics": PortfolioService.calculate_metrics([]),
+                "valuation": valuation,
             }
 
         latest = history[-1]
@@ -330,4 +440,5 @@ class PortfolioService:
             "total_value": latest["total_value"],
             "invested_capital": PortfolioService.calculate_invested_capital(db),
             "metrics": PortfolioService.calculate_metrics(history),
+            "valuation": valuation,
         }

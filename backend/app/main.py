@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from .database import SessionLocal, engine, Base, get_db
-from .models import Asset, Transaction, PortfolioSnapshot, RawDailyPrice, AccountType, AccountSilo, CronRunLog
+from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -212,36 +212,18 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
 
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
-    """Returns portfolio value history for charts based on real transactions."""
-    query = db.query(PortfolioSnapshot).order_by(PortfolioSnapshot.date.asc())
-    
-    today = date.today()
-    if period == "1y":
-        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=365))
-    elif period == "ytd":
-        query = query.filter(PortfolioSnapshot.date >= date(today.year, 1, 1))
-    elif period == "1m":
-        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=30))
-    elif period == "3m":
-        query = query.filter(PortfolioSnapshot.date >= today - timedelta(days=90))
-        
-    snapshots = query.all()
-    if not snapshots:
-        return []
-        
-    history = []
-    prev_val = 0
-    for s in snapshots:
-        curr_val = s.total_value
-        daily_return = (curr_val - prev_val) / prev_val if prev_val > 0 else 0
-        history.append({
-            "date": s.date.isoformat(),
-            "total_value": curr_val,
-            "daily_return": daily_return
-        })
-        prev_val = curr_val
-        
-    return history
+    """Returns live-calculated portfolio value history for charts."""
+    history = PortfolioService.get_equity_curve(db, period=period)
+    return [
+        {
+            "date": day["date"],
+            "total_value": day["total_value"],
+            "daily_return": day["daily_return"],
+            "benchmark_value": day.get("benchmark_value", 0),
+            "alpha": day.get("alpha", 0),
+        }
+        for day in history
+    ]
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):
@@ -294,6 +276,16 @@ def get_mstr_signal(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Error in GET /api/signals/mstr: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/signals/mstr-history")
+def get_mstr_history(period: str = "1y", db: Session = Depends(get_db)):
+    """Returns historical MSTR Z-score and MNAV ratio series for charting."""
+    return QuantService.get_mstr_history(db, period=period)
+
+@app.get("/api/signals/ndx-history")
+def get_ndx_history(period: str = "1y", db: Session = Depends(get_db)):
+    """Returns historical NDX price and 250MA series for charting."""
+    return QuantService.get_ndx_history(db, period=period)
 
 @app.get("/api/algo/action-report")
 def get_action_report(db: Session = Depends(get_db)):

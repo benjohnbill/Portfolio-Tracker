@@ -142,83 +142,73 @@ class QuantService:
         return False
 
     @staticmethod
+    def _build_mstr_dataframe(db: Session):
+        """Build full MSTR MNAV/Z-score DataFrame from cached data."""
+        from ..models import RawDailyPrice
+        mstr_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "MSTR").order_by(RawDailyPrice.date.asc())
+        mstr_data = pd.read_sql(mstr_query.statement, db.bind)
+
+        btc_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "BTC-USD").order_by(RawDailyPrice.date.asc())
+        btc_data = pd.read_sql(btc_query.statement, db.bind)
+
+        if mstr_data.empty or btc_data.empty:
+            return None
+
+        actions_query = db.query(MSTRCorporateAction).order_by(MSTRCorporateAction.date.asc())
+        actions_df = pd.read_sql(actions_query.statement, db.bind)
+
+        if actions_df.empty:
+            return None
+
+        mstr_df = mstr_data[['date', 'close_price']].copy()
+        mstr_df.rename(columns={"close_price": "mstr_close"}, inplace=True)
+        mstr_df['date'] = pd.to_datetime(mstr_df['date']).dt.tz_localize(None)
+
+        btc_df = btc_data[['date', 'close_price']].copy()
+        btc_df.rename(columns={"close_price": "btc_close"}, inplace=True)
+        btc_df['date'] = pd.to_datetime(btc_df['date']).dt.tz_localize(None)
+
+        actions_df['date'] = pd.to_datetime(actions_df['date']).dt.tz_localize(None)
+
+        mstr_df.sort_values('date', inplace=True)
+        btc_df.sort_values('date', inplace=True)
+        actions_df.sort_values('date', inplace=True)
+
+        df = pd.merge_asof(mstr_df, btc_df, on='date', direction='backward')
+        df = pd.merge_asof(df, actions_df, on='date', direction='backward')
+        df.dropna(subset=['btc_holdings', 'outstanding_shares'], inplace=True)
+
+        if df.empty:
+            return None
+
+        df['mnav'] = (df['btc_close'] * df['btc_holdings']) / df['outstanding_shares']
+        df['mnav_ratio'] = df['mstr_close'] / df['mnav']
+        df['rolling_mean'] = df['mnav_ratio'].rolling(window=252).mean()
+        df['rolling_std'] = df['mnav_ratio'].rolling(window=252).std()
+        df['z_score'] = (df['mnav_ratio'] - df['rolling_mean']) / df['rolling_std']
+
+        return df
+
+    @staticmethod
     def get_mstr_signal(db: Session):
-        """
-        Calculate MNAV and Z-score for MSTR using cached raw_daily_prices.
-        """
+        """Calculate MNAV and Z-score for MSTR using cached raw_daily_prices."""
         try:
-            from ..models import RawDailyPrice
-            # 1. Fetch MSTR and BTC from DB
-            mstr_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "MSTR").order_by(RawDailyPrice.date.asc())
-            mstr_data = pd.read_sql(mstr_query.statement, db.bind)
-            
-            btc_query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "BTC-USD").order_by(RawDailyPrice.date.asc())
-            btc_data = pd.read_sql(btc_query.statement, db.bind)
-
-            if mstr_data.empty or btc_data.empty:
-                print("Failed to find MSTR or BTC data in local DB.")
+            df = QuantService._build_mstr_dataframe(db)
+            if df is None or df.empty:
                 return None
 
-            # 2. Read records from mstr_corporate_actions
-            actions_query = db.query(MSTRCorporateAction).order_by(MSTRCorporateAction.date.asc())
-            actions_df = pd.read_sql(actions_query.statement, db.bind)
-            
-            if actions_df.empty:
-                print("No MSTR corporate actions found.")
-                return None
-            
-            # 3. Prepare datasets for merging using explicit date columns from the DB query
-            mstr_df = mstr_data[['date', 'close_price']].copy()
-            mstr_df.rename(columns={"close_price": "mstr_close"}, inplace=True)
-            mstr_df['date'] = pd.to_datetime(mstr_df['date']).dt.tz_localize(None)
-
-            btc_df = btc_data[['date', 'close_price']].copy()
-            btc_df.rename(columns={"close_price": "btc_close"}, inplace=True)
-            btc_df['date'] = pd.to_datetime(btc_df['date']).dt.tz_localize(None)
-            
-            actions_df['date'] = pd.to_datetime(actions_df['date']).dt.tz_localize(None)
-            
-            # Ensure they are sorted by date
-            mstr_df.sort_values('date', inplace=True)
-            btc_df.sort_values('date', inplace=True)
-            actions_df.sort_values('date', inplace=True)
-            
-            # 4. Use merge_asof to align BTC to MSTR trading days
-            df = pd.merge_asof(mstr_df, btc_df, on='date', direction='backward')
-            
-            # 5. Use merge_asof to align Corporate Actions to MSTR trading days
-            df = pd.merge_asof(df, actions_df, on='date', direction='backward')
-            
-            # 6. Drop rows where we don't have corporate action data yet (before first seed)
-            df.dropna(subset=['btc_holdings', 'outstanding_shares'], inplace=True)
-            
-            if df.empty:
-                print("DataFrame is empty after merging and dropping NaNs.")
-                return None
-                
-            # 7. Calculate MNAV
-            # MNAV = (BTC_Close * btc_holdings) / outstanding_shares
-            df['mnav'] = (df['btc_close'] * df['btc_holdings']) / df['outstanding_shares']
-            df['mnav_ratio'] = df['mstr_close'] / df['mnav']
-            
-            # 8. Calculate Rolling Stats (252-day window)
-            # Use mnav_ratio for Z-score calculation as it's more standard for premium evaluation
-            df['rolling_mean'] = df['mnav_ratio'].rolling(window=252).mean()
-            df['rolling_std'] = df['mnav_ratio'].rolling(window=252).std()
-            
-            # 9. Calculate current Z-score
             latest = df.iloc[-1]
             current_mnav = float(latest['mnav'])
             current_mnav_ratio = float(latest['mnav_ratio'])
             rolling_mean = float(latest['rolling_mean'])
             rolling_std = float(latest['rolling_std'])
-            
+
             z_score = 0.0
             if not pd.isna(rolling_std) and rolling_std != 0:
                 z_score = (current_mnav_ratio - rolling_mean) / rolling_std
             elif pd.isna(rolling_std):
                 print("Warning: Rolling standard deviation is NaN. Need more data (252 rows minimum).")
-                
+
             return {
                 "current_mnav": current_mnav,
                 "current_mnav_ratio": current_mnav_ratio,
@@ -227,12 +217,38 @@ class QuantService:
                 "z_score": z_score,
                 "last_updated": latest['date'].isoformat() if hasattr(latest['date'], 'isoformat') else str(latest['date'])
             }
-            
+
         except Exception as e:
             print(f"Error calculating MSTR signal: {e}")
             import traceback
             traceback.print_exc()
             return None
+
+    @staticmethod
+    def get_mstr_history(db: Session, period: str = "1y"):
+        """Returns historical MSTR Z-score and MNAV ratio series."""
+        try:
+            df = QuantService._build_mstr_dataframe(db)
+            if df is None or df.empty:
+                return []
+
+            # Period filtering
+            period_days = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}.get(period.lower())
+            if period_days:
+                cutoff = pd.Timestamp.now() - pd.Timedelta(days=period_days)
+                df = df[df['date'] >= cutoff]
+
+            return [
+                {
+                    "date": row['date'].isoformat() if hasattr(row['date'], 'isoformat') else str(row['date']),
+                    "z_score": round(float(row['z_score']), 4) if pd.notna(row['z_score']) else None,
+                    "mnav_ratio": round(float(row['mnav_ratio']), 4),
+                }
+                for _, row in df.iterrows()
+            ]
+        except Exception as e:
+            print(f"Error getting MSTR history: {e}")
+            return []
 
     @staticmethod
     def get_rsi(ticker: str, db: Session, window: int = 14):
@@ -306,3 +322,34 @@ class QuantService:
         except Exception as e:
             print(f"Error getting NDX status: {e}")
             return None
+
+    @staticmethod
+    def get_ndx_history(db: Session, period: str = "1y"):
+        """Returns historical NDX price and 250MA series."""
+        try:
+            from ..models import RawDailyPrice
+            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "QQQ").order_by(RawDailyPrice.date.asc())
+            data = pd.read_sql(query.statement, db.bind)
+
+            if data.empty:
+                return []
+
+            data['ma_250'] = data['close_price'].rolling(window=250).mean()
+
+            # Period filtering
+            period_days = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}.get(period.lower())
+            if period_days:
+                cutoff = pd.Timestamp.now() - pd.Timedelta(days=period_days)
+                data = data[pd.to_datetime(data['date']) >= cutoff]
+
+            return [
+                {
+                    "date": row['date'].isoformat() if hasattr(row['date'], 'isoformat') else str(row['date']),
+                    "price": round(float(row['close_price']), 2),
+                    "ma_250": round(float(row['ma_250']), 2) if pd.notna(row['ma_250']) else None,
+                }
+                for _, row in data.iterrows()
+            ]
+        except Exception as e:
+            print(f"Error getting NDX history: {e}")
+            return []

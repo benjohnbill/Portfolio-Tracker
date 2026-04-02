@@ -4,6 +4,21 @@ export interface PortfolioHistoryData {
   cash?: number;
   invested?: number;
   daily_return?: number;
+  fx_rate?: number;
+  benchmark_value?: number;
+  alpha?: number;
+}
+
+export interface NDXHistoryPoint {
+  date: string;
+  price: number;
+  ma_250: number | null;
+}
+
+export interface MSTRHistoryPoint {
+  date: string;
+  z_score: number | null;
+  mnav_ratio: number;
 }
 
 export interface PortfolioAllocationData {
@@ -361,10 +376,38 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   }
 }
 
+export async function getNDXHistory(period: string = '1y'): Promise<NDXHistoryPoint[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/signals/ndx-history?period=${period}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getMSTRHistory(period: string = '1y'): Promise<MSTRHistoryPoint[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/signals/mstr-history?period=${period}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
 export async function getPortfolioPageData(period: string = 'all'): Promise<{
   history: ApiResult<PortfolioHistoryData[]>;
   allocation: ApiResult<PortfolioAllocationData[]>;
   summary: ApiResult<PortfolioSummary>;
+  ndxHistory: NDXHistoryPoint[];
+  mstrHistory: MSTRHistoryPoint[];
 }> {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -385,13 +428,15 @@ export async function getPortfolioPageData(period: string = 'all'): Promise<{
     }
   };
 
-  const [history, allocation, summary] = await Promise.all([
+  const [history, allocation, summary, ndxHistory, mstrHistory] = await Promise.all([
     fetchJson<PortfolioHistoryData[]>(`/api/portfolio/history?period=${period}`),
     fetchJson<PortfolioAllocationData[]>('/api/portfolio/allocation'),
     fetchJson<PortfolioSummary>('/api/portfolio/summary'),
+    getNDXHistory(period),
+    getMSTRHistory(period),
   ]);
 
-  return { history, allocation, summary };
+  return { history, allocation, summary, ndxHistory, mstrHistory };
 }
 
 /**

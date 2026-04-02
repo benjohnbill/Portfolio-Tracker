@@ -1,6 +1,9 @@
 import Link from 'next/link';
 
 import { getPortfolioPageData } from '@/lib/api';
+import { AlphaChart } from '@/components/features/AlphaChart';
+import { NDXTrendChart } from '@/components/features/NDXTrendChart';
+import { MSTRZScoreChart } from '@/components/features/MSTRZScoreChart';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
 import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
@@ -27,9 +30,9 @@ export default async function PortfolioPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const params = await searchParams;
-  const period = typeof params.period === 'string' ? params.period : 'ytd';
+  const period = typeof params.period === 'string' ? params.period : '1y';
 
-  const { history, allocation, summary } = await getPortfolioPageData(period);
+  const { history, allocation, summary, ndxHistory, mstrHistory } = await getPortfolioPageData(period);
   const historyData = history.data ?? [];
   const allocationData = allocation.data ?? [];
 
@@ -99,6 +102,20 @@ export default async function PortfolioPage({
     },
   };
 
+  const valuationMeta = summary.data?.valuation;
+  const asOfDate = valuationMeta?.as_of ? new Date(valuationMeta.as_of).toLocaleDateString() : null;
+  const valuationTimestamp = valuationMeta?.calculated_at 
+    ? new Date(valuationMeta.calculated_at).toLocaleString([], { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    : null;
+  const valuationLabel = valuationMeta 
+    ? `${valuationMeta.source} ${valuationMeta.version} (${asOfDate || 'unknown date'}, ${valuationMeta.history_points} points, ${valuationMeta.period} period)`
+    : 'Real-time live equity curve';
+
   const latestData = historyData[historyData.length - 1];
   const yesterdayData = historyData.length > 1 ? historyData[historyData.length - 2] : latestData;
   const latestValue = isFiniteNumber(latestData?.total_value) ? latestData.total_value : 0;
@@ -135,8 +152,16 @@ export default async function PortfolioPage({
           <h1 className="text-3xl font-bold tracking-tight text-white italic">Long-Horizon Analytics</h1>
           <div className="flex items-center gap-2 text-muted-foreground mt-1 text-sm">
             <Clock className="w-3 h-3" />
-            <span>Latest portfolio analytics as of {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span className="flex items-center gap-1">
+              {valuationLabel}
+              {valuationTimestamp && (
+                <span className="text-xs text-white/50">· calculated {valuationTimestamp}</span>
+              )}
+            </span>
           </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Chart and summary use the same live valuation basis
+          </p>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -145,8 +170,11 @@ export default async function PortfolioPage({
           </Link>
           <div className="flex items-center bg-[#11161d] border border-border/40 p-1 rounded-lg">
             {[
-              { label: '1 Year', value: '1y' },
-              { label: 'All Time', value: 'all' },
+              { label: '1M', value: '1m' },
+              { label: '3M', value: '3m' },
+              { label: '6M', value: '6m' },
+              { label: '1Y', value: '1y' },
+              { label: 'All', value: 'all' },
             ].map((opt) => (
               <Link
                 key={opt.value}
@@ -184,6 +212,18 @@ export default async function PortfolioPage({
             </CardContent>
           </Card>
 
+          <Card className="bg-[#11161d] border-border/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-bold text-white flex items-center">
+                Alpha vs SPY <TrendingUp className="w-4 h-4 ml-2 text-muted-foreground" />
+              </CardTitle>
+              <CardDescription className="text-xs">Cumulative outperformance relative to S&P 500</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlphaChart data={historyData} />
+            </CardContent>
+          </Card>
+
           <Card className="bg-[#11161d] border-border/40 overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-xl font-bold text-white flex items-center">
@@ -195,6 +235,31 @@ export default async function PortfolioPage({
               <TargetDeviationChart allocation={allocationData} />
             </CardContent>
           </Card>
+
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-white">Signal Charts</h2>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card className="bg-[#11161d] border-border/40">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold text-white">NDX vs 250MA</CardTitle>
+                  <CardDescription className="text-xs">Trend regime — drives TIGER_2X ↔ KODEX_1X rotation</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <NDXTrendChart data={ndxHistory} />
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#11161d] border-border/40">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold text-white">MSTR Z-Score</CardTitle>
+                  <CardDescription className="text-xs">Mean-reversion signal — drives MSTR ↔ DBMF rotation</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MSTRZScoreChart data={mstrHistory} />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
 
         <div className="lg:col-span-4 space-y-6">

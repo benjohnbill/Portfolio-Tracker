@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
@@ -91,6 +92,33 @@ class WeeklyReport(Base):
     status = Column(String, nullable=False, default="final")
     report_json = Column(JSON, nullable=False)
     llm_summary_json = Column(JSON, nullable=True)
+
+
+class WeeklySnapshot(Base):
+    __tablename__ = "weekly_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    snapshot_date = Column(Date, index=True, unique=True, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    frozen_report = Column(JSONB, nullable=False)
+    snapshot_metadata = Column("metadata", JSONB, nullable=False)
+
+    decisions = relationship("WeeklyDecision", back_populates="snapshot", cascade="all, delete-orphan")
+
+
+class WeeklyDecision(Base):
+    __tablename__ = "weekly_decisions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    snapshot_id = Column(Integer, ForeignKey("weekly_snapshots.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    decision_type = Column(String, nullable=False)
+    asset_ticker = Column(String, nullable=True)
+    note = Column(Text, nullable=False)
+    confidence = Column(Integer, nullable=False)
+    invalidation = Column(Text, nullable=True)
+
+    snapshot = relationship("WeeklySnapshot", back_populates="decisions")
 
 
 class EventAnnotation(Base):

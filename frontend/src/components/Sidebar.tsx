@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
+  CalendarDays,
   Wallet, 
   Archive,
   PanelLeftClose,
@@ -13,6 +14,7 @@ import {
 
 const navItems = [
   { icon: LayoutDashboard, label: 'This Week', href: '/' },
+  { icon: CalendarDays, label: 'Friday', href: '/friday' },
   { icon: Wallet, label: 'Portfolio', href: '/portfolio' },
   { icon: Archive, label: 'Archive', href: '/archive' },
 ];
@@ -20,6 +22,11 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <aside
@@ -39,7 +46,7 @@ export function Sidebar() {
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           onClick={() => setCollapsed((value) => !value)}
-          className={`shrink-0 rounded-md border border-border/50 bg-[#11161d]/80 p-2 text-muted-foreground transition-all hover:text-white hover:border-primary/40 hover:bg-accent/40 ${collapsed ? 'absolute top-4 right-4' : ''}`}
+          className={`shrink-0 rounded-md border border-border/50 bg-card/80 p-2 text-muted-foreground transition-all hover:text-white hover:border-primary/40 hover:bg-accent/40 ${collapsed ? 'absolute top-4 right-4' : ''}`}
         >
           {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
         </button>
@@ -54,13 +61,13 @@ export function Sidebar() {
             key={item.label} 
             href={item.href}
             className={`flex items-center px-3 py-2 rounded-md transition-all duration-200 ${collapsed ? 'justify-center' : 'space-x-3'} ${
-              (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href))
-                ? 'neon-border-active text-white' 
+              isActive(item.href)
+                ? 'nav-active text-white' 
                 : 'text-muted-foreground hover:text-white hover:bg-accent/50'
             }`}
             title={collapsed ? item.label : undefined}
           >
-            <item.icon className={`w-5 h-5 shrink-0 ${(item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)) ? 'text-primary' : ''}`} />
+            <item.icon className={`w-5 h-5 shrink-0 ${isActive(item.href) ? 'text-primary' : ''}`} />
             <span className={`text-sm font-medium whitespace-nowrap transition-all duration-200 ${collapsed ? 'w-0 opacity-0 -translate-x-2 pointer-events-none' : 'w-auto opacity-100 translate-x-0'}`}>
               {item.label}
             </span>

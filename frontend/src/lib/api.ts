@@ -275,6 +275,55 @@ export interface WeeklyReport {
   };
 }
 
+export interface FridayDecision {
+  id: number;
+  snapshotId: number;
+  createdAt: string | null;
+  decisionType: string;
+  decision_type?: string;
+  assetTicker: string | null;
+  note: string;
+  confidence: number;
+  invalidation: string | null;
+}
+
+export interface FridaySnapshotSummary {
+  id: number;
+  snapshotDate: string;
+  createdAt: string | null;
+  metadata: {
+    coverage?: Record<string, boolean>;
+    partial?: boolean;
+    errors?: Record<string, string>;
+    snapshotWeekEnding?: string;
+  };
+  decisions: FridayDecision[];
+  score?: number | null;
+  status?: string | null;
+}
+
+export interface FridaySnapshot extends FridaySnapshotSummary {
+  frozenReport: WeeklyReport;
+}
+
+export interface FridayComparison {
+  snapshotA: FridaySnapshot;
+  snapshotB: FridaySnapshot;
+  deltas: {
+    score_total: number;
+    total_value: number;
+    regime_change: { from: string | null; to: string | null };
+    rules_added: string[];
+    rules_removed: string[];
+    holdings_changed: Array<{
+      symbol: string;
+      weight_a: number;
+      weight_b: number;
+      delta: number;
+    }>;
+  };
+}
+
 /**
  * Fetches portfolio history from the Backend.
  * Backend endpoint: http://localhost:8000/api/portfolio/history
@@ -508,4 +557,103 @@ export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReport 
     console.error('API Error:', error);
     return null;
   }
+}
+
+export async function getFridayCurrent(): Promise<WeeklyReport | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/friday/current`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch Friday current report');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getFridaySnapshots(): Promise<FridaySnapshotSummary[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/friday/snapshots`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch Friday snapshots');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySnapshot | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/friday/snapshot/${snapshotDate}`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch Friday snapshot');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function compareFridaySnapshots(a: string, b: string): Promise<FridayComparison | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/friday/compare?a=${a}&b=${b}`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to compare Friday snapshots');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function createFridaySnapshot(snapshotDate?: string): Promise<FridaySnapshot> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/v1/friday/snapshot`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ snapshot_date: snapshotDate ?? null }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(errorData.detail || 'Failed to create Friday snapshot');
+  }
+
+  return res.json();
+}
+
+export async function createFridayDecision(payload: {
+  snapshot_id: number;
+  decision_type: string;
+  asset_ticker?: string;
+  note: string;
+  confidence: number;
+  invalidation?: string;
+}): Promise<FridayDecision> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/v1/friday/decisions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(errorData.detail || 'Failed to create Friday decision');
+  }
+
+  return res.json();
 }

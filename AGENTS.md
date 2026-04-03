@@ -11,8 +11,10 @@ Full-stack portfolio review app. Active implementation lives in a Next.js dashbo
 1. `README.md`
 2. `PRODUCT.md` (what this product is, who it's for, scoring model)
 3. `ARCHITECTURE.md` (system design, data pipeline, decision engine, domain glossary)
-4. `PLAN.md`
-5. `docs/local-setup.md` (runtime/env only)
+4. `DESIGN.md` (design system: typography, color, spacing, layout, component patterns)
+5. `TODOS.md` (implementation checklist with architecture spec for Friday Time Machine)
+6. `PLAN.md`
+7. `docs/local-setup.md` (runtime/env only)
 
 ## STRUCTURE
 ```text
@@ -85,3 +87,4 @@ uvicorn backend.app.main:app --reload
 - Frontend changes: `npm run lint` and `npm run build` in `frontend/`
 - Backend changes: relevant tests or script checks in `backend/`
 - Report pre-existing failures separately from issues introduced by edits
+- Note: frontend lint uses the repo-local config in `frontend/.eslintrc.json`; keep `package.json` lint script non-interactive and avoid `next lint` setup prompts

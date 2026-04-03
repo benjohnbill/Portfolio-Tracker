@@ -1,29 +1,36 @@
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css');
+@import url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 222 47% 4%;
-    --foreground: 213 31% 91%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
-    --popover: 222 47% 4%;
-    --popover-foreground: 213 31% 91%;
-    --border: 223 47% 11%;
-    --input: 223 47% 11%;
-    --card: 222 47% 6%;
-    --card-foreground: 213 31% 91%;
-    --primary: 171 66% 44%;
-    --primary-foreground: 171 66% 10%;
-    --secondary: 222 47% 11%;
-    --secondary-foreground: 210 40% 98%;
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 216 34% 17%;
-    --radius: 0.75rem;
+    --background: 219 30% 6%;
+    --foreground: 210 12% 92%;
+    --muted: 218 18% 13%;
+    --muted-foreground: 216 12% 59%;
+    --popover: 219 30% 6%;
+    --popover-foreground: 210 12% 92%;
+    --border: 220 18% 21%;
+    --input: 220 18% 21%;
+    --card: 217 25% 9%;
+    --card-foreground: 210 12% 92%;
+    --primary: 34 51% 64%;
+    --primary-foreground: 219 30% 6%;
+    --secondary: 218 18% 13%;
+    --secondary-foreground: 210 12% 92%;
+    --accent: 225 20% 15%;
+    --accent-foreground: 210 12% 92%;
+    --destructive: 0 85% 71%;
+    --destructive-foreground: 219 30% 6%;
+    --ring: 34 51% 64%;
+    --radius: 0.5rem;
+    --font-ui: 'Geist Sans', sans-serif;
+    --font-display: 'Instrument Serif', serif;
+    --font-mono: 'Geist Mono', monospace;
   }
 }
 
@@ -31,25 +38,35 @@
   * {
     @apply border-border;
   }
+  html {
+    background-color: #0a0e14;
+  }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-ui);
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1,
+  h2,
+  [data-display="true"] {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  code,
+  pre,
+  kbd,
+  samp,
+  [data-mono="true"] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 }
 
-.neon-glow {
-  text-shadow: 0 0 10px rgba(79, 209, 197, 0.5), 0 0 20px rgba(79, 209, 197, 0.3);
-}
-
-.card-glow {
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5), inset 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
 .sidebar-gradient {
-  background: linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(10, 12, 16, 1) 100%);
+  background: linear-gradient(180deg, rgba(17, 22, 29, 1) 0%, rgba(10, 14, 20, 1) 100%);
 }
 
-.neon-border-active {
-  border-left: 3px solid #4fd1c5;
-  background: linear-gradient(90deg, rgba(79, 209, 197, 0.1) 0%, rgba(79, 209, 197, 0) 100%);
+.nav-active {
+  border-left: 3px solid hsl(var(--primary));
+  background: linear-gradient(90deg, rgba(212, 165, 116, 0.14) 0%, rgba(212, 165, 116, 0.02) 100%);
 }

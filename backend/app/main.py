@@ -21,6 +21,7 @@ from .services.quant_service import QuantService
 from .services.algo_service import AlgoService
 from .services.ingestion_service import PriceIngestionService
 from .services.annotation_service import AnnotationService
+from .services.friday_service import FridayService, SnapshotConflictError, SnapshotNotFoundError, SnapshotValidationError
 from .services.report_service import ReportService
 from .services.notification_service import NotificationService
 
@@ -59,6 +60,19 @@ class EventAnnotationCreate(BaseModel):
     decision_impact: Optional[str] = None
     source: str = "manual"
     event_date: Optional[str] = None
+
+
+class FridaySnapshotCreateRequest(BaseModel):
+    snapshot_date: Optional[str] = None
+
+
+class FridayDecisionCreateRequest(BaseModel):
+    snapshot_id: int
+    decision_type: str
+    asset_ticker: Optional[str] = None
+    note: str
+    confidence: int = Field(ge=1, le=10)
+    invalidation: Optional[str] = None
 
 # CORS configuration
 origins = ["*"] # Broaden for local development
@@ -359,6 +373,90 @@ def create_weekly_annotation(payload: EventAnnotationCreate, db: Session = Depen
         raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
     except Exception as e:
         print(f"Error in POST /api/reports/weekly/annotations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/friday/snapshot")
+def create_friday_snapshot(payload: FridaySnapshotCreateRequest, db: Session = Depends(get_db)):
+    try:
+        snapshot_date = datetime.strptime(payload.snapshot_date, "%Y-%m-%d").date() if payload.snapshot_date else None
+        return FridayService.create_snapshot(db, snapshot_date=snapshot_date)
+    except ValueError as exc:
+        if isinstance(exc, SnapshotConflictError):
+            raise HTTPException(status_code=409, detail=str(exc))
+        if isinstance(exc, SnapshotValidationError):
+            raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail="snapshot_date must be YYYY-MM-DD")
+    except Exception as e:
+        print(f"Error in POST /api/v1/friday/snapshot: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/friday/snapshots")
+def list_friday_snapshots(db: Session = Depends(get_db)):
+    try:
+        return FridayService.list_snapshots(db)
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/snapshots: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/friday/snapshot/{snapshot_date}")
+def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
+    try:
+        parsed = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
+        return FridayService.get_snapshot(db, parsed)
+    except SnapshotNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="snapshot_date must be YYYY-MM-DD")
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/snapshot/{{snapshot_date}}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/friday/decisions")
+def create_friday_decision(payload: FridayDecisionCreateRequest, db: Session = Depends(get_db)):
+    try:
+        return FridayService.add_decision(
+            db,
+            snapshot_id=payload.snapshot_id,
+            decision_type=payload.decision_type,
+            asset_ticker=payload.asset_ticker,
+            note=payload.note,
+            confidence=payload.confidence,
+            invalidation=payload.invalidation,
+        )
+    except SnapshotNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except SnapshotValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as e:
+        print(f"Error in POST /api/v1/friday/decisions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/friday/compare")
+def compare_friday_snapshots(a: str, b: str, db: Session = Depends(get_db)):
+    try:
+        parsed_a = datetime.strptime(a, "%Y-%m-%d").date()
+        parsed_b = datetime.strptime(b, "%Y-%m-%d").date()
+        return FridayService.compare_snapshots(db, parsed_a, parsed_b)
+    except SnapshotNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/compare: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/friday/current")
+def get_friday_current(db: Session = Depends(get_db)):
+    try:
+        return FridayService.get_current_report(db)
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/current: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/cron/update-signals")

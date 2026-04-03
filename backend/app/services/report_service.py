@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -39,7 +40,7 @@ class ReportService:
 
     @staticmethod
     def get_week_ending(target_date: Optional[date] = None) -> date:
-        current = target_date or date.today()
+        current = target_date or datetime.now(ZoneInfo("Asia/Seoul")).date()
         weekday = current.weekday()
         offset = (weekday - 4) % 7
         return current - timedelta(days=offset)

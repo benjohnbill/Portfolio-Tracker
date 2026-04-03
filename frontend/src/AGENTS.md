@@ -29,4 +29,5 @@ Next.js App Router frontend. Routes live in `app/`, shared UI in `components/`, 
 ## VALIDATION
 - `cd frontend && npm run lint`
 - `cd frontend && npm run build`
+- Frontend lint should run through the repo-local config in `frontend/.eslintrc.json`, not interactive `next lint` setup
 - If pages fetch backend data at build/runtime, distinguish expected local `ECONNREFUSED` warnings from actual compile/type failures

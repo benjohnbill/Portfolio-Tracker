@@ -2,8 +2,10 @@
 
 ## Timezone: Fix get_week_ending() to use KST
 
+**Status:** Done
 **Priority:** Medium
 **Added:** 2026-04-03 (eng review)
+**Completed:** 2026-04-04
 
 ReportService.get_week_ending() uses naive `date.today()` which returns UTC on Render.
 A cron running at Friday 11pm UTC is Saturday 8am KST, causing the week-ending date
@@ -15,6 +17,8 @@ in `ReportService.get_week_ending()`. Check historical data for any shifted date
 
 **Files:** `backend/app/services/report_service.py:42`
 **Blocked by:** Nothing, but needs care with existing data.
+
+**Result:** `ReportService.get_week_ending()` now uses `datetime.now(ZoneInfo("Asia/Seoul")).date()`.
 
 ---
 
@@ -112,12 +116,20 @@ FRONTEND HIERARCHY (/friday page):
 - [x] Error: per-section error badges ("Macro data unavailable")
 - [x] Freeze progress: step indicator with elapsed time
 - [x] Frozen success: toast + "✓ Frozen" badge
+- [x] Partial compare safety: archive compare renders explicit unavailable placeholders when a frozen snapshot is partial
 
 ### Tooling / Cleanup
 - [x] Finish frontend ESLint setup so `npm run lint` passes non-interactively
 
 ### Tests
-- [x] 17 backend unit tests (test_friday_service.py): snapshot CRUD, decision CRUD, idempotency, partial failures, comparison
+- [x] 20 backend unit tests (test_friday_service.py): snapshot CRUD, decision CRUD, idempotency, partial failures, comparison, persisted latest-report fallback
+- [x] Backend suite currently passes in repo venv: `cd backend && .venv/bin/python -m pytest tests -q` → 29 passed
+
+### Stability Notes (2026-04-04)
+- `GET /api/reports/weekly/latest` is now read-only against persisted `weekly_reports`.
+- If the current week row is missing, the backend returns the latest persisted report instead of regenerating on read.
+- Friday request paths no longer run request-time DDL; migration/setup drift should fail fast instead of being hidden.
+- Friday snapshot lookup helpers now use filtered SQLAlchemy queries instead of `.all()` plus Python filtering.
 
 ### Phase C (deferred, schema designed to support)
 - Outcome grading (after 4-6 weeks of data)

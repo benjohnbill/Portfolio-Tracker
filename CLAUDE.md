@@ -19,3 +19,15 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+## Design System
+Always read DESIGN.md before making any visual or UI decisions.
+All font choices, colors, spacing, and aesthetic direction are defined there.
+Do not deviate without explicit user approval.
+In QA mode, flag any code that doesn't match DESIGN.md.
+
+## Current Contract Notes
+- `GET /api/reports/weekly/latest` is a read-only persisted-report endpoint. Do not regenerate or upsert reports on that GET path.
+- If the current week has no persisted report yet, the backend currently falls back to the latest persisted report. Treat that as intentional until a separate live-preview redesign is approved.
+- Friday snapshot/archive surfaces must handle partial snapshots safely. Missing score, value, regime, or rules data should render explicit unavailable placeholders rather than crash.
+- Do not add request-time DDL back into Friday request paths. Missing tables should point operators to migrations/setup, not be created inside normal reads/writes.

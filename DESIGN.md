@@ -82,6 +82,7 @@
 - **Buttons:** Primary (amber bg, dark text), Secondary (transparent, border), Ghost (no border)
 - **Form inputs:** Dark bg (#0a0e14), subtle border (#2a3040), accent border on focus
 - **Confidence slider:** Horizontal track (4px height), accent fill + thumb with glow ring
+- **Partial-data handling:** When frozen snapshots are incomplete, render explicit unavailable copy in muted text rather than blank space, zeros, or crashes
 
 ## Friday Page Hierarchy
 1. **Hero strip** — score (large mono) + delta badge + regime badge + signal count + Freeze button (right-aligned)
@@ -89,6 +90,49 @@
 3. **Signals list** — expandable rows with severity badges, not cards
 4. **Decision journal** — form section at bottom (type, ticker, note, confidence, invalidation)
 5. **Freeze button** — terminal action, after everything
+
+## Intelligence Page Hierarchy
+
+The intelligence pages show patterns across months, not this week's decision. Visual language: research notebook, not real-time dashboard.
+
+### /intelligence (Dashboard)
+1. **Hero strip** — Instrument Serif "Intelligence" + data coverage badge ("32 weeks analyzed")
+2. **3-stat row** — Rule accuracy %, avg score trend, regime stability (Geist Mono, 24px)
+3. **Contribution heatmap** — Full-width, 52-week calendar grid. Cell: 12x12px, gap: 2px. Color: opacity-scaled amber (#D4A574 at 20%-100%). Empty weeks: subtle border, no fill. Partial: diagonal stripe.
+4. **Recent decisions timeline** — Vertical list, most recent first. Each card: type + ticker + confidence + outcome badge.
+5. **Navigation links** — to /friday (ritual) + /archive (history)
+
+### /intelligence/attributions (Score Decomposition)
+1. **Hero** — "Score Attribution" + period selector (3M / 6M / 1Y / All)
+2. **Stacked area chart** — Full-width Recharts AreaChart. Fit: #60A5FA (blue-400, opacity 0.3), Alignment: #D4A574 (amber, opacity 0.3), Posture: #4ADE80 (green-400, opacity 0.3). Y-axis: 0-100.
+3. **Bucket breakdown table** — Columns: Bucket | This week | 4-week avg | Best | Worst. Geist Mono. Sort by variance.
+4. **Regime overlay toggle** — Vertical markers on chart at regime transitions.
+
+### /intelligence/outcomes (Decision Evaluation)
+1. **Hero** — "Decision Outcomes" + horizon toggle (1M / 3M / 6M / 1Y)
+2. **Decision cards** — Vertical list. Expandable: portfolio delta %, score delta, regime change, asset price change.
+3. **Summary stats** — Decisions followed %, avg outcome followed vs ignored.
+4. **Empty state** (< 4 weeks) — "Decisions need time. Your first outcomes will appear in [X] weeks."
+
+### /intelligence/rules (Rule Performance)
+1. **Hero** — "Rule Accuracy" + all-time stats
+2. **Rule table** — Full-width. Columns: Rule | Fired | Followed | Ignored | Outcome (F) | Outcome (I) | Accuracy. Rules with < 3 data points: "(limited data)" badge.
+3. **Expandable detail** — Last 5 instances per rule with decision + outcome.
+
+### Intelligence Component Patterns
+- **Contribution heatmap:** CSS Grid, 52 cols. Amber opacity scale (20%-100% based on score). Hover tooltip with score breakdown.
+- **Outcome badge:** 11px mono uppercase. Positive: #4ADE80 on #0a2010. Negative: #F87171 on #200a0a. Pending: #8b95a5 on #11161d.
+- **Horizon toggle:** Button group matching existing period selectors on /portfolio page.
+- **"Insufficient data" state:** Muted text (#5a6577) + progress indicator showing weeks until threshold (12 weeks for importance, 4 weeks for basic outcomes).
+
+### Intelligence Data-Density States
+| State | Treatment |
+|-------|-----------|
+| Loading | Skeleton pulse: 52x1 grid of skeleton cells for heatmap, skeleton rows for tables |
+| < 4 weeks | "Getting started" card with progress bar toward first threshold |
+| 4-12 weeks | Show data with "(early data)" badge on statistical claims |
+| 12+ weeks | Full intelligence view, no caveats |
+| Error | Per-section error badge: "Attribution data unavailable" (matching Friday pattern) |
 
 ## Decisions Log
 | Date | Decision | Rationale |
@@ -99,3 +143,7 @@
 | 2026-04-03 | No card borders/shadows | Spacing-based containment is calmer, data breathes |
 | 2026-04-03 | Geist + Geist Mono | Modern utilitarian stack with native tabular-nums |
 | 2026-04-03 | Color = signal only | Green/red for P&L, amber for warnings, blue for info. Never decorative |
+| 2026-04-04 | Partial snapshot compare uses explicit unavailable placeholders | Preserve archive stability and honesty when frozen snapshot coverage is incomplete |
+| 2026-04-08 | Intelligence pages use full-width layouts for time-series charts | Wider than Friday's 2-column. 52+ week data needs room to breathe |
+| 2026-04-08 | Attribution uses muted color palette (opacity-scaled amber, desaturated blues) | Prevents visual noise on data-dense pages. Green/red reserved for outcome deltas only |
+| 2026-04-08 | 4-tier data-density states for intelligence pages | < 4 weeks → getting started, 4-12 → early data badges, 12+ → full view. Honest about data maturity |

@@ -1,3 +1,5 @@
+<!-- Parent: ../AGENTS.md -->
+
 # BACKEND APP GUIDE
 
 ## OVERVIEW

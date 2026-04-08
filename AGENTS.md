@@ -39,9 +39,11 @@ Full-stack portfolio review app. Active implementation lives in a Next.js dashbo
 | Setup/runtime docs | `docs/local-setup.md` | Source of truth for local commands |
 
 ## CHILD GUIDES
-- `backend/app/AGENTS.md`
-- `backend/scripts/AGENTS.md`
-- `frontend/src/AGENTS.md`
+- `backend/AGENTS.md` → `backend/app/AGENTS.md`, `backend/app/services/AGENTS.md`, `backend/alembic/AGENTS.md`, `backend/alembic/versions/AGENTS.md`, `backend/data/AGENTS.md`, `backend/tests/AGENTS.md`, `backend/scripts/AGENTS.md`
+- `frontend/AGENTS.md` → `frontend/src/AGENTS.md`, `frontend/src/app/AGENTS.md`, `frontend/src/lib/AGENTS.md`, `frontend/src/components/AGENTS.md`, `frontend/src/components/features/AGENTS.md`, `frontend/src/components/features/portfolio/AGENTS.md`, `frontend/src/components/friday/AGENTS.md`, `frontend/src/components/reports/AGENTS.md`, `frontend/src/components/ui/AGENTS.md`
+- `docs/AGENTS.md` → `docs/archive/AGENTS.md`, `docs/maestro/AGENTS.md`
+- `legacy/AGENTS.md`
+- `.github/AGENTS.md`
 
 ## CONVENTIONS
 - Active code boundaries: `backend/app/`, `frontend/src/`, `backend/scripts/`
@@ -50,6 +52,8 @@ Full-stack portfolio review app. Active implementation lives in a Next.js dashbo
 - Frontend uses Next.js App Router + TypeScript + Tailwind + `shadcn/ui`
 - Backend dependencies come from `backend/requirements.txt` (no repo-local `pyproject.toml`)
 - Schema changes require Alembic path verification
+- Treat `GET /api/reports/weekly/latest` as a read-only persisted-report endpoint; generation/upsert belongs to cron or explicit POST flows
+- Friday snapshot reads must not rely on request-time table creation; missing schema should fail fast and point back to migrations/setup
 
 ## ANTI-PATTERNS
 - Do not edit `legacy/` unless explicitly requested
@@ -86,5 +90,7 @@ uvicorn backend.app.main:app --reload
 ## VALIDATION EXPECTATIONS
 - Frontend changes: `npm run lint` and `npm run build` in `frontend/`
 - Backend changes: relevant tests or script checks in `backend/`
+- Preferred backend test path: `cd backend && .venv/bin/python -m pytest tests -q`
+- Friday-targeted backend verification: `cd backend && .venv/bin/python -m pytest tests/test_friday_service.py -q`
 - Report pre-existing failures separately from issues introduced by edits
 - Note: frontend lint uses the repo-local config in `frontend/.eslintrc.json`; keep `package.json` lint script non-interactive and avoid `next lint` setup prompts

@@ -1,3 +1,5 @@
+<!-- Parent: ../AGENTS.md -->
+
 # BACKEND SCRIPTS GUIDE
 
 ## OVERVIEW

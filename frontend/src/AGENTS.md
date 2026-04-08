@@ -1,3 +1,5 @@
+<!-- Parent: ../AGENTS.md -->
+
 # FRONTEND SRC GUIDE
 
 ## OVERVIEW

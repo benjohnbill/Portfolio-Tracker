@@ -1,15 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
-from dotenv import load_dotenv
-from pathlib import Path
+from .env_loader import load_backend_env
 
 # Load environment variables
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-ENV_FILE = BACKEND_ROOT / ".env"
-
-if ENV_FILE.exists():
-    load_dotenv(ENV_FILE)
+load_backend_env()
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 

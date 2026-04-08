@@ -426,9 +426,13 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
 }
 
 export async function getNDXHistory(period: string = '1y'): Promise<NDXHistoryPoint[]> {
+  return getAssetHistory('QQQ', period);
+}
+
+export async function getAssetHistory(ticker: string, period: string = '1y'): Promise<NDXHistoryPoint[]> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/signals/ndx-history?period=${period}`, {
+    const res = await fetch(`${API_BASE}/api/signals/history?ticker=${ticker}&period=${period}`, {
       cache: 'no-store',
     });
     if (!res.ok) return [];

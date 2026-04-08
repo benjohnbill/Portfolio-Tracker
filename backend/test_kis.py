@@ -1,10 +1,10 @@
 import os
 import traceback
-from dotenv import load_dotenv
+from app.env_loader import load_backend_env
 from app.services.kis_auth import KISAuth
 from app.services.kis_service import KISService
 
-load_dotenv()
+load_backend_env()
 
 print("--- KIS Auth Test ---")
 token = KISAuth.get_access_token()

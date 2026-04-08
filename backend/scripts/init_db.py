@@ -12,7 +12,15 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
-from app.models import Asset, DailyPrice, Transaction
+from app.models import Asset, DailyPrice, Transaction, AccountType, AccountSilo
+
+
+def infer_classification(symbol: str, source: str):
+    if symbol == "BRAZIL_BOND":
+        return AccountType.OVERSEAS, AccountSilo.BRAZIL_BOND
+    if source == "KR":
+        return AccountType.ISA, AccountSilo.ISA_ETF
+    return AccountType.OVERSEAS, AccountSilo.OVERSEAS_ETF
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -36,7 +44,9 @@ def seed_assets(db: Session):
                     symbol=symbol,
                     code=info.get("symbol"), 
                     name=info.get("name"),
-                    source=info.get("source")
+                    source=info.get("source"),
+                    account_type=infer_classification(symbol, info.get("source"))[0],
+                    account_silo=infer_classification(symbol, info.get("source"))[1],
                 )
                 db.add(asset)
                 assets.append(asset)
@@ -77,7 +87,8 @@ def seed_dummy_transactions(db: Session, assets):
             type="BUY",
             quantity=100,
             price=440.5, # USD
-            total_amount=44050
+            total_amount=44050,
+            account_type=qqq.account_type,
         )
         db.add(tx1)
 
@@ -90,7 +101,8 @@ def seed_dummy_transactions(db: Session, assets):
             type="BUY",
             quantity=50,
             price=510.2, # USD
-            total_amount=25510
+            total_amount=25510,
+            account_type=spy.account_type,
         )
         db.add(tx2)
         

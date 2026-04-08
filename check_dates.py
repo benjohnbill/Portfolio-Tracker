@@ -1,8 +1,8 @@
 import os
 from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+from backend.app.env_loader import load_backend_env
 
-load_dotenv('backend/.env')
+load_backend_env()
 db_url = os.getenv('DATABASE_URL')
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)

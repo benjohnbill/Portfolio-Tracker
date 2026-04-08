@@ -4,6 +4,7 @@ import pandas as pd
 from .price_service import PriceService
 from .exchange_service import ExchangeService
 from .kis_service import KISService
+from .cache_service import CacheService
 from ..models import Transaction, Asset, RawDailyPrice, AccountType, AccountSilo
 
 class PortfolioService:
@@ -12,7 +13,27 @@ class PortfolioService:
     VALUATION_VERSION = "portfolio-valuation-v1"
 
     @staticmethod
+    def _get_cache_key(prefix: str, period: str = ""):
+        return f"portfolio_{prefix}_{period}"
+
+    @staticmethod
+    def _get_from_cache(db: Session, key: str):
+        return CacheService.get_cache(db, key)
+
+    @staticmethod
+    def _set_to_cache(db: Session, key: str, data):
+        CacheService.set_cache(db, key, data)
+
+    @staticmethod
+    def clear_cache(db: Session):
+        # We delete all portfolio_* keys
+        from ..models import SystemCache
+        db.query(SystemCache).filter(SystemCache.key.like("portfolio_%")).delete(synchronize_session=False)
+        db.commit()
+
+    @staticmethod
     def infer_account_type(asset: Asset) -> AccountType:
+
         if asset.symbol == "BRAZIL_BOND":
             return AccountType.OVERSEAS
         if asset.source == "KR" and (asset.code in PortfolioService.ISA_KR_CODES or asset.symbol in {"QQQ", "CSI300", "TLT", "NIFTY"}):
@@ -132,6 +153,11 @@ class PortfolioService:
         Calculates the daily total value of the portfolio in KRW.
         Includes currency conversion, SPY benchmark comparison, and KIS Brazil Bond sync.
         """
+        cache_key = PortfolioService._get_cache_key("equity_curve", period)
+        cached_data = PortfolioService._get_from_cache(db, cache_key)
+        if cached_data is not None:
+            return cached_data
+
         # 1. Get transactions and setup date range
         transactions = db.query(Transaction).order_by(Transaction.date).all()
         if not transactions:
@@ -287,6 +313,7 @@ class PortfolioService:
             curr_val = history[i]["total_value"]
             history[i]["daily_return"] = (curr_val - prev_val) / prev_val if prev_val > 0 else 0
 
+        PortfolioService._set_to_cache(db, cache_key, history)
         return history
 
     @staticmethod
@@ -352,6 +379,11 @@ class PortfolioService:
 
     @staticmethod
     def get_portfolio_allocation(db: Session):
+        cache_key = PortfolioService._get_cache_key("allocation", "")
+        cached_data = PortfolioService._get_from_cache(db, cache_key)
+        if cached_data is not None:
+            return cached_data
+
         txs = db.query(Transaction).all()
         holdings = {}
         for tx in txs:
@@ -421,24 +453,37 @@ class PortfolioService:
         for item in result:
             item["weight"] = item["value"] / total_value if total_value > 0 else 0.0
 
-        return sorted(result, key=lambda item: item["value"], reverse=True)
+        final_result = sorted(result, key=lambda item: item["value"], reverse=True)
+        PortfolioService._set_to_cache(db, cache_key, final_result)
+        return final_result
 
     @staticmethod
     def get_portfolio_summary(db: Session):
+        cache_key = PortfolioService._get_cache_key("summary", "")
+        cached_data = PortfolioService._get_from_cache(db, cache_key)
+        if cached_data is not None:
+            return cached_data
+
         history = PortfolioService.get_equity_curve(db, period="all")
         valuation = PortfolioService.build_valuation_metadata(history, period="all")
         if not history:
-            return {
+            result = {
                 "total_value": 0,
                 "invested_capital": 0,
                 "metrics": PortfolioService.calculate_metrics([]),
                 "valuation": valuation,
             }
+            PortfolioService._set_to_cache(db, cache_key, result)
+            return result
 
         latest = history[-1]
-        return {
+        result = {
             "total_value": latest["total_value"],
             "invested_capital": PortfolioService.calculate_invested_capital(db),
             "metrics": PortfolioService.calculate_metrics(history),
             "valuation": valuation,
         }
+        PortfolioService._set_to_cache(db, cache_key, result)
+        return result
+
+

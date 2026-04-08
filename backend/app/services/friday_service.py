@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..database import engine
 from ..models import EventAnnotation, WeeklyDecision, WeeklySnapshot
 from .algo_service import AlgoService
 from .macro_service import MacroService
@@ -29,33 +28,25 @@ class SnapshotValidationError(ValueError):
 
 class FridayService:
     @staticmethod
-    def _ensure_tables() -> None:
-        WeeklySnapshot.__table__.create(bind=engine, checkfirst=True)
-        WeeklyDecision.__table__.create(bind=engine, checkfirst=True)
-
-    @staticmethod
     def _find_snapshot_by_date(db: Session, snapshot_date: date) -> Optional[WeeklySnapshot]:
-        rows = db.query(WeeklySnapshot).all()
-        return next((row for row in rows if row.snapshot_date == snapshot_date), None)
+        return db.query(WeeklySnapshot).filter(WeeklySnapshot.snapshot_date == snapshot_date).first()
 
     @staticmethod
     def _find_snapshot_by_id(db: Session, snapshot_id: int) -> Optional[WeeklySnapshot]:
-        rows = db.query(WeeklySnapshot).all()
-        return next((row for row in rows if row.id == snapshot_id), None)
+        return db.query(WeeklySnapshot).filter(WeeklySnapshot.id == snapshot_id).first()
 
     @staticmethod
     def _get_decisions_for_snapshot(db: Session, snapshot_id: int) -> List[WeeklyDecision]:
-        rows = db.query(WeeklyDecision).all()
-        return sorted(
-            [row for row in rows if row.snapshot_id == snapshot_id],
-            key=lambda row: ((row.created_at or datetime.min.replace(tzinfo=timezone.utc)), row.id or 0),
-        )
+        return db.query(WeeklyDecision).filter(WeeklyDecision.snapshot_id == snapshot_id).order_by(
+            WeeklyDecision.created_at.asc(),
+            WeeklyDecision.id.asc(),
+        ).all()
 
     @staticmethod
     def _get_annotations_for_week(db: Session, snapshot_date: date) -> List[EventAnnotation]:
-        rows = db.query(EventAnnotation).all()
-        filtered = [row for row in rows if row.week_ending == snapshot_date]
-        return sorted(filtered, key=lambda row: row.created_at or datetime.min.replace(tzinfo=timezone.utc))
+        return db.query(EventAnnotation).filter(EventAnnotation.week_ending == snapshot_date).order_by(
+            EventAnnotation.created_at.asc(),
+        ).all()
 
     @staticmethod
     def _serialize_decision(decision: WeeklyDecision) -> Dict[str, Any]:
@@ -231,7 +222,6 @@ class FridayService:
 
     @staticmethod
     def create_snapshot(db: Session, snapshot_date: Optional[date] = None) -> Dict[str, Any]:
-        FridayService._ensure_tables()
         target_date = snapshot_date or ReportService.get_week_ending()
 
         if FridayService._find_snapshot_by_date(db, target_date):
@@ -281,17 +271,11 @@ class FridayService:
 
     @staticmethod
     def list_snapshots(db: Session) -> List[Dict[str, Any]]:
-        FridayService._ensure_tables()
-        rows = sorted(
-            db.query(WeeklySnapshot).all(),
-            key=lambda row: (row.snapshot_date or date.min),
-            reverse=True,
-        )
+        rows = db.query(WeeklySnapshot).order_by(WeeklySnapshot.snapshot_date.desc()).all()
         return [FridayService._serialize_snapshot(row, include_report=False) for row in rows]
 
     @staticmethod
     def get_snapshot(db: Session, snapshot_date: date) -> Dict[str, Any]:
-        FridayService._ensure_tables()
         snapshot = FridayService._find_snapshot_by_date(db, snapshot_date)
         if not snapshot:
             raise SnapshotNotFoundError(f"Snapshot not found for {snapshot_date.isoformat()}")
@@ -308,7 +292,6 @@ class FridayService:
         asset_ticker: Optional[str] = None,
         invalidation: Optional[str] = None,
     ) -> Dict[str, Any]:
-        FridayService._ensure_tables()
         snapshot = FridayService._find_snapshot_by_id(db, snapshot_id)
         if not snapshot:
             raise SnapshotNotFoundError(f"Snapshot {snapshot_id} not found")
@@ -357,7 +340,6 @@ class FridayService:
 
     @staticmethod
     def compare_snapshots(db: Session, date_a: date, date_b: date) -> Dict[str, Any]:
-        FridayService._ensure_tables()
         snapshot_a = FridayService._find_snapshot_by_date(db, date_a)
         snapshot_b = FridayService._find_snapshot_by_date(db, date_b)
         if not snapshot_a:

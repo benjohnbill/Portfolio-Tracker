@@ -217,6 +217,10 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     db.add(new_tx)
     db.commit()
     db.refresh(new_tx)
+    
+    # Invalidate cache so new transactions are reflected immediately
+    PortfolioService.clear_cache(db)
+    
     return new_tx
 
 @app.get("/api/portfolio/allocation")
@@ -301,6 +305,11 @@ def get_ndx_history(period: str = "1y", db: Session = Depends(get_db)):
     """Returns historical NDX price and 250MA series for charting."""
     return QuantService.get_ndx_history(db, period=period)
 
+@app.get("/api/signals/history")
+def get_asset_history(ticker: str, period: str = "1y", db: Session = Depends(get_db)):
+    """Returns historical price and 250MA series for any cached ticker."""
+    return QuantService.get_asset_history(db, ticker, period=period)
+
 @app.get("/api/algo/action-report")
 def get_action_report(db: Session = Depends(get_db)):
     """Returns trade recommendations based on market signals and current allocation."""
@@ -320,7 +329,12 @@ def list_weekly_reports(limit: int = 12, db: Session = Depends(get_db)):
 @app.get("/api/reports/weekly/latest")
 def get_latest_weekly_report(db: Session = Depends(get_db)):
     try:
-        return ReportService.get_latest_report(db)
+        report = ReportService.get_latest_report(db)
+        if not report:
+            raise HTTPException(status_code=404, detail="Weekly report not found")
+        return report
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error in GET /api/reports/weekly/latest: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -507,6 +521,14 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             and bool(os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY_MAIN")),
         )
         
+        # Pre-warm EOD Materialized JSON Cache
+        current_step = "cache_prewarm"
+        PortfolioService.clear_cache(db)
+        PortfolioService.get_portfolio_summary(db)
+        PortfolioService.get_portfolio_allocation(db)
+        for p in ["1m", "3m", "6m", "1y", "all"]:
+            PortfolioService.get_equity_curve(db, period=p)
+
         # Calculate duration and update run log
         duration = time.time() - start_time
         finished_at = datetime.now(timezone.utc)

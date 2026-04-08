@@ -9,6 +9,22 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value);
 }
 
+function formatOptionalCurrency(value: number | null | undefined) {
+  return typeof value === 'number' ? formatCurrency(value) : 'Unavailable in partial snapshot';
+}
+
+function formatOptionalScore(value: number | null | undefined) {
+  return typeof value === 'number' ? String(value) : '—';
+}
+
+function formatOptionalText(value: string | null | undefined) {
+  return value ?? 'Unavailable in partial snapshot';
+}
+
+function getRuleCount(value: unknown) {
+  return Array.isArray(value) ? value.length : null;
+}
+
 
 export default async function FridayArchivePage({
   searchParams,
@@ -40,23 +56,27 @@ export default async function FridayArchivePage({
           <Card>
             <CardHeader>
               <CardTitle className="text-white">{comparison.snapshotA.snapshotDate}</CardTitle>
-              <CardDescription>Score {comparison.snapshotA.frozenReport.score.total}</CardDescription>
+              <CardDescription>
+                Score {formatOptionalScore(comparison.snapshotA.frozenReport?.score?.total)}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>Value: {formatCurrency(comparison.snapshotA.frozenReport.portfolioSnapshot.totalValueKRW)}</p>
-              <p>Regime: {comparison.snapshotA.frozenReport.macroSnapshot.overallState}</p>
-              <p>Rules: {comparison.snapshotA.frozenReport.triggeredRules.length}</p>
+              <p>Value: {formatOptionalCurrency(comparison.snapshotA.frozenReport?.portfolioSnapshot?.totalValueKRW)}</p>
+              <p>Regime: {formatOptionalText(comparison.snapshotA.frozenReport?.macroSnapshot?.overallState)}</p>
+              <p>Rules: {getRuleCount(comparison.snapshotA.frozenReport?.triggeredRules) ?? 'Unavailable in partial snapshot'}</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle className="text-white">{comparison.snapshotB.snapshotDate}</CardTitle>
-              <CardDescription>Score {comparison.snapshotB.frozenReport.score.total}</CardDescription>
+              <CardDescription>
+                Score {formatOptionalScore(comparison.snapshotB.frozenReport?.score?.total)}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>Value: {formatCurrency(comparison.snapshotB.frozenReport.portfolioSnapshot.totalValueKRW)}</p>
-              <p>Regime: {comparison.snapshotB.frozenReport.macroSnapshot.overallState}</p>
-              <p>Rules: {comparison.snapshotB.frozenReport.triggeredRules.length}</p>
+              <p>Value: {formatOptionalCurrency(comparison.snapshotB.frozenReport?.portfolioSnapshot?.totalValueKRW)}</p>
+              <p>Regime: {formatOptionalText(comparison.snapshotB.frozenReport?.macroSnapshot?.overallState)}</p>
+              <p>Rules: {getRuleCount(comparison.snapshotB.frozenReport?.triggeredRules) ?? 'Unavailable in partial snapshot'}</p>
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">

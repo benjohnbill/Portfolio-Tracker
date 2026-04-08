@@ -5,6 +5,13 @@ from datetime import datetime, timezone
 import enum
 from .database import Base
 
+class SystemCache(Base):
+    __tablename__ = "system_cache"
+    
+    key = Column(String, primary_key=True, index=True)
+    payload = Column(JSON, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
 class AccountType(enum.Enum):
     ISA = "ISA"
     OVERSEAS = "OVERSEAS"

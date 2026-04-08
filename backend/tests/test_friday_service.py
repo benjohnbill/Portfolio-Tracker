@@ -15,9 +15,48 @@ class _Obj:
 class _FakeQuery:
     def __init__(self, rows):
         self._rows = rows
+        self._filters = []
+        self._orderings = []
 
     def all(self):
-        return list(self._rows)
+        rows = [row for row in self._rows if self._matches(row)]
+        return self._apply_order(rows)
+
+    def filter(self, *conditions):
+        self._filters.extend(conditions)
+        return self
+
+    def first(self):
+        rows = self.all()
+        return rows[0] if rows else None
+
+    def order_by(self, *orderings):
+        self._orderings.extend(orderings)
+        return self
+
+    def _matches(self, row):
+        for condition in self._filters:
+            left = getattr(condition, "left", None)
+            right = getattr(condition, "right", None)
+            operator = getattr(getattr(condition, "operator", None), "__name__", "")
+            field = getattr(left, "name", None)
+            value = getattr(right, "value", None)
+            if operator == "eq" and field is not None and getattr(row, field) != value:
+                return False
+            if operator == "lt" and field is not None and not getattr(row, field) < value:
+                return False
+        return True
+
+    def _apply_order(self, rows):
+        ordered = list(rows)
+        for ordering in reversed(self._orderings):
+            field = getattr(getattr(ordering, "element", None), "name", None) or getattr(ordering, "name", None)
+            modifier = getattr(getattr(ordering, "modifier", None), "__name__", "")
+            reverse = modifier == "desc_op"
+            if field is None:
+                continue
+            ordered.sort(key=lambda row: (getattr(row, field, None) is None, getattr(row, field, None)), reverse=reverse)
+        return ordered
 
 
 class _FakeDB:
@@ -105,11 +144,6 @@ def _report(score=65, total_value=1_500_000, regime="risk_on", rules=None, alloc
         "notes": None,
         "llmSummary": None,
     }
-
-
-@pytest.fixture(autouse=True)
-def _stub_table_creation(monkeypatch):
-    monkeypatch.setattr(FridayService, "_ensure_tables", staticmethod(lambda: None))
 
 
 def test_create_snapshot_persists_full_report(monkeypatch):
@@ -279,3 +313,70 @@ def test_snapshot_metadata_tracks_errors(monkeypatch):
 
     assert created["metadata"]["errors"]["report"] == "boom"
     assert created["metadata"]["errors"]["macro"] == "down"
+
+
+def test_get_latest_report_returns_current_week_persisted_row(monkeypatch):
+    current_week = date(2026, 4, 3)
+    record = _Obj(
+        week_ending=current_week,
+        report_json=_report(score=72),
+        llm_summary_json={"headline": "steady"},
+    )
+    db = _FakeDB()
+    db.weekly_reports = [record]
+
+    def _query(model):
+        if getattr(model, "__name__", str(model)) == "WeeklyReport":
+            return _FakeQuery(db.weekly_reports)
+        return _FakeDB.query(db, model)
+
+    monkeypatch.setattr(db, "query", _query)
+    monkeypatch.setattr(ReportService, "get_week_ending", staticmethod(lambda target_date=None: current_week))
+
+    payload = ReportService.get_latest_report(db)
+
+    assert payload["score"]["total"] == 72
+    assert payload["llmSummary"] == {"headline": "steady"}
+
+
+def test_get_latest_report_falls_back_to_latest_persisted_row(monkeypatch):
+    current_week = date(2026, 4, 10)
+    older = _Obj(
+        week_ending=date(2026, 4, 3),
+        report_json=_report(score=64),
+        llm_summary_json=None,
+    )
+    newest = _Obj(
+        week_ending=date(2026, 4, 4),
+        report_json=_report(score=66),
+        llm_summary_json={"headline": "latest"},
+    )
+    db = _FakeDB()
+    db.weekly_reports = [older, newest]
+
+    def _query(model):
+        if getattr(model, "__name__", str(model)) == "WeeklyReport":
+            return _FakeQuery(db.weekly_reports)
+        return _FakeDB.query(db, model)
+
+    monkeypatch.setattr(db, "query", _query)
+    monkeypatch.setattr(ReportService, "get_week_ending", staticmethod(lambda target_date=None: current_week))
+
+    payload = ReportService.get_latest_report(db)
+
+    assert payload["score"]["total"] == 66
+    assert payload["llmSummary"] == {"headline": "latest"}
+
+
+def test_get_latest_report_returns_none_when_no_persisted_rows(monkeypatch):
+    db = _FakeDB()
+    db.weekly_reports = []
+
+    def _query(model):
+        if getattr(model, "__name__", str(model)) == "WeeklyReport":
+            return _FakeQuery(db.weekly_reports)
+        return _FakeDB.query(db, model)
+
+    monkeypatch.setattr(db, "query", _query)
+
+    assert ReportService.get_latest_report(db) is None

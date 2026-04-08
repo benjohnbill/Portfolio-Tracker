@@ -1,14 +1,21 @@
 import os
-from dotenv import load_dotenv
 from logging.config import fileConfig
+from pathlib import Path
+import sys
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from app.env_loader import load_backend_env
+
 # load environment variables from .env if present
-load_dotenv()
+load_backend_env()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

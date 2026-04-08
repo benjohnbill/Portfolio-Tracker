@@ -34,8 +34,13 @@ class _FakeDB:
         self._assets = assets
         self._raw_prices = raw_prices
 
+    def commit(self): pass
+    def execute(self, stmt): pass
+
     def query(self, model):
         model_name = getattr(model, "__name__", str(model))
+        if model_name == "SystemCache":
+            return _FakeQuery([])
         if model_name == "Transaction":
             return _FakeQuery(self._transactions)
         if model_name == "Asset":

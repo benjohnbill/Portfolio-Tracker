@@ -26,9 +26,9 @@ def test_get_portfolio_history_mock():
     first_item = data[0]
     assert "date" in first_item
     assert "total_value" in first_item
-    assert "cash" in first_item
-    assert "invested" in first_item
     assert "daily_return" in first_item
+    assert "benchmark_value" in first_item
+    assert "alpha" in first_item
     
     # Check values logic (mock data always starts at 10M)
     assert first_item["total_value"] > 0

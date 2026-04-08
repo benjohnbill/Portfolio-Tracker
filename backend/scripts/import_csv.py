@@ -7,7 +7,15 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.database import SessionLocal
-from app.models import Transaction, Asset
+from app.models import Transaction, Asset, AccountType, AccountSilo
+
+
+def infer_classification(symbol: str, source: str):
+    if symbol == "BRAZIL_BOND":
+        return AccountType.OVERSEAS, AccountSilo.BRAZIL_BOND
+    if source == "KR":
+        return AccountType.ISA, AccountSilo.ISA_ETF
+    return AccountType.OVERSEAS, AccountSilo.OVERSEAS_ETF
 
 def import_transactions_from_csv(csv_path: str):
     if not os.path.exists(csv_path):
@@ -35,11 +43,15 @@ def import_transactions_from_csv(csv_path: str):
                 # 1. Create asset if it doesn't exist
                 if symbol not in existing_assets:
                     print(f"New asset detected. Adding to DB: {symbol}")
+                    source = "KR" if symbol.isdigit() and len(symbol) == 6 else "US"
+                    account_type, account_silo = infer_classification(symbol, source)
                     new_asset = Asset(
                         symbol=symbol,
                         code=symbol,
                         name=symbol,
-                        source="US" # Defaulting to US, can be edited later
+                        source=source,
+                        account_type=account_type,
+                        account_silo=account_silo,
                     )
                     db.add(new_asset)
                     db.commit()
@@ -55,7 +67,8 @@ def import_transactions_from_csv(csv_path: str):
                     quantity=quantity,
                     price=price,
                     total_amount=quantity * price,
-                    date=tx_date
+                    date=tx_date,
+                    account_type=asset_obj.account_type,
                 )
                 transactions_to_add.append(tx)
                 print(f"Prepared: {tx_type} {quantity} shares of {symbol} at ${price} on {date_str}")

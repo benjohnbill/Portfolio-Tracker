@@ -30,6 +30,8 @@ export function AddAssetModal() {
     quantity: 0,
     price: 0,
     date: new Date().toISOString().split('T')[0],
+    account_type: 'OVERSEAS',
+    account_silo: 'OVERSEAS_ETF',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +53,8 @@ export function AddAssetModal() {
         quantity: 0,
         price: 0,
         date: new Date().toISOString().split('T')[0],
+        account_type: 'OVERSEAS',
+        account_silo: 'OVERSEAS_ETF',
       });
       router.refresh();
     } catch (error) {
@@ -101,6 +105,25 @@ export function AddAssetModal() {
               <option value="BUY">BUY</option>
               <option value="SELL">SELL</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Account</label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={formData.account_silo}
+              onChange={(e) => {
+                const silo = e.target.value as TransactionCreate['account_silo'];
+                const accountType = silo === 'ISA_ETF' ? 'ISA' : 'OVERSEAS';
+                setFormData({ ...formData, account_silo: silo, account_type: accountType });
+              }}
+              required
+            >
+              <option value="OVERSEAS_ETF">Overseas ETF</option>
+              <option value="ISA_ETF">ISA ETF</option>
+              <option value="BRAZIL_BOND">Brazil Bond</option>
+            </select>
+            <p className="text-[10px] text-muted-foreground mt-1">Choose the portfolio silo this asset belongs to.</p>
           </div>
 
           <div className="space-y-2">

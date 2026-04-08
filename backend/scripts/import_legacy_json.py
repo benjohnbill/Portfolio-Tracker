@@ -7,7 +7,15 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.database import SessionLocal
-from app.models import Transaction, Asset
+from app.models import Transaction, Asset, AccountType, AccountSilo
+
+
+def infer_classification(symbol: str, source: str):
+    if symbol == "BRAZIL_BOND":
+        return AccountType.OVERSEAS, AccountSilo.BRAZIL_BOND
+    if source == "KR":
+        return AccountType.ISA, AccountSilo.ISA_ETF
+    return AccountType.OVERSEAS, AccountSilo.OVERSEAS_ETF
 
 def import_backup(json_path: str):
     if not os.path.exists(json_path):
@@ -45,11 +53,15 @@ def import_backup(json_path: str):
             # 1. Check if asset exists, if not, create it
             if symbol not in existing_assets:
                 print(f"Adding new asset to DB: {symbol} ({name})")
+                source = "US" if item.get("currency") == "USD" else "KR"
+                account_type, account_silo = infer_classification(symbol, source)
                 new_asset = Asset(
                     symbol=symbol,
                     code=symbol,  # Assuming US ticker for simplicity
                     name=name,
-                    source="US" if item.get("currency") == "USD" else "KR"
+                    source=source,
+                    account_type=account_type,
+                    account_silo=account_silo,
                 )
                 db.add(new_asset)
                 db.commit()
@@ -72,7 +84,8 @@ def import_backup(json_path: str):
                 quantity=shares,
                 price=price,
                 total_amount=total_amount,
-                date=buy_date
+                date=buy_date,
+                account_type=asset_obj.account_type,
             )
             transactions_to_add.append(tx)
             print(f"Prepared transaction: BUY {shares} shares of {symbol} at {price}")

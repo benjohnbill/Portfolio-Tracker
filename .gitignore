@@ -41,3 +41,4 @@ node_modules/
 # Python package caches
 site-packages/
 pip-wheel-metadata/
+.gstack/

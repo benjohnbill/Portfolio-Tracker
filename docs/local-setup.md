@@ -25,6 +25,15 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+Optional verification:
+
+```bash
+./.venv/bin/python -m pytest tests/test_friday_service.py -q
+```
+
+Run the test command from `backend/`. If you are not using the repo-local virtualenv,
+use the Python environment where you installed `backend/requirements.txt`.
+
 Or from repo root:
 
 ```bash

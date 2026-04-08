@@ -1,14 +1,20 @@
 import os
 import requests
+import time
 from .kis_auth import KISAuth
+
+_brazil_bond_cache = {}
 
 class KISService:
     @staticmethod
     def get_brazil_bond_value():
         """
         Fetches the current KRW value of Brazil Bonds held in the KIS account.
-        Specifically handles the Bond data structure returned by TR_ID CTRP6504R.
+        Uses a 10-minute in-memory cache to prevent blocking API responses on page loads.
         """
+        if "val" in _brazil_bond_cache and time.time() - _brazil_bond_cache.get("time", 0) < 600:
+            return _brazil_bond_cache["val"]
+
         token = KISAuth.get_access_token()
         if not token:
             return 0.0
@@ -21,20 +27,20 @@ class KISService:
             "authorization": f"Bearer {token}",
             "appkey": os.getenv("KIS_APP_KEY"),
             "appsecret": os.getenv("KIS_APP_SECRET"),
-            "tr_id": "CTRP6504R" # Fixed to Settled Balance TR_ID which contains bonds
+            "tr_id": "CTRP6504R"
         }
         
         params = {
             "CANO": os.getenv("KIS_CANO"),
             "ACNT_PRDT_CD": os.getenv("KIS_ACNT_PRDT_CD"),
             "WCRC_FRCR_DVSN_CD": "02",
-            "NATN_CD": "000", # Brazil bonds might be in US/Overseas clearing
+            "NATN_CD": "000",
             "TR_MKET_CD": "00",
             "INQR_DVSN_CD": "00"
         }
         
         try:
-            res = requests.get(url, headers=headers, params=params)
+            res = requests.get(url, headers=headers, params=params, timeout=5)
             data = res.json()
             
             total_brazil_value_krw = 0.0
@@ -44,18 +50,15 @@ class KISService:
                 for item in output1:
                     name = item.get("prdt_name", "") or ""
                     
-                    # Target specific Brazil NTNF bonds
                     if "NTNF" in name.upper() or "브라질" in name or "BNTNF" in name.upper():
-                        # frcr_evlu_amt2: Foreign currency evaluation amount
-                        # bass_exrt: Base exchange rate
                         eval_amt_foreign = float(item.get("frcr_evlu_amt2", "0"))
                         exchange_rate = float(item.get("bass_exrt", "1"))
                         
-                        # Calculate final KRW value
                         item_krw_val = eval_amt_foreign * exchange_rate
                         total_brazil_value_krw += item_krw_val
-                        print(f"[KIS] Found Brazil Bond: {name} | KRW Value: ₩{item_krw_val:,.0f}")
                 
+                _brazil_bond_cache["val"] = total_brazil_value_krw
+                _brazil_bond_cache["time"] = time.time()
                 return total_brazil_value_krw
             else:
                 print(f"[KIS] API Error: {data.get('msg1')}")

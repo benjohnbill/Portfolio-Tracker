@@ -2,9 +2,9 @@ import os
 import json
 import requests
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from ..env_loader import load_backend_env
 
-load_dotenv()
+load_backend_env()
 
 class KISAuth:
     _instance = None

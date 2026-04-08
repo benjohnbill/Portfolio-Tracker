@@ -39,6 +39,12 @@ class ReportService:
         EventAnnotation.__table__.create(bind=engine, checkfirst=True)
 
     @staticmethod
+    def _with_llm_summary(record: WeeklyReport) -> Dict[str, Any]:
+        report = dict(record.report_json or {})
+        report["llmSummary"] = record.llm_summary_json
+        return report
+
+    @staticmethod
     def get_week_ending(target_date: Optional[date] = None) -> date:
         current = target_date or datetime.now(ZoneInfo("Asia/Seoul")).date()
         weekday = current.weekday()
@@ -272,37 +278,28 @@ class ReportService:
         return report
 
     @staticmethod
-    def get_latest_report(db: Session) -> Dict[str, Any]:
-        ReportService._ensure_report_tables()
+    def get_latest_report(db: Session) -> Optional[Dict[str, Any]]:
         current_week = ReportService.get_week_ending()
         current_record = db.query(WeeklyReport).filter(WeeklyReport.week_ending == current_week).first()
 
         if current_record:
-            report = ReportService.build_weekly_report(db, current_week)
-            report["llmSummary"] = current_record.llm_summary_json
-            return report
+            return ReportService._with_llm_summary(current_record)
 
         latest = db.query(WeeklyReport).order_by(WeeklyReport.week_ending.desc()).first()
-        if latest and latest.week_ending > current_week:
-            report = latest.report_json or {}
-            report["llmSummary"] = latest.llm_summary_json
-            return report
+        if not latest:
+            return None
 
-        return ReportService.generate_weekly_report(db, week_ending=current_week)
+        return ReportService._with_llm_summary(latest)
 
     @staticmethod
     def get_report_by_week(db: Session, week_ending: date) -> Optional[Dict[str, Any]]:
-        ReportService._ensure_report_tables()
         record = db.query(WeeklyReport).filter(WeeklyReport.week_ending == week_ending).first()
         if not record:
             return None
-        report = record.report_json or {}
-        report["llmSummary"] = record.llm_summary_json
-        return report
+        return ReportService._with_llm_summary(record)
 
     @staticmethod
     def list_reports(db: Session, limit: int = 12) -> List[Dict[str, Any]]:
-        ReportService._ensure_report_tables()
         rows = db.query(WeeklyReport).order_by(WeeklyReport.week_ending.desc()).limit(limit).all()
         return [
             {

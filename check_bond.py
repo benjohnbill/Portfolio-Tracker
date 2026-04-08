@@ -1,12 +1,9 @@
 import os
 from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
-from pathlib import Path
+from backend.app.env_loader import load_backend_env
 
 # Load environment variables
-env_path = Path('backend/.env')
-if env_path.exists():
-    load_dotenv(env_path)
+load_backend_env()
 
 db_url = os.getenv("DATABASE_URL")
 if not db_url:

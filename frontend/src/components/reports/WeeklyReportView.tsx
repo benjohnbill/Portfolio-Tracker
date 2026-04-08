@@ -1,9 +1,38 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { WeeklyReport } from '@/lib/api';
 import type { LucideIcon } from 'lucide-react';
-import { AlertOctagon, AlertTriangle, BrainCircuit, CalendarRange, ChevronLeft, ShieldCheck, TrendingUp, Zap, Info, Clock } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, BrainCircuit, CalendarRange, ChevronLeft, ShieldCheck, TrendingUp, Zap, Info, Clock, LineChart } from 'lucide-react';
+import { AssetSignalSection } from '@/components/features/portfolio/AssetSignalSection';
+import { MSTRSignalSection } from '@/components/features/portfolio/MSTRSignalSection';
+
+// Mapping rules/assets to chart types
+const ASSET_TO_TICKER: Record<string, string> = {
+  'QQQ': 'QQQ',
+  'NDX': 'QQQ',
+  'TIGER_2X': 'QQQ',
+  'KODEX_1X': 'QQQ',
+  'GLDM': 'GLDM',
+  'TLT': 'TLT',
+  'DBMF': 'DBMF',
+  'MSTR': 'MSTR',
+};
+
+function getUniqueTickers(actions: any[]) {
+  const tickers = new Set<string>();
+  actions.forEach(action => {
+    const ticker = ASSET_TO_TICKER[action.asset];
+    if (ticker) tickers.add(ticker);
+  });
+  return Array.from(tickers);
+}
+
+// Small helper for MSTR naming consistency in this view
+async function MSTRSignalSectionWrapper({ period }: { period: string }) {
+  return <MSTRSignalSection period={period} />;
+}
 
 const SEVERITY_CONFIG: Record<string, { icon: LucideIcon; color: string; border: string; bg: string; badge: string; label: string }> = {
   critical: { icon: AlertOctagon, color: 'text-red-500', border: 'border-red-500/40', bg: 'bg-red-500/10', badge: 'bg-red-500/20 text-red-400', label: 'CRITICAL' },
@@ -54,6 +83,7 @@ interface WeeklyReportViewProps {
 
 export function WeeklyReportView({ report, eyebrow, title, description, backHref, backLabel }: WeeklyReportViewProps) {
   const hasActions = report.recommendation.actions.length > 0;
+  const uniqueTickers = getUniqueTickers(report.recommendation.actions);
   
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -125,57 +155,87 @@ export function WeeklyReportView({ report, eyebrow, title, description, backHref
               {report.recommendation.stance.replaceAll('_', ' ')} · {report.recommendation.actions.length} action{report.recommendation.actions.length > 1 ? 's' : ''} recommended
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {report.recommendation.actions.map((action, index) => (
-              <div key={`${action.asset}-${index}`} className="rounded-lg border border-border/40 bg-[#11161d]/50 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-white flex items-center gap-2">
-                      <span className="text-primary">⚡</span>
-                      {action.asset}: {action.action}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">{action.reason}</p>
-                  </div>
-                  {action.inputs && (
-                    <div className="group relative">
-                      <Info className="w-4 h-4 text-muted-foreground hover:text-primary cursor-help" />
-                      <div className="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-3 rounded-lg border border-border/40 bg-[#0d1117] shadow-xl text-xs">
-                        <p className="font-semibold text-white mb-2">Signal Inputs</p>
-                        <div className="space-y-1 text-muted-foreground">
-                          {action.inputs.z_score !== undefined && (
-                            <p>Z-Score: <span className="text-white">{action.inputs.z_score.toFixed(2)}</span></p>
-                          )}
-                          {action.inputs.mnav_ratio !== undefined && (
-                            <p>mNAV Ratio: <span className="text-white">{action.inputs.mnav_ratio.toFixed(2)}</span></p>
-                          )}
-                          {action.inputs.vxn_current !== undefined && (
-                            <p>VXN: <span className="text-white">{action.inputs.vxn_current.toFixed(1)}</span></p>
-                          )}
-                          {action.inputs.thresholds && (
-                            <div className="mt-1 pt-1 border-t border-border/20">
-                              <p className="text-[10px] uppercase tracking-wider mb-1">Thresholds</p>
-                              {Object.entries(action.inputs.thresholds).map(([key, value]) => (
-                                <p key={key}>{key}: <span className="text-white">{typeof value === 'number' ? value.toFixed(2) : value}</span></p>
-                              ))}
-                            </div>
-                          )}
-                          {action.inputs.triggered_by && (
-                            <p className="mt-1 pt-1 border-t border-border/20">
-                              Triggered by: <span className="text-primary">{action.inputs.triggered_by}</span>
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              {report.recommendation.actions.map((action, index) => (
+                <div key={`${action.asset}-${index}`} className="rounded-lg border border-border/40 bg-[#11161d]/50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-white flex items-center gap-2">
+                        <span className="text-primary">⚡</span>
+                        {action.asset}: {action.action}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{action.reason}</p>
+                    </div>
+                    {action.inputs && (
+                      <div className="group relative">
+                        <Info className="w-4 h-4 text-muted-foreground hover:text-primary cursor-help" />
+                        <div className="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-3 rounded-lg border border-border/40 bg-[#0d1117] shadow-xl text-xs">
+                          <p className="font-semibold text-white mb-2">Signal Inputs</p>
+                          <div className="space-y-1 text-muted-foreground">
+                            {action.inputs.z_score !== undefined && (
+                              <p>Z-Score: <span className="text-white">{action.inputs.z_score.toFixed(2)}</span></p>
+                            )}
+                            {action.inputs.mnav_ratio !== undefined && (
+                              <p>mNAV Ratio: <span className="text-white">{action.inputs.mnav_ratio.toFixed(2)}</span></p>
+                            )}
+                            {action.inputs.vxn_current !== undefined && (
+                              <p>VXN: <span className="text-white">{action.inputs.vxn_current.toFixed(1)}</span></p>
+                            )}
+                            {action.inputs.thresholds && (
+                              <div className="mt-1 pt-1 border-t border-border/20">
+                                <p className="text-[10px] uppercase tracking-wider mb-1">Thresholds</p>
+                                {Object.entries(action.inputs.thresholds).map(([key, value]) => (
+                                  <p key={key}>{key}: <span className="text-white">{typeof value === 'number' ? value.toFixed(2) : value}</span></p>
+                                ))}
+                              </div>
+                            )}
+                            {action.inputs.triggered_by && (
+                              <p className="mt-1 pt-1 border-t border-border/20">
+                                Triggered by: <span className="text-primary">{action.inputs.triggered_by}</span>
+                              </p>
+                            )}
+                          </div>
+                          {action.rule_id && (
+                            <p className="mt-2 pt-1 border-t border-border/20 text-[10px] text-muted-foreground">
+                              Rule: {action.rule_id}
                             </p>
                           )}
                         </div>
-                        {action.rule_id && (
-                          <p className="mt-2 pt-1 border-t border-border/20 text-[10px] text-muted-foreground">
-                            Rule: {action.rule_id}
-                          </p>
-                        )}
                       </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Contextual Evidence Charts */}
+            {uniqueTickers.length > 0 && (
+              <div className="space-y-4 pt-2 border-t border-border/20">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary/70 px-1">
+                  <LineChart className="w-3 h-3" />
+                  <span>Contextual Evidence</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {uniqueTickers.map(ticker => (
+                    <div key={ticker} className="scale-[0.95] origin-top-left -mb-4">
+                      <Suspense fallback={<div className="h-[200px] bg-accent/5 rounded-xl animate-pulse border border-border/20" />}>
+                        {ticker === 'MSTR' ? (
+                          <MSTRSignalSectionWrapper period="1y" />
+                        ) : (
+                          <AssetSignalSection 
+                            ticker={ticker} 
+                            title={`${ticker} Analysis`} 
+                            description={`1Y Trend context for ${ticker}`} 
+                            period="1y" 
+                          />
+                        )}
+                      </Suspense>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       )}

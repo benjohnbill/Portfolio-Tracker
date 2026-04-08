@@ -324,23 +324,27 @@ class QuantService:
             return None
 
     @staticmethod
-    def get_ndx_history(db: Session, period: str = "1y"):
-        """Returns historical NDX price and 250MA series."""
+    def get_asset_history(db: Session, ticker: str, period: str = "1y"):
+        """Returns historical price and 250MA series for any cached ticker."""
         try:
             from ..models import RawDailyPrice
-            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == "QQQ").order_by(RawDailyPrice.date.asc())
+            query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == ticker).order_by(RawDailyPrice.date.asc())
             data = pd.read_sql(query.statement, db.bind)
 
             if data.empty:
                 return []
 
+            # Calculate 250MA
             data['ma_250'] = data['close_price'].rolling(window=250).mean()
 
             # Period filtering
             period_days = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}.get(period.lower())
             if period_days:
-                cutoff = pd.Timestamp.now() - pd.Timedelta(days=period_days)
-                data = data[pd.to_datetime(data['date']) >= cutoff]
+                # Use KST-aware cutoff to match reporting logic
+                from zoneinfo import ZoneInfo
+                kst = ZoneInfo("Asia/Seoul")
+                cutoff = (datetime.now(kst) - timedelta(days=period_days)).date()
+                data = data[data['date'] >= cutoff]
 
             return [
                 {
@@ -351,5 +355,10 @@ class QuantService:
                 for _, row in data.iterrows()
             ]
         except Exception as e:
-            print(f"Error getting NDX history: {e}")
+            print(f"Error getting history for {ticker}: {e}")
             return []
+
+    @staticmethod
+    def get_ndx_history(db: Session, period: str = "1y"):
+        """Returns historical NDX price and 250MA series (proxied via QQQ)."""
+        return QuantService.get_asset_history(db, "QQQ", period)

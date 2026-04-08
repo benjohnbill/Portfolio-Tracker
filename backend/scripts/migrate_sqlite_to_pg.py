@@ -3,17 +3,25 @@ import sys
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
 # Ensure the backend directory is in the python path
 backend_dir = Path(__file__).resolve().parents[1]
 sys.path.append(str(backend_dir))
 
-from app.models import Asset, Transaction, AccountType
+from app.models import Asset, Transaction, AccountType, AccountSilo
+from app.env_loader import load_backend_env
+
+
+def infer_classification(symbol: str, source: str):
+    if symbol == "BRAZIL_BOND":
+        return AccountType.OVERSEAS, AccountSilo.BRAZIL_BOND
+    if source == "KR":
+        return AccountType.ISA, AccountSilo.ISA_ETF
+    return AccountType.OVERSEAS, AccountSilo.OVERSEAS_ETF
 
 def migrate_data():
     # Load environment variables
-    load_dotenv(backend_dir / ".env")
+    load_backend_env()
     
     # SQLite Engine
     # Note: relative path needs to be from backend_dir
@@ -58,12 +66,14 @@ def migrate_data():
                 asset_id_map[old_id] = pg_symbol_to_id[symbol]
                 print(f"Mapped existing asset {symbol} to PG ID {pg_symbol_to_id[symbol]}")
             else:
+                account_type, account_silo = infer_classification(symbol, old_asset[4])
                 new_asset = Asset(
                     symbol=symbol,
                     code=old_asset[2],
                     name=old_asset[3],
                     source=old_asset[4],
-                    account_type=AccountType.OVERSEAS # Default as per instructions
+                    account_type=account_type,
+                    account_silo=account_silo,
                 )
                 pg_session.add(new_asset)
                 pg_session.flush() # Populate the new_asset.id
@@ -91,7 +101,7 @@ def migrate_data():
                 quantity=old_tx[4],
                 price=old_tx[5],
                 total_amount=old_tx[6],
-                account_type=AccountType.OVERSEAS # Default as per instructions
+                account_type=pg_session.query(Asset).filter(Asset.id == asset_id_map[old_asset_id]).first().account_type,
             )
             pg_session.add(new_tx)
             

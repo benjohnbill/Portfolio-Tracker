@@ -230,6 +230,11 @@ class ReportService:
                 "fit": fit_score["score"],
                 "alignment": alignment_score["score"],
                 "postureDiversification": posture_score["score"],
+                "postureBreakdown": {
+                    "stressResilience": posture_score.get("stressResilience", {}).get("score"),
+                    "concentrationControl": posture_score.get("concentrationControl", {}).get("score"),
+                    "diversifierReserve": posture_score.get("diversifierReserve", {}).get("score"),
+                },
                 "bucketBreakdown": fit_score["bucketBreakdown"],
                 "positives": (fit_score.get("positives", [])[:2]),
                 "negatives": (fit_score.get("negatives", [])[:2]),

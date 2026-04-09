@@ -88,6 +88,9 @@ class AttributionService:
         # Indicator values from signalsSnapshot
         indicator_values = report.get("signalsSnapshot")
 
+        # Posture sub-scores (added in postureBreakdown, null for older reports)
+        posture_breakdown = score_section.get("postureBreakdown", {}) or {}
+
         # Triggered rules (was_followed initially null)
         rules_fired = report.get("triggeredRules")
 
@@ -107,9 +110,9 @@ class AttributionService:
             alignment_gldm=alignment_categories.get("gldm"),
             alignment_bonds_cash=alignment_categories.get("bonds_cash"),
             posture_score=posture_score,
-            posture_stress_resilience=None,  # not in frozen_report.score
-            posture_concentration=None,
-            posture_diversifier_reserve=None,
+            posture_stress_resilience=posture_breakdown.get("stressResilience"),
+            posture_concentration=posture_breakdown.get("concentrationControl"),
+            posture_diversifier_reserve=posture_breakdown.get("diversifierReserve"),
             total_score=total_score,
             regime_snapshot=regime_snapshot,
             indicator_values=indicator_values,

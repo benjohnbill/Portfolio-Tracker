@@ -139,3 +139,46 @@ FRONTEND HIERARCHY (/friday page):
 
 **Design doc:** `~/.gstack/projects/benjohnbill-Portfolio-Tracker/lg-main-design-20260403-195434.md`
 **Eng review test plan:** `~/.gstack/projects/benjohnbill-Portfolio-Tracker/lg-main-eng-review-test-plan-20260403-200500.md`
+
+---
+
+## Attribution Engine — Deferred Items
+
+### Indicator-Level Importance Analysis
+**Status:** Deferred (P3)
+**Priority:** Low
+**Added:** 2026-04-08 (CEO review)
+
+Per-indicator importance requires outcome-linked correlation analysis, not structural
+tie-break detection. The leave-one-out method is degenerate on 2-indicator buckets.
+Defer until 3-6 months of outcome data exist for proper statistical analysis.
+
+**Endpoint:** `GET /api/intelligence/indicators/importance?period=6m|1y|all`
+**Minimum data:** 12 snapshots required; returns 400 if insufficient.
+**Design doc:** `~/.gstack/projects/benjohnbill-Portfolio-Tracker/lg-main-design-20260408-112147.md`
+
+---
+
+### Algorithm Revision UI with What-If Simulation
+**Status:** Deferred (P3)
+**Priority:** Low
+**Added:** 2026-04-08 (CEO review)
+
+Threshold tuning interface based on accumulated outcome data.
+"What-if" simulation: if I change this threshold, how would past decisions change?
+Needs 3-6 months of attribution data to be meaningful.
+
+**Files:** New frontend pages under `/intelligence/tuning`
+**Depends on:** Indicator importance analysis, 3-6 months of decision_outcomes data
+
+---
+
+### Real-World Lifecycle System Connection
+**Status:** Long-term vision
+**Priority:** Future
+**Added:** 2026-04-08 (office-hours)
+
+Connect the portfolio intelligence system with the user's real-world lifecycle system.
+The portfolio tracker becomes infrastructure for life decisions, not just an investment tool.
+
+**Note:** User explicitly stated this is a someday-maybe item, not a near-term priority.

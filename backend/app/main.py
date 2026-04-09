@@ -524,6 +524,13 @@ def get_intelligence_regime_history(db: Session = Depends(get_db)):
     return IntelligenceService.get_regime_history(db)
 
 
+@app.post("/api/admin/backfill-attributions")
+def backfill_attributions(db: Session = Depends(get_db)):
+    """One-time backfill of scoring_attributions for all existing weekly_snapshots."""
+    count = AttributionService.backfill_all(db)
+    return {"count": count}
+
+
 @app.post("/api/cron/update-signals")
 def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = Depends(get_db)):
     """Secure endpoint for periodic data updates via GitHub Actions"""

@@ -25,6 +25,7 @@ from .services.friday_service import FridayService, SnapshotConflictError, Snaps
 from .services.report_service import ReportService
 from .services.notification_service import NotificationService
 from .services.attribution_service import AttributionService
+from .services.intelligence_service import IntelligenceService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -474,6 +475,55 @@ def get_friday_current(db: Session = Depends(get_db)):
         print(f"Error in GET /api/v1/friday/current: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ---------------------------------------------------------------------------
+# Intelligence API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/intelligence/attributions")
+def get_intelligence_attributions(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Time series of score decompositions across date range."""
+    from_date = date.fromisoformat(date_from) if date_from else None
+    to_date = date.fromisoformat(date_to) if date_to else None
+    return IntelligenceService.get_attributions(db, date_from=from_date, date_to=to_date)
+
+
+@app.get("/api/intelligence/attributions/{snapshot_date}")
+def get_intelligence_attribution_detail(snapshot_date: str, db: Session = Depends(get_db)):
+    """Single snapshot's full attribution breakdown."""
+    parsed = date.fromisoformat(snapshot_date)
+    result = IntelligenceService.get_attribution_by_date(db, parsed)
+    if not result:
+        raise HTTPException(status_code=404, detail="Attribution not found for this date")
+    return result
+
+
+@app.get("/api/intelligence/outcomes")
+def get_intelligence_outcomes(
+    horizon: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Decision outcomes evaluated at specified horizon."""
+    if horizon and horizon not in ("1w", "1m", "3m", "6m", "1y"):
+        raise HTTPException(status_code=400, detail="Invalid horizon. Use: 1w, 1m, 3m, 6m, 1y")
+    return IntelligenceService.get_outcomes(db, horizon=horizon)
+
+
+@app.get("/api/intelligence/rules/accuracy")
+def get_intelligence_rule_accuracy(db: Session = Depends(get_db)):
+    """Per-rule accuracy: times fired, times followed, follow rate."""
+    return IntelligenceService.get_rule_accuracy(db)
+
+
+@app.get("/api/intelligence/regime/history")
+def get_intelligence_regime_history(db: Session = Depends(get_db)):
+    """Regime transitions timeline with before/after portfolio state."""
+    return IntelligenceService.get_regime_history(db)
+
+
 @app.post("/api/cron/update-signals")
 def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = Depends(get_db)):
     """Secure endpoint for periodic data updates via GitHub Actions"""
@@ -538,6 +588,14 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         except Exception:
             attribution_ok = False
 
+        # Step 8: Decision outcome evaluation (non-blocking)
+        outcomes_created = 0
+        try:
+            current_step = "outcome_evaluation"
+            outcomes_created = IntelligenceService.evaluate_decision_outcomes(db)
+        except Exception:
+            pass
+
         # Calculate duration and update run log
         duration = time.time() - start_time
         finished_at = datetime.now(timezone.utc)
@@ -552,6 +610,7 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "weekly_score": weekly_score,
             "week_ending": weekly_report.get("weekEnding"),
             "attribution_ok": attribution_ok,
+            "outcomes_created": outcomes_created,
         }
         db.commit()
         

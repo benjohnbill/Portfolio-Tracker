@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   CalendarDays,
-  Wallet, 
+  Wallet,
   Archive,
+  Brain,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
@@ -16,6 +17,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'This Week', href: '/' },
   { icon: CalendarDays, label: 'Friday', href: '/friday' },
   { icon: Wallet, label: 'Portfolio', href: '/portfolio' },
+  { icon: Brain, label: 'Intelligence', href: '/intelligence' },
   { icon: Archive, label: 'Archive', href: '/archive' },
 ];
 

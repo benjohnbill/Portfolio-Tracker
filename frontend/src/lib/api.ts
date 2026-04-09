@@ -661,3 +661,106 @@ export async function createFridayDecision(payload: {
 
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Intelligence API
+// ---------------------------------------------------------------------------
+
+export interface AttributionData {
+  snapshotDate: string;
+  totalScore: number;
+  fit: { score: number; liquidity: number | null; rates: number | null; inflation: number | null; growth: number | null; stress: number | null };
+  alignment: { score: number; ndx: number | null; dbmf: number | null; brazil: number | null; mstr: number | null; gldm: number | null; bondsCash: number | null };
+  posture: { score: number; stressResilience: number | null; concentration: number | null; diversifierReserve: number | null };
+  regimeSnapshot: Array<{ bucket: string; state: string }> | null;
+  indicatorValues?: Record<string, unknown> | null;
+  rulesFired: Array<{ ruleId: string; severity: string; was_followed?: boolean | null; message?: string }> | null;
+}
+
+export interface DecisionOutcomeData {
+  snapshotDate: string;
+  horizon: string;
+  decision: { type: string; assetTicker: string | null; note: string; confidence: number };
+  portfolioValueAtDecision: number | null;
+  portfolioValueAtHorizon: number | null;
+  scoreAtDecision: number | null;
+  scoreAtHorizon: number | null;
+  regimeAtDecision: string | null;
+  regimeAtHorizon: string | null;
+  outcomeDeltaPct: number | null;
+  scoreDelta: number | null;
+  regimeChanged: string | null;
+  evaluatedAt: string | null;
+}
+
+export interface RuleAccuracyData {
+  ruleId: string;
+  severity: string;
+  timesFired: number;
+  timesFollowed: number;
+  timesIgnored: number;
+  timesPending: number;
+  followRate: number | null;
+}
+
+export interface RegimeTransitionData {
+  date: string;
+  bucket: string;
+  from: string;
+  to: string;
+  totalScore: number;
+  previousDate: string | null;
+}
+
+export async function getIntelligenceAttributions(dateFrom?: string, dateTo?: string): Promise<AttributionData[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/api/intelligence/attributions${qs}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch attributions');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+export async function getIntelligenceOutcomes(horizon?: string): Promise<DecisionOutcomeData[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const qs = horizon ? `?horizon=${horizon}` : '';
+    const res = await fetch(`${API_BASE}/api/intelligence/outcomes${qs}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch outcomes');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+export async function getIntelligenceRuleAccuracy(): Promise<RuleAccuracyData[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/rules/accuracy`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch rule accuracy');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}
+
+export async function getIntelligenceRegimeHistory(): Promise<RegimeTransitionData[]> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/regime/history`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch regime history');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+}

@@ -24,6 +24,7 @@ from .services.annotation_service import AnnotationService
 from .services.friday_service import FridayService, SnapshotConflictError, SnapshotNotFoundError, SnapshotValidationError
 from .services.report_service import ReportService
 from .services.notification_service import NotificationService
+from .services.attribution_service import AttributionService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -529,11 +530,19 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         for p in ["1m", "3m", "6m", "1y", "all"]:
             PortfolioService.get_equity_curve(db, period=p)
 
+        # Step 7: Attribution compute (non-blocking — failure here doesn't fail the cron)
+        attribution_ok = True
+        try:
+            current_step = "attribution_compute"
+            AttributionService.compute_latest(db)
+        except Exception:
+            attribution_ok = False
+
         # Calculate duration and update run log
         duration = time.time() - start_time
         finished_at = datetime.now(timezone.utc)
         weekly_score = weekly_report.get("score", {}).get("total")
-        
+
         run_log.finished_at = finished_at
         run_log.status = "success"
         run_log.duration_seconds = duration
@@ -542,6 +551,7 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "mstr_seeded": mstr_seeded,
             "weekly_score": weekly_score,
             "week_ending": weekly_report.get("weekEnding"),
+            "attribution_ok": attribution_ok,
         }
         db.commit()
         

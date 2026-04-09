@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON, Text
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -111,6 +111,7 @@ class WeeklySnapshot(Base):
     snapshot_metadata = Column("metadata", JSONB, nullable=False)
 
     decisions = relationship("WeeklyDecision", back_populates="snapshot", cascade="all, delete-orphan")
+    attributions = relationship("ScoringAttribution", back_populates="snapshot", cascade="all, delete-orphan")
 
 
 class WeeklyDecision(Base):
@@ -126,6 +127,81 @@ class WeeklyDecision(Base):
     invalidation = Column(Text, nullable=True)
 
     snapshot = relationship("WeeklySnapshot", back_populates="decisions")
+    outcomes = relationship("DecisionOutcome", back_populates="decision", cascade="all, delete-orphan")
+
+
+class ScoringAttribution(Base):
+    __tablename__ = "scoring_attributions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    snapshot_id = Column(Integer, ForeignKey("weekly_snapshots.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Fit score decomposition (40 pts total, 5 buckets x 8 pts max)
+    fit_score = Column(Float, nullable=False)
+    fit_bucket_liquidity = Column(Float, nullable=True)
+    fit_bucket_rates = Column(Float, nullable=True)
+    fit_bucket_inflation = Column(Float, nullable=True)
+    fit_bucket_growth = Column(Float, nullable=True)
+    fit_bucket_stress = Column(Float, nullable=True)
+
+    # Alignment score decomposition (35 pts total, 6 categories)
+    alignment_score = Column(Float, nullable=False)
+    alignment_ndx = Column(Float, nullable=True)
+    alignment_dbmf = Column(Float, nullable=True)
+    alignment_brazil = Column(Float, nullable=True)
+    alignment_mstr = Column(Float, nullable=True)
+    alignment_gldm = Column(Float, nullable=True)
+    alignment_bonds_cash = Column(Float, nullable=True)
+
+    # Posture/Diversification score (25 pts total)
+    posture_score = Column(Float, nullable=False)
+    posture_stress_resilience = Column(Float, nullable=True)
+    posture_concentration = Column(Float, nullable=True)
+    posture_diversifier_reserve = Column(Float, nullable=True)
+
+    # Composite
+    total_score = Column(Integer, nullable=False)
+
+    # Regime snapshot at freeze time
+    regime_snapshot = Column(JSONB, nullable=True)
+
+    # Raw indicator values copied from frozen_report
+    indicator_values = Column(JSONB, nullable=True)
+
+    # Rules that fired this week with was_followed status
+    rules_fired = Column(JSONB, nullable=True)
+
+    snapshot = relationship("WeeklySnapshot", back_populates="attributions")
+
+
+class DecisionOutcome(Base):
+    __tablename__ = "decision_outcomes"
+    __table_args__ = (
+        UniqueConstraint("decision_id", "horizon", name="uq_decision_horizon"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    decision_id = Column(Integer, ForeignKey("weekly_decisions.id", ondelete="CASCADE"), nullable=False, index=True)
+    snapshot_id = Column(Integer, ForeignKey("weekly_snapshots.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    evaluated_at = Column(DateTime, nullable=True)
+
+    horizon = Column(String, nullable=False)  # "1w", "1m", "3m", "6m", "1y"
+
+    portfolio_value_at_decision = Column(Float, nullable=True)
+    portfolio_value_at_horizon = Column(Float, nullable=True)
+    score_at_decision = Column(Integer, nullable=True)
+    score_at_horizon = Column(Integer, nullable=True)
+    regime_at_decision = Column(String, nullable=True)
+    regime_at_horizon = Column(String, nullable=True)
+
+    outcome_delta_pct = Column(Float, nullable=True)
+    score_delta = Column(Integer, nullable=True)
+    regime_changed = Column(String, nullable=True)  # "true"/"false" as string for JSONB compat
+
+    decision = relationship("WeeklyDecision", back_populates="outcomes")
+    snapshot = relationship("WeeklySnapshot")
 
 
 class EventAnnotation(Base):

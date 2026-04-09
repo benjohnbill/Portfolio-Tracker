@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
-from ..models import Transaction, Asset, AccountType
+from ..models import Transaction, Asset, AccountType, RawDailyPrice
 from .quant_service import QuantService
 from .price_service import PriceService
 import pandas as pd
+import numpy as np
 from datetime import datetime
 
 # Rule thresholds - centralized for explainability
@@ -19,6 +20,39 @@ LOGIC_VERSION = "algo-v1"
 
 
 class AlgoService:
+    @staticmethod
+    def _get_ticker_signals(db: Session, ticker: str) -> dict:
+        """Fetch price, 250-day MA, and 14-day RSI from raw_daily_prices cache.
+        Falls back to bypass values if insufficient data."""
+        rows = (
+            db.query(RawDailyPrice.close_price)
+            .filter(RawDailyPrice.ticker == ticker)
+            .order_by(RawDailyPrice.date.desc())
+            .limit(300)
+            .all()
+        )
+        prices = [r.close_price for r in rows if r.close_price is not None]
+        if len(prices) < 15:
+            return {"price": 0.0, "ma_250": 0.0, "rsi": 50.0}
+
+        current_price = prices[0]
+        ma_250 = np.mean(prices[:250]) if len(prices) >= 250 else 0.0
+
+        # 14-day RSI (prices are newest-first, reverse for chronological)
+        recent = list(reversed(prices[:15]))
+        deltas = [recent[i] - recent[i - 1] for i in range(1, len(recent))]
+        gains = [d if d > 0 else 0.0 for d in deltas]
+        losses = [-d if d < 0 else 0.0 for d in deltas]
+        avg_gain = np.mean(gains)
+        avg_loss = np.mean(losses)
+        if avg_loss == 0:
+            rsi = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi = 100.0 - (100.0 / (1.0 + rs))
+
+        return {"price": round(current_price, 4), "ma_250": round(ma_250, 4), "rsi": round(rsi, 2)}
+
     @staticmethod
     def get_holdings(db: Session):
         """
@@ -60,17 +94,15 @@ class AlgoService:
         mstr_signal = QuantService.get_mstr_signal(db)
         ndx_status = QuantService.get_ndx_status(db)
         
-        # Additional signals for GLDM and TLT (using US tickers for reliable TA)
-        # TODO: Refactor these to use a MarketSignals cache table instead of live fetching
-        # For now, bypassing live yfinance calls to ensure 0.1s UI load.
-        gldm_ma = 0.0
-        gldm_rsi = 50.0
-        tlt_ma = 0.0
-        tlt_rsi = 50.0
-        
-        # Current prices for logic evaluation - Fallback to avoid live API calls
-        gldm_price = 0.0
-        tlt_price = 0.0
+        # GLDM and TLT signals from raw_daily_prices cache (no live API calls)
+        gldm_signals = AlgoService._get_ticker_signals(db, "GLDM")
+        tlt_signals = AlgoService._get_ticker_signals(db, "TLT")
+        gldm_price = gldm_signals["price"]
+        gldm_ma = gldm_signals["ma_250"]
+        gldm_rsi = gldm_signals["rsi"]
+        tlt_price = tlt_signals["price"]
+        tlt_ma = tlt_signals["ma_250"]
+        tlt_rsi = tlt_signals["rsi"]
 
         signals = {
             "vxn": vxn_signal,

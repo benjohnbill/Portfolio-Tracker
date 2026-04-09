@@ -764,3 +764,73 @@ export async function getIntelligenceRegimeHistory(): Promise<RegimeTransitionDa
     return [];
   }
 }
+
+// Periodic Reviews
+
+export interface ReviewSummaryData {
+  totalWeeks: number;
+  dateRange?: { from: string; to: string };
+  months: string[];
+  quarters: string[];
+  years: string[];
+}
+
+export interface ReviewAggregation {
+  period: string;
+  type: string;
+  count: number;
+  dateRange?: { from: string; to: string };
+  scores?: { avg: number; min: number; max: number; trend: number };
+  fit?: { avg: number };
+  alignment?: { avg: number };
+  posture?: { avg: number };
+  ruleStats?: Array<{ ruleId: string; fired: number; followed: number; ignored: number }>;
+}
+
+export async function getReviewSummary(): Promise<ReviewSummaryData> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/summary`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch review summary');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return { totalWeeks: 0, months: [], quarters: [], years: [] };
+  }
+}
+
+export async function getMonthlyReview(month: string): Promise<ReviewAggregation | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/monthly?month=${month}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getQuarterlyReview(quarter: string): Promise<ReviewAggregation | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/quarterly?quarter=${quarter}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getAnnualReview(year: string): Promise<ReviewAggregation | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/annual?year=${year}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}

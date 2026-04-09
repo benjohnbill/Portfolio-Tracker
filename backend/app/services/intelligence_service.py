@@ -397,3 +397,187 @@ class IntelligenceService:
         db.commit()
         logger.info("Decision outcome evaluation: %d new outcomes created", created)
         return created
+
+    # ------------------------------------------------------------------
+    # Regime Transition Detection (for Telegram alerts)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def detect_regime_transitions(db: Session) -> List[Dict[str, Any]]:
+        """Compare the two most recent attributions and return regime changes."""
+        recent = (
+            db.query(ScoringAttribution, WeeklySnapshot.snapshot_date)
+            .join(WeeklySnapshot, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .order_by(WeeklySnapshot.snapshot_date.desc())
+            .limit(2)
+            .all()
+        )
+        if len(recent) < 2:
+            return []
+
+        current_attr, current_date = recent[0]
+        prev_attr, prev_date = recent[1]
+
+        current_buckets = {b.get("bucket", ""): b.get("state", "neutral") for b in (current_attr.regime_snapshot or [])}
+        prev_buckets = {b.get("bucket", ""): b.get("state", "neutral") for b in (prev_attr.regime_snapshot or [])}
+
+        transitions = []
+        for bucket_name, new_state in current_buckets.items():
+            old_state = prev_buckets.get(bucket_name)
+            if old_state and old_state != new_state:
+                transitions.append({
+                    "date": current_date.isoformat(),
+                    "bucket": bucket_name,
+                    "from": old_state,
+                    "to": new_state,
+                    "totalScore": current_attr.total_score,
+                })
+        return transitions
+
+    # ------------------------------------------------------------------
+    # Periodic Review Aggregation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def get_review_summary(db: Session) -> Dict[str, Any]:
+        """Return available review periods with data counts."""
+        attributions = (
+            db.query(WeeklySnapshot.snapshot_date)
+            .join(ScoringAttribution, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        dates = [r.snapshot_date for r in attributions]
+        if not dates:
+            return {"totalWeeks": 0, "months": [], "quarters": [], "years": []}
+
+        months = sorted(set(d.strftime("%Y-%m") for d in dates))
+        quarters = sorted(set(f"{d.year}-Q{(d.month - 1) // 3 + 1}" for d in dates))
+        years = sorted(set(str(d.year) for d in dates))
+
+        return {
+            "totalWeeks": len(dates),
+            "dateRange": {"from": dates[0].isoformat(), "to": dates[-1].isoformat()},
+            "months": months,
+            "quarters": quarters,
+            "years": years,
+        }
+
+    @staticmethod
+    def _aggregate_attributions(attributions: list) -> Dict[str, Any]:
+        """Compute aggregate stats from a list of (ScoringAttribution, date) tuples."""
+        if not attributions:
+            return {"count": 0}
+
+        scores = [a.total_score for a, _ in attributions]
+        fit_scores = [a.fit_score for a, _ in attributions]
+        alignment_scores = [a.alignment_score for a, _ in attributions]
+        posture_scores = [a.posture_score for a, _ in attributions]
+
+        # Rule stats
+        rule_stats: Dict[str, Dict[str, int]] = {}
+        for attr, _ in attributions:
+            for rule in (attr.rules_fired or []):
+                rid = rule.get("ruleId", "UNKNOWN")
+                if rid not in rule_stats:
+                    rule_stats[rid] = {"fired": 0, "followed": 0, "ignored": 0}
+                rule_stats[rid]["fired"] += 1
+                wf = rule.get("was_followed")
+                if wf is True:
+                    rule_stats[rid]["followed"] += 1
+                elif wf is False:
+                    rule_stats[rid]["ignored"] += 1
+
+        dates = [d for _, d in attributions]
+        return {
+            "count": len(scores),
+            "dateRange": {"from": dates[0].isoformat(), "to": dates[-1].isoformat()},
+            "scores": {
+                "avg": round(sum(scores) / len(scores), 1),
+                "min": min(scores),
+                "max": max(scores),
+                "trend": scores[-1] - scores[0] if len(scores) > 1 else 0,
+            },
+            "fit": {"avg": round(sum(fit_scores) / len(fit_scores), 1)},
+            "alignment": {"avg": round(sum(alignment_scores) / len(alignment_scores), 1)},
+            "posture": {"avg": round(sum(posture_scores) / len(posture_scores), 1)},
+            "ruleStats": [
+                {"ruleId": rid, **stats} for rid, stats in sorted(rule_stats.items())
+            ],
+        }
+
+    @staticmethod
+    def get_monthly_review(db: Session, month: str) -> Optional[Dict[str, Any]]:
+        """Aggregate attributions for a given month (YYYY-MM format)."""
+        try:
+            year, mon = month.split("-")
+            start = date(int(year), int(mon), 1)
+            if int(mon) == 12:
+                end = date(int(year) + 1, 1, 1)
+            else:
+                end = date(int(year), int(mon) + 1, 1)
+        except (ValueError, IndexError):
+            return None
+
+        rows = (
+            db.query(ScoringAttribution, WeeklySnapshot.snapshot_date)
+            .join(WeeklySnapshot, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .filter(WeeklySnapshot.snapshot_date >= start, WeeklySnapshot.snapshot_date < end)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        result = IntelligenceService._aggregate_attributions(rows)
+        result["period"] = month
+        result["type"] = "monthly"
+        return result
+
+    @staticmethod
+    def get_quarterly_review(db: Session, quarter: str) -> Optional[Dict[str, Any]]:
+        """Aggregate attributions for a given quarter (YYYY-Q1 format)."""
+        try:
+            year_str, q_str = quarter.split("-Q")
+            year = int(year_str)
+            q = int(q_str)
+            start_month = (q - 1) * 3 + 1
+            start = date(year, start_month, 1)
+            end_month = start_month + 3
+            if end_month > 12:
+                end = date(year + 1, end_month - 12, 1)
+            else:
+                end = date(year, end_month, 1)
+        except (ValueError, IndexError):
+            return None
+
+        rows = (
+            db.query(ScoringAttribution, WeeklySnapshot.snapshot_date)
+            .join(WeeklySnapshot, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .filter(WeeklySnapshot.snapshot_date >= start, WeeklySnapshot.snapshot_date < end)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        result = IntelligenceService._aggregate_attributions(rows)
+        result["period"] = quarter
+        result["type"] = "quarterly"
+        return result
+
+    @staticmethod
+    def get_annual_review(db: Session, year: str) -> Optional[Dict[str, Any]]:
+        """Aggregate attributions for a given year."""
+        try:
+            y = int(year)
+            start = date(y, 1, 1)
+            end = date(y + 1, 1, 1)
+        except ValueError:
+            return None
+
+        rows = (
+            db.query(ScoringAttribution, WeeklySnapshot.snapshot_date)
+            .join(WeeklySnapshot, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .filter(WeeklySnapshot.snapshot_date >= start, WeeklySnapshot.snapshot_date < end)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        result = IntelligenceService._aggregate_attributions(rows)
+        result["period"] = year
+        result["type"] = "annual"
+        return result

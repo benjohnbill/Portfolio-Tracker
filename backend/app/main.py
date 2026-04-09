@@ -524,6 +524,39 @@ def get_intelligence_regime_history(db: Session = Depends(get_db)):
     return IntelligenceService.get_regime_history(db)
 
 
+@app.get("/api/intelligence/reviews/summary")
+def get_intelligence_review_summary(db: Session = Depends(get_db)):
+    """Available review periods with data counts."""
+    return IntelligenceService.get_review_summary(db)
+
+
+@app.get("/api/intelligence/reviews/monthly")
+def get_intelligence_monthly_review(month: str, db: Session = Depends(get_db)):
+    """Monthly aggregation (month=YYYY-MM)."""
+    result = IntelligenceService.get_monthly_review(db, month)
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM")
+    return result
+
+
+@app.get("/api/intelligence/reviews/quarterly")
+def get_intelligence_quarterly_review(quarter: str, db: Session = Depends(get_db)):
+    """Quarterly aggregation (quarter=YYYY-Q1)."""
+    result = IntelligenceService.get_quarterly_review(db, quarter)
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid quarter format. Use YYYY-Q1")
+    return result
+
+
+@app.get("/api/intelligence/reviews/annual")
+def get_intelligence_annual_review(year: str, db: Session = Depends(get_db)):
+    """Annual aggregation (year=YYYY)."""
+    result = IntelligenceService.get_annual_review(db, year)
+    if not result:
+        raise HTTPException(status_code=400, detail="Invalid year format. Use YYYY")
+    return result
+
+
 @app.post("/api/admin/backfill-attributions")
 def backfill_attributions(db: Session = Depends(get_db)):
     """One-time backfill of scoring_attributions for all existing weekly_snapshots."""
@@ -603,6 +636,19 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         except Exception:
             pass
 
+        # Step 9: Regime transition alerts (non-blocking)
+        regime_alerts_sent = 0
+        try:
+            current_step = "regime_alerts"
+            transitions = IntelligenceService.detect_regime_transitions(db)
+            if transitions:
+                for t in transitions:
+                    msg = f"Regime Shift: {t['bucket']} changed from {t['from']} to {t['to']}. Score: {t['totalScore']}/100"
+                    NotificationService.send_telegram_message(msg)
+                    regime_alerts_sent += 1
+        except Exception:
+            pass
+
         # Calculate duration and update run log
         duration = time.time() - start_time
         finished_at = datetime.now(timezone.utc)
@@ -618,6 +664,7 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "week_ending": weekly_report.get("weekEnding"),
             "attribution_ok": attribution_ok,
             "outcomes_created": outcomes_created,
+            "regime_alerts_sent": regime_alerts_sent,
         }
         db.commit()
         

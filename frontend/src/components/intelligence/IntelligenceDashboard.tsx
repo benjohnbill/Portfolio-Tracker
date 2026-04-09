@@ -158,7 +158,7 @@ export function IntelligenceDashboard({
       </div>
 
       {/* Navigation links */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Link href="/intelligence/attributions" className="bg-card rounded-lg p-5 border border-border/40 hover:border-primary/40 transition-colors">
           <p className="text-sm font-medium text-white">Score Attribution</p>
           <p className="text-xs text-muted-foreground mt-1">Decompose scores over time</p>
@@ -170,6 +170,10 @@ export function IntelligenceDashboard({
         <Link href="/intelligence/rules" className="bg-card rounded-lg p-5 border border-border/40 hover:border-primary/40 transition-colors">
           <p className="text-sm font-medium text-white">Rule Accuracy</p>
           <p className="text-xs text-muted-foreground mt-1">Track rule performance</p>
+        </Link>
+        <Link href="/intelligence/reviews" className="bg-card rounded-lg p-5 border border-border/40 hover:border-primary/40 transition-colors">
+          <p className="text-sm font-medium text-white">Periodic Reviews</p>
+          <p className="text-xs text-muted-foreground mt-1">Monthly, quarterly, annual</p>
         </Link>
       </div>
     </div>

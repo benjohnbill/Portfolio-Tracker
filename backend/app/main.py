@@ -24,6 +24,7 @@ from .services.annotation_service import AnnotationService
 from .services.friday_service import FridayService, SnapshotConflictError, SnapshotNotFoundError, SnapshotValidationError
 from .services.report_service import ReportService
 from .services.notification_service import NotificationService
+from .services.discord_notifier import send_discord_message
 from .services.attribution_service import AttributionService
 from .services.intelligence_service import IntelligenceService
 
@@ -645,6 +646,7 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
                 for t in transitions:
                     msg = f"Regime Shift: {t['bucket']} changed from {t['from']} to {t['to']}. Score: {t['totalScore']}/100"
                     NotificationService.send_telegram_message(msg)
+                    send_discord_message(msg)
                     regime_alerts_sent += 1
         except Exception:
             pass

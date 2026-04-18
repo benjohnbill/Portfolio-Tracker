@@ -9,6 +9,8 @@ from typing import Optional
 
 import httpx
 
+from app.services import discord_notifier
+
 
 class NotificationService:
     """Handles sending notifications to configured channels."""
@@ -81,8 +83,10 @@ class NotificationService:
             f"━━━━━━━━━━━━━━━\n"
             f"🕐 {timestamp}"
         )
-        
-        return NotificationService.send_telegram_message(message)
+
+        result = NotificationService.send_telegram_message(message)
+        discord_notifier.send_discord_message(message)
+        return result
 
     @staticmethod
     def send_cron_failure(
@@ -106,8 +110,10 @@ class NotificationService:
             f"━━━━━━━━━━━━━━━\n"
             f"🕐 {timestamp}"
         )
-        
-        return NotificationService.send_telegram_message(message)
+
+        result = NotificationService.send_telegram_message(message)
+        discord_notifier.send_discord_message(message)
+        return result
 
     @staticmethod
     def send_test_message() -> bool:
@@ -121,5 +127,7 @@ class NotificationService:
             f"━━━━━━━━━━━━━━━\n"
             f"🕐 {timestamp}"
         )
-        
-        return NotificationService.send_telegram_message(message)
+
+        result = NotificationService.send_telegram_message(message)
+        discord_notifier.send_discord_message(message)
+        return result

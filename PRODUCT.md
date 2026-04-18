@@ -14,16 +14,30 @@ Portfolio Tracker is a solo-investor decision-support tool for a KRW-denominated
 ## 3. Core Loop
 
 **Daily (automated):**
-GitHub Actions cron (Mon--Fri at 21:00 UTC / 06:00 KST) triggers `POST /api/cron/update-signals`. The endpoint runs a six-step pipeline: ingest raw prices, generate portfolio snapshots, update VXN history, seed MSTR corporate actions, generate the weekly report (optionally with an LLM summary), and send a Telegram notification.
+GitHub Actions cron (Mon--Fri at 21:00 UTC / 06:00 KST) triggers `POST /api/cron/update-signals`. The endpoint runs a six-step pipeline: ingest raw prices, generate portfolio snapshots, update VXN history, seed MSTR corporate actions, generate the weekly report (optionally with an LLM summary), and send Discord + Telegram notifications (see §9 for alert policy).
 
-**Weekly (human):**
-Open the dashboard, read the composite score (0--100), review any triggered rules sorted by severity, check the macro regime state across five buckets, and decide.
+**Weekly (human) — Friday ritual:**
+Open `/friday`. Review the Since Last Friday briefing card (events since the prior freeze: regime transitions, matured decision outcomes, alert history). Read the composite score (0--100). Review triggered rules sorted by severity, each annotated with a mini-indicator of your own past follow/override outcomes. Check the 6-sleeve Health panel (drift + signal + 4-week recency). Check the macro regime state across five buckets. Decide.
 
-**Action:**
-Hold, rebalance, or execute a specific rotation (e.g., TIGER_2X to KODEX_1X) based on the recommendation stance.
+**Decision journal at freeze time:**
+For each decision record type, ticker, free-text rationale (`note`), plus three confidence scalars:
 
-**Record:**
-Log executed transactions through the AddAssetModal, which auto-fetches prices and classifies the asset into the correct account silo.
+1. `confidence_vs_spy_riskadj` (1--10) — probability that over the 3M horizon the portfolio beats SPY-KRW on a risk-adjusted basis (primary goal per portfolio design intent).
+2. `confidence_vs_cash` (1--10) — probability that the portfolio posts a positive return over 3M (baseline).
+3. `confidence_vs_spy_pure` (1--10) — probability that the portfolio beats SPY-KRW on pure 3M return (stretch).
+
+Expected ordering per portfolio design intent: `#1 ≥ #2 ≥ #3`. Ordering deviation (e.g., `#3 > #1`) is itself a signal recorded for later calibration analysis.
+
+Also record a structured invalidation hypothesis: `expected_failure_mode` enum + `trigger_threshold` numeric + free-text reason. Optionally attach a weekly snapshot comment (1--2 lines, per-freeze observation, distinct from per-decision `note`).
+
+**Freeze (the weekly contract):**
+Freeze is not a save. It is an atomic self-contract --- see §9 for the full list of items locked together at freeze time.
+
+**Action (outside the app):**
+Hold, rebalance, or execute a specific rotation based on the recommendation stance. The system does not execute trades (see §8).
+
+**Record (optional post-facto):**
+Log executed transactions through the AddAssetModal, which auto-fetches prices and classifies the asset into the correct account silo. Optionally log execution slippage (the gap between the frozen decision and actual execution in timing or price) to the per-decision slippage log --- records only, not routing.
 
 ## 4. Key Decisions Supported
 
@@ -78,3 +92,39 @@ Account classification is inferred automatically by `PortfolioService.infer_acco
 - **Not multi-user.** Designed for a single investor. There is no authentication, authorization, or user management.
 - **Not a backtesting engine.** Stress tests replay historical crises but do not support arbitrary strategy backtesting.
 - **Not ML-powered.** All rules are deterministic with published thresholds. The only ML component is an optional LLM summary (OpenAI or Gemini) that narrates the report but does not influence scoring or recommendations.
+- **Not a gamification app.** No outcome streaks, reward loops, or mood indicators based on decision performance. The ritual-consistency strip (process-completion signal: on-time freeze + fields-complete) is permitted because it measures discipline, not outcome.
+
+## 9. Accumulation-as-Hero
+
+The product is a compounding self-knowledge artifact. Every Friday freeze is not only a record of the week's state but an input that increases the quality of all downstream analysis. Week 52 is not "week 1 buried under 51 entries"; week 52's archive, intelligence views, and decision retrieval are meaningfully richer than they were at week 1.
+
+### Six accumulation axes
+
+1. **Archived history** --- 52+ frozen weeks searchable via the regime ribbon, archive, and quadrant calibration surfaces.
+2. **Compression** --- recurring patterns (decision archetypes, regime-specific batting averages, error signatures) automatically surface from raw history into compact tiles.
+3. **Trust calibration** --- across rules and regimes, the user learns (with statistical backing) when to trust the system's recommendation and when to override.
+4. **Counterfactual accumulation** (Phase D Late) --- "what would have happened if I had followed the rules consistently" traced as a parallel portfolio path, with each override annotated.
+5. **Error-memory accumulation** --- recurring mistake signatures named and surfaced (e.g., "`correlation_breakdown` hit 4 times in BR-GLDM context during Inflation-Adverse regime").
+6. **Decision-latency accumulation** --- process discipline measured via on-time freeze + field-completion; stacked weeks reveal whether the ritual is growing sharper or eroding.
+
+### Freeze as weekly contract
+
+At freeze time the following are locked together atomically:
+
+1. **World state** (immutable `frozen_report` JSONB copy of the generated weekly report).
+2. **3-scalar confidence** (`vs_spy_riskadj` / `vs_cash` / `vs_spy_pure`, see §3).
+3. **Structured invalidation** (`expected_failure_mode` enum + `trigger_threshold` numeric + free-text hypothesis).
+4. **Optional weekly snapshot comment** (1--2 line per-freeze observation).
+5. **Ritual-consistency stamp** (green / amber / red per on-time freeze + field-completion).
+6. **3M auto-review schedule** --- at T+3 months the system tests the invalidation threshold and prompts the user to rate the hypothesis realization (Yes/No/Partial/NA).
+7. **Trailing-1Y risk metrics snapshot** (portfolio + SPY-KRW: CAGR / MDD / SD / Sharpe / Calmar / Sortino).
+
+### Benchmark framing
+
+SPY-KRW is the goal benchmark --- the reference the portfolio is designed to exceed on a risk-adjusted basis (primarily Calmar, secondarily Sharpe / MDD). It is not a peer composition match; the portfolio's deliberate multi-sleeve allocation (NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH) is the means to achieve risk-adjusted dominance over SPY-KRW, not to replicate its composition.
+
+The single-number expression of this goal is the Calmar delta: `Calmar(Portfolio) − Calmar(SPY-KRW)` on a trailing-1Y basis. Sustained positive Calmar delta confirms portfolio design intent; persistent negative delta indicates the sophistication is not earning its keep.
+
+### Alert policy
+
+Daily cron alerts (success / failure / regime shifts) flow via **Discord** (primary, webhook-based) and **Telegram** (optional, retained for fallback). The weekly cron additionally echoes the latest non-empty `weekly_snapshots.comment` in the "Since Last Friday" Discord message, closing the user-to-self hand-off loop across weeks. In-app Bell-style notification icons are removed; the `/friday` Since Last Friday briefing card is the accumulated in-app ledger of between-freeze events.

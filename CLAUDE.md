@@ -52,6 +52,4 @@ When external reviewers (Claude Design, Codex, human consults) propose UI or pro
 
 ### Weekly-loop semantic contracts
 
-- **Freeze is an atomic contract, not a save.** Locks together: world state (frozen_report JSONB), 3-scalar confidence, structured invalidation, ritual-consistency stamp, 3M auto-review schedule, trailing-1Y risk metrics, optional weekly snapshot comment.
-- **3-scalar confidence** at freeze time: (1) `vs_spy_riskadj`, (2) `vs_cash`, (3) `vs_spy_pure`. Expected ordering per portfolio design intent: #1 ≥ #2 ≥ #3. Ordering deviation is itself a signal.
-- **Structured invalidation**: `expected_failure_mode` enum + `trigger_threshold` numeric + free text. System auto-checks threshold at 3M to prevent hindsight rewriting.
+See `PRODUCT.md` §3 (Core Loop) and §9 (Accumulation-as-Hero) for freeze-as-contract semantics, 3-scalar confidence anchors, and structured invalidation schema. When editing the freeze flow, read those sections first — they are the authoritative source. This file intentionally avoids duplicating them to prevent drift.

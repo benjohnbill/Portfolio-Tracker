@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Sidebar } from '@/components/Sidebar';
-import { Bell, Sparkles, User } from 'lucide-react';
+import { Sparkles, User } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'OrbitAI | Portfolio Tracker',
@@ -24,9 +24,6 @@ export default function RootLayout({
                 Portfolio intelligence workspace
               </div>
               <div className="flex items-center space-x-4">
-                <div className="p-2 bg-accent rounded-md transition-colors" aria-hidden="true">
-                  <Bell className="w-4 h-4 text-muted-foreground" />
-                </div>
                 <div className="p-2 bg-accent rounded-md transition-colors" aria-hidden="true">
                   <Sparkles className="w-4 h-4 text-primary" />
                 </div>

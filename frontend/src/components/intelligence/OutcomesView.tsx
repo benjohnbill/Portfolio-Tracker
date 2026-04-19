@@ -112,7 +112,7 @@ export function OutcomesView({ initialOutcomes }: { initialOutcomes: DecisionOut
                 {o.decision.assetTicker && (
                   <span className="text-xs font-mono text-[#D4A574]">{o.decision.assetTicker}</span>
                 )}
-                <span className="text-xs text-muted-foreground">conf: {o.decision.confidence}/5</span>
+                <span className="text-xs text-muted-foreground">conf: {o.decision.confidenceVsSpyRiskadj}/10</span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-xs font-mono text-muted-foreground">{o.horizon}</span>

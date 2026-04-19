@@ -758,7 +758,7 @@ export interface AttributionData {
 export interface DecisionOutcomeData {
   snapshotDate: string;
   horizon: string;
-  decision: { type: string; assetTicker: string | null; note: string; confidence: number };
+  decision: { type: string; assetTicker: string | null; note: string; confidenceVsSpyRiskadj: number; confidence: number };
   portfolioValueAtDecision: number | null;
   portfolioValueAtHorizon: number | null;
   scoreAtDecision: number | null;

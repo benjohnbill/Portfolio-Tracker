@@ -24,6 +24,19 @@ function humanizeLabel(value: string) {
   return value.replaceAll('_', ' ');
 }
 
+function orderingDeviationNote(
+  riskadj: number,
+  cash: number,
+  pure: number,
+): string | null {
+  // Expected portfolio design intent: #1 >= #2 >= #3.
+  // Deviation is an observation (logged for calibration), not a warning.
+  if (riskadj < cash || cash < pure) {
+    return 'Expected #1 ≥ #2 ≥ #3 — your ordering deviates. Logged for calibration.';
+  }
+  return null;
+}
+
 interface FridayDashboardProps {
   report: WeeklyReport;
   snapshots: FridaySnapshotSummary[];
@@ -41,9 +54,19 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
     decision_type: 'hold',
     asset_ticker: '',
     note: '',
-    confidence: 5,
+    // Phase D A3 — primary required; siblings optional.
+    confidence_vs_spy_riskadj: 5,
+    confidence_vs_cash: 5,
+    confidence_vs_spy_pure: 5,
     invalidation: '',
+    // Phase D A4 — structured invalidation.
+    expected_failure_mode: '',
+    trigger_threshold: '',
   });
+
+  // Phase D A7 — optional per-freeze observation. Separate from decision draft
+  // because it is tied to the freeze action, not per-decision state.
+  const [snapshotComment, setSnapshotComment] = useState('');
 
   const latestSnapshot = snapshots[0] ?? null;
   const scoreDelta = latestSnapshot?.score != null ? report.score.total - latestSnapshot.score : null;
@@ -62,7 +85,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
       setFreezeMessage('Building weekly snapshot...');
       await new Promise((resolve) => setTimeout(resolve, 150));
       setFreezeMessage('Saving snapshot...');
-      await createFridaySnapshot(report.weekEnding);
+      await createFridaySnapshot(report.weekEnding, snapshotComment.trim() || undefined);
       setFreezeState('done');
       setFreezeMessage('Frozen successfully.');
       setTimeout(() => {
@@ -86,20 +109,29 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
     setDecisionError(null);
 
     try {
+      const parsedThreshold = decisionDraft.trigger_threshold.trim();
       await createFridayDecision({
         snapshot_id: currentSnapshot.id,
         decision_type: decisionDraft.decision_type,
         asset_ticker: decisionDraft.asset_ticker || undefined,
         note: decisionDraft.note,
-        confidence: decisionDraft.confidence,
+        confidence_vs_spy_riskadj: decisionDraft.confidence_vs_spy_riskadj,
+        confidence_vs_cash: decisionDraft.confidence_vs_cash,
+        confidence_vs_spy_pure: decisionDraft.confidence_vs_spy_pure,
         invalidation: decisionDraft.invalidation || undefined,
+        expected_failure_mode: decisionDraft.expected_failure_mode || undefined,
+        trigger_threshold: parsedThreshold ? Number(parsedThreshold) : undefined,
       });
       setDecisionDraft({
         decision_type: 'hold',
         asset_ticker: '',
         note: '',
-        confidence: 5,
+        confidence_vs_spy_riskadj: 5,
+        confidence_vs_cash: 5,
+        confidence_vs_spy_pure: 5,
         invalidation: '',
+        expected_failure_mode: '',
+        trigger_threshold: '',
       });
       router.refresh();
     } catch (error) {
@@ -164,6 +196,16 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
             <CardDescription>Terminal action after reviewing the week.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <details className="rounded-md border border-border/50 bg-background/40 px-3 py-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer select-none text-white/80">💬 이번 주 코멘트 (선택)</summary>
+              <textarea
+                value={snapshotComment}
+                onChange={(event) => setSnapshotComment(event.target.value)}
+                placeholder="1–2 줄 관찰 (비워두면 저장되지 않음)."
+                className="mt-2 min-h-16 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-white outline-none focus-visible:border-ring"
+                disabled={freezeState === 'working' || isFrozen}
+              />
+            </details>
             <Button className="w-full" onClick={handleFreeze} disabled={freezeState === 'working' || isFrozen}>
               {freezeButtonLabel}
             </Button>
@@ -314,26 +356,95 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground">Confidence {decisionDraft.confidence}</label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    value={decisionDraft.confidence}
-                    onChange={(event) => setDecisionDraft((current) => ({ ...current, confidence: Number(event.target.value) }))}
-                    className="w-full accent-[hsl(var(--primary))]"
-                  />
+                <div className="space-y-3 rounded-lg border border-border/50 bg-background/50 px-3 py-3">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Confidence (1–10)</p>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground">
+                      vs SPY Risk-adj <span className="text-primary">{decisionDraft.confidence_vs_spy_riskadj}</span>
+                      <span className="ml-2 text-[10px] text-muted-foreground/70">primary</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={decisionDraft.confidence_vs_spy_riskadj}
+                      onChange={(event) => setDecisionDraft((current) => ({ ...current, confidence_vs_spy_riskadj: Number(event.target.value) }))}
+                      className="w-full accent-[hsl(var(--primary))]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground">
+                      vs Cash <span className="text-primary">{decisionDraft.confidence_vs_cash}</span>
+                      <span className="ml-2 text-[10px] text-muted-foreground/70">baseline</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={decisionDraft.confidence_vs_cash}
+                      onChange={(event) => setDecisionDraft((current) => ({ ...current, confidence_vs_cash: Number(event.target.value) }))}
+                      className="w-full accent-[hsl(var(--primary))]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground">
+                      vs SPY Pure <span className="text-primary">{decisionDraft.confidence_vs_spy_pure}</span>
+                      <span className="ml-2 text-[10px] text-muted-foreground/70">stretch</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={decisionDraft.confidence_vs_spy_pure}
+                      onChange={(event) => setDecisionDraft((current) => ({ ...current, confidence_vs_spy_pure: Number(event.target.value) }))}
+                      className="w-full accent-[hsl(var(--primary))]"
+                    />
+                  </div>
+
+                  {(() => {
+                    const note = orderingDeviationNote(
+                      decisionDraft.confidence_vs_spy_riskadj,
+                      decisionDraft.confidence_vs_cash,
+                      decisionDraft.confidence_vs_spy_pure,
+                    );
+                    return note ? (
+                      <p className="text-[11px] text-muted-foreground italic">{note}</p>
+                    ) : null;
+                  })()}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground">Invalidation</label>
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground">Invalidation (what would change your mind?)</label>
                   <textarea
                     value={decisionDraft.invalidation}
                     onChange={(event) => setDecisionDraft((current) => ({ ...current, invalidation: event.target.value }))}
-                    placeholder="What would change your mind?"
+                    placeholder="Free-text: conditions that would invalidate this thesis."
                     className="min-h-20 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-white outline-none focus-visible:border-ring"
                   />
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <select
+                      className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-white"
+                      value={decisionDraft.expected_failure_mode}
+                      onChange={(event) => setDecisionDraft((current) => ({ ...current, expected_failure_mode: event.target.value }))}
+                    >
+                      <option value="" className="bg-card">Failure mode (optional)</option>
+                      <option value="price_drop" className="bg-card">price drop</option>
+                      <option value="regime_shift" className="bg-card">regime shift</option>
+                      <option value="correlation_breakdown" className="bg-card">correlation breakdown</option>
+                      <option value="liquidity_crunch" className="bg-card">liquidity crunch</option>
+                      <option value="other" className="bg-card">other</option>
+                    </select>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={decisionDraft.trigger_threshold}
+                      onChange={(event) => setDecisionDraft((current) => ({ ...current, trigger_threshold: event.target.value }))}
+                      placeholder="Trigger threshold (numeric, optional)"
+                    />
+                  </div>
                 </div>
 
                 {decisionError && <p className="text-sm text-red-300">{decisionError}</p>}
@@ -353,9 +464,26 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
                   <div key={decision.id} className="rounded-lg bg-background px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">{decision.decisionType || decision.decision_type}</p>
-                      <span className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold uppercase text-muted-foreground">Confidence {decision.confidence}</span>
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold uppercase text-muted-foreground">
+                        Conf {decision.confidenceVsSpyRiskadj}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">{decision.note}</p>
+                    {(decision.confidenceVsCash != null || decision.confidenceVsSpyPure != null) && (
+                      <p className="text-[11px] text-muted-foreground/80 mt-1">
+                        vs Cash {decision.confidenceVsCash ?? '—'} · vs SPY Pure {decision.confidenceVsSpyPure ?? '—'}
+                      </p>
+                    )}
+                    {decision.invalidation && (
+                      <p className="text-[11px] text-white/70 mt-2">Invalidation: {decision.invalidation}</p>
+                    )}
+                    {(decision.expectedFailureMode || decision.triggerThreshold != null) && (
+                      <p className="text-[11px] text-muted-foreground/80 mt-1">
+                        {decision.expectedFailureMode && <>Mode: <span className="text-white/80">{decision.expectedFailureMode}</span></>}
+                        {decision.expectedFailureMode && decision.triggerThreshold != null && ' · '}
+                        {decision.triggerThreshold != null && <>Threshold: <span className="text-white/80">{decision.triggerThreshold}</span></>}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

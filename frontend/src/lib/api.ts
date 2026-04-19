@@ -656,6 +656,7 @@ export async function createFridayDecision(payload: {
   asset_ticker?: string;
   note: string;
   // Phase D A3 — primary required; siblings optional.
+  // Stricter than backend, which still accepts legacy `confidence` alone during the Plan 3 transition.
   confidence_vs_spy_riskadj: number;
   confidence_vs_cash?: number;
   confidence_vs_spy_pure?: number;

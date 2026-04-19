@@ -283,8 +283,16 @@ export interface FridayDecision {
   decision_type?: string;
   assetTicker: string | null;
   note: string;
+  // Phase D A3 — 3-scalar confidence. Primary required; the other two optional until A3 UI saturates.
+  confidenceVsSpyRiskadj: number;
+  confidenceVsCash: number | null;
+  confidenceVsSpyPure: number | null;
+  // Legacy mirror of confidenceVsSpyRiskadj — retained so old read sites keep rendering until Plan 3 cleanup.
   confidence: number;
+  // Phase D A4 — structured invalidation.
   invalidation: string | null;
+  expectedFailureMode: string | null;
+  triggerThreshold: number | null;
 }
 
 export interface FridaySnapshotSummary {
@@ -297,6 +305,8 @@ export interface FridaySnapshotSummary {
     errors?: Record<string, string>;
     snapshotWeekEnding?: string;
   };
+  // Phase D A7 — optional per-freeze observation; echoed on archive cards and Discord briefing.
+  comment: string | null;
   decisions: FridayDecision[];
   score?: number | null;
   status?: string | null;
@@ -619,14 +629,17 @@ export async function compareFridaySnapshots(a: string, b: string): Promise<Frid
   }
 }
 
-export async function createFridaySnapshot(snapshotDate?: string): Promise<FridaySnapshot> {
+export async function createFridaySnapshot(snapshotDate?: string, comment?: string): Promise<FridaySnapshot> {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const res = await fetch(`${API_BASE}/api/v1/friday/snapshot`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ snapshot_date: snapshotDate ?? null }),
+    body: JSON.stringify({
+      snapshot_date: snapshotDate ?? null,
+      comment: comment ?? null,
+    }),
   });
 
   if (!res.ok) {
@@ -642,8 +655,14 @@ export async function createFridayDecision(payload: {
   decision_type: string;
   asset_ticker?: string;
   note: string;
-  confidence: number;
+  // Phase D A3 — primary required; siblings optional.
+  confidence_vs_spy_riskadj: number;
+  confidence_vs_cash?: number;
+  confidence_vs_spy_pure?: number;
+  // Phase D A4 — all optional.
   invalidation?: string;
+  expected_failure_mode?: string;
+  trigger_threshold?: number;
 }): Promise<FridayDecision> {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const res = await fetch(`${API_BASE}/api/v1/friday/decisions`, {

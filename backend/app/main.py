@@ -74,8 +74,16 @@ class FridayDecisionCreateRequest(BaseModel):
     decision_type: str
     asset_ticker: Optional[str] = None
     note: str
-    confidence: int = Field(ge=1, le=10)
+    # Phase D A3 — three confidence scalars. Exactly one of (confidence_vs_spy_riskadj)
+    # or legacy (confidence) is required; the rest are optional until the frontend ships A3 UI.
+    confidence_vs_spy_riskadj: Optional[int] = Field(default=None, ge=1, le=10)
+    confidence_vs_cash: Optional[int] = Field(default=None, ge=1, le=10)
+    confidence_vs_spy_pure: Optional[int] = Field(default=None, ge=1, le=10)
+    confidence: Optional[int] = Field(default=None, ge=1, le=10)  # legacy alias
+    # Phase D A4 — structured invalidation alongside the existing free-text field.
     invalidation: Optional[str] = None
+    expected_failure_mode: Optional[str] = None
+    trigger_threshold: Optional[float] = None
 
 # CORS configuration
 origins = ["*"] # Broaden for local development
@@ -442,7 +450,12 @@ def create_friday_decision(payload: FridayDecisionCreateRequest, db: Session = D
             asset_ticker=payload.asset_ticker,
             note=payload.note,
             confidence=payload.confidence,
+            confidence_vs_spy_riskadj=payload.confidence_vs_spy_riskadj,
+            confidence_vs_cash=payload.confidence_vs_cash,
+            confidence_vs_spy_pure=payload.confidence_vs_spy_pure,
             invalidation=payload.invalidation,
+            expected_failure_mode=payload.expected_failure_mode,
+            trigger_threshold=payload.trigger_threshold,
         )
     except SnapshotNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

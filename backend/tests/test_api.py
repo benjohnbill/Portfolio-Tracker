@@ -1,5 +1,11 @@
+from datetime import date, datetime, timezone
+
+import pytest
 from fastapi.testclient import TestClient
+
+from app.database import get_db
 from app.main import app
+from app.models import WeeklySnapshot
 
 client = TestClient(app)
 
@@ -17,11 +23,11 @@ def test_get_portfolio_history_mock():
     # Test getting history (should return mock data as DB is empty)
     response = client.get("/api/portfolio/history?period=1y")
     assert response.status_code == 200
-    
+
     data = response.json()
     assert isinstance(data, list)
     assert len(data) > 0
-    
+
     # Check data structure
     first_item = data[0]
     assert "date" in first_item
@@ -29,6 +35,150 @@ def test_get_portfolio_history_mock():
     assert "daily_return" in first_item
     assert "benchmark_value" in first_item
     assert "alpha" in first_item
-    
+
     # Check values logic (mock data always starts at 10M)
     assert first_item["total_value"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Phase D Tier 1 — POST /api/v1/friday/decisions API-level tests
+#
+# These tests override the `get_db` dependency with an in-memory fake DB
+# (same pattern as tests/test_friday_service.py) so they do not touch the real
+# Supabase database. The fake DB pre-seeds one WeeklySnapshot row the tests
+# can attach decisions to.
+# ---------------------------------------------------------------------------
+
+
+class _FakeQuery:
+    def __init__(self, rows):
+        self._rows = rows
+        self._filters = []
+
+    def filter(self, *conditions):
+        self._filters.extend(conditions)
+        return self
+
+    def order_by(self, *_args):
+        return self
+
+    def all(self):
+        return [row for row in self._rows if self._matches(row)]
+
+    def first(self):
+        rows = self.all()
+        return rows[0] if rows else None
+
+    def _matches(self, row):
+        for condition in self._filters:
+            left = getattr(condition, "left", None)
+            right = getattr(condition, "right", None)
+            operator = getattr(getattr(condition, "operator", None), "__name__", "")
+            field = getattr(left, "name", None)
+            value = getattr(right, "value", None)
+            if operator == "eq" and field is not None and getattr(row, field) != value:
+                return False
+        return True
+
+
+class _FakeDB:
+    def __init__(self, snapshots=None, decisions=None):
+        self.snapshots = snapshots or []
+        self.decisions = decisions or []
+        self._id_seq = 100
+
+    def query(self, model):
+        name = getattr(model, "__name__", str(model))
+        if name == "WeeklySnapshot":
+            return _FakeQuery(self.snapshots)
+        if name == "WeeklyDecision":
+            return _FakeQuery(self.decisions)
+        return _FakeQuery([])
+
+    def add(self, obj):
+        if getattr(obj, "id", None) is None:
+            self._id_seq += 1
+            obj.id = self._id_seq
+        # WeeklyDecision is the only thing the decisions endpoint inserts.
+        cls_name = obj.__class__.__name__
+        if cls_name == "WeeklyDecision":
+            self.decisions.append(obj)
+        elif cls_name == "WeeklySnapshot":
+            self.snapshots.append(obj)
+
+    def commit(self):
+        return None
+
+    def refresh(self, obj):
+        return obj
+
+    def rollback(self):
+        return None
+
+
+@pytest.fixture
+def seeded_snapshot():
+    """Seed a WeeklySnapshot in a fake DB and return its id + a get_db override.
+
+    Overrides FastAPI's `get_db` dependency for the duration of the test so
+    POST /api/v1/friday/decisions talks to the in-memory fake instead of the
+    real Supabase database.
+    """
+    snapshot = WeeklySnapshot(
+        id=7,
+        snapshot_date=date(2026, 4, 17),
+        created_at=datetime.now(timezone.utc),
+        frozen_report={"status": "final"},
+        snapshot_metadata={},
+    )
+    fake = _FakeDB(snapshots=[snapshot])
+
+    def _override_get_db():
+        yield fake
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        yield {"id": snapshot.id, "db": fake}
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_post_friday_decision_accepts_three_confidence_scalars(seeded_snapshot):
+    response = client.post(
+        "/api/v1/friday/decisions",
+        json={
+            "snapshot_id": seeded_snapshot["id"],
+            "decision_type": "rebalance",
+            "asset_ticker": "QQQ",
+            "note": "Trim",
+            "confidence_vs_spy_riskadj": 8,
+            "confidence_vs_cash": 7,
+            "confidence_vs_spy_pure": 6,
+            "invalidation": "Macro improves",
+            "expected_failure_mode": "regime_shift",
+            "trigger_threshold": 0.05,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["confidenceVsSpyRiskadj"] == 8
+    assert body["confidenceVsCash"] == 7
+    assert body["confidenceVsSpyPure"] == 6
+    assert body["expectedFailureMode"] == "regime_shift"
+    assert body["triggerThreshold"] == 0.05
+
+
+def test_post_friday_decision_backward_compat_legacy_confidence(seeded_snapshot):
+    response = client.post(
+        "/api/v1/friday/decisions",
+        json={
+            "snapshot_id": seeded_snapshot["id"],
+            "decision_type": "hold",
+            "note": "Stay put",
+            "confidence": 7,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["confidenceVsSpyRiskadj"] == 7
+    assert body["confidence"] == 7

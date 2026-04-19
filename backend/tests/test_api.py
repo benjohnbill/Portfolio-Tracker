@@ -181,7 +181,7 @@ def test_post_friday_decision_backward_compat_legacy_confidence(seeded_snapshot)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["confidenceVsSpyRiskadj"] == 7
-    assert body["confidence"] == 7
+    assert "confidence" not in body
 
 
 def test_post_friday_snapshot_accepts_comment(seeded_snapshot, monkeypatch):

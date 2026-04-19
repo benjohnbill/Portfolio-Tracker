@@ -50,7 +50,6 @@ class FridayService:
 
     @staticmethod
     def _serialize_decision(decision: WeeklyDecision) -> Dict[str, Any]:
-        primary = decision.confidence_vs_spy_riskadj
         return {
             "id": decision.id,
             "snapshotId": decision.snapshot_id,
@@ -58,11 +57,9 @@ class FridayService:
             "decisionType": decision.decision_type,
             "assetTicker": decision.asset_ticker,
             "note": decision.note,
-            "confidenceVsSpyRiskadj": primary,
+            "confidenceVsSpyRiskadj": decision.confidence_vs_spy_riskadj,
             "confidenceVsCash": decision.confidence_vs_cash,
             "confidenceVsSpyPure": decision.confidence_vs_spy_pure,
-            # Backward-compat mirror for legacy frontend that still reads `confidence`.
-            "confidence": primary,
             "invalidation": decision.invalidation,
             "expectedFailureMode": decision.expected_failure_mode,
             "triggerThreshold": decision.trigger_threshold,

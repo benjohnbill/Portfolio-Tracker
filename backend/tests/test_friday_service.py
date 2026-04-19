@@ -429,8 +429,6 @@ def test_add_decision_accepts_three_confidence_scalars_and_structured_invalidati
     assert payload["confidenceVsSpyPure"] == 6
     assert payload["expectedFailureMode"] == "regime_shift"
     assert payload["triggerThreshold"] == 0.05
-    # Backward-compat mirror during transition.
-    assert payload["confidence"] == 8
 
 
 def test_add_decision_backward_compat_accepts_legacy_confidence_kwarg():
@@ -452,7 +450,7 @@ def test_add_decision_backward_compat_accepts_legacy_confidence_kwarg():
     assert payload["confidenceVsSpyRiskadj"] == 7
     assert payload["confidenceVsCash"] is None
     assert payload["confidenceVsSpyPure"] is None
-    assert payload["confidence"] == 7
+    assert "confidence" not in payload
 
 
 def test_add_decision_rejects_invalid_confidence_scalar_range():
@@ -488,6 +486,27 @@ def test_add_decision_rejects_both_legacy_and_new_confidence():
             db, snapshot_id=7, decision_type="hold", note="x",
             confidence=5, confidence_vs_spy_riskadj=6,
         )
+
+
+def test_serialize_decision_does_not_emit_legacy_confidence_key():
+    """Plan C contract: response payload must not mirror the legacy `confidence` key."""
+    snapshot = WeeklySnapshot(
+        id=7, snapshot_date=date(2026, 4, 18),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=_report(), snapshot_metadata={},
+    )
+    db = _FakeDB(snapshots=[snapshot])
+
+    payload = FridayService.add_decision(
+        db,
+        snapshot_id=7,
+        decision_type="hold",
+        note="x",
+        confidence_vs_spy_riskadj=6,
+    )
+
+    assert "confidence" not in payload
+    assert payload["confidenceVsSpyRiskadj"] == 6
 
 
 def test_create_snapshot_persists_comment(monkeypatch):

@@ -380,3 +380,23 @@ def test_get_latest_report_returns_none_when_no_persisted_rows(monkeypatch):
     monkeypatch.setattr(db, "query", _query)
 
     assert ReportService.get_latest_report(db) is None
+
+
+def test_weekly_decision_model_has_three_confidence_scalars_and_invalidation_fields():
+    # Smoke test: the ORM class exposes the new Phase D A3 / A4 columns.
+    from app.models import WeeklyDecision
+
+    column_names = {c.name for c in WeeklyDecision.__table__.columns}
+    assert "confidence_vs_spy_riskadj" in column_names
+    assert "confidence_vs_cash" in column_names
+    assert "confidence_vs_spy_pure" in column_names
+    assert "expected_failure_mode" in column_names
+    assert "trigger_threshold" in column_names
+    assert "confidence" not in column_names  # legacy name must be gone at ORM level
+
+
+def test_weekly_snapshot_model_has_comment_column():
+    from app.models import WeeklySnapshot
+
+    column_names = {c.name for c in WeeklySnapshot.__table__.columns}
+    assert "comment" in column_names

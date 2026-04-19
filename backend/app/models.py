@@ -109,6 +109,8 @@ class WeeklySnapshot(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     frozen_report = Column(JSONB, nullable=False)
     snapshot_metadata = Column("metadata", JSONB, nullable=False)
+    # Phase D A7 — optional per-freeze observation (1-2 lines), surfaced on /archive.
+    comment = Column(Text, nullable=True)
 
     decisions = relationship("WeeklyDecision", back_populates="snapshot", cascade="all, delete-orphan")
     attributions = relationship("ScoringAttribution", back_populates="snapshot", cascade="all, delete-orphan")
@@ -123,8 +125,18 @@ class WeeklyDecision(Base):
     decision_type = Column(String, nullable=False)
     asset_ticker = Column(String, nullable=True)
     note = Column(Text, nullable=False)
-    confidence = Column(Integer, nullable=False)
+
+    # Phase D A3 — 3-scalar confidence (1..10).
+    # #1 primary risk-adjusted, #2 baseline vs cash, #3 stretch vs SPY-KRW pure return.
+    # Historical rows hold only #1; #2 and #3 are NULL until recorded on new freezes.
+    confidence_vs_spy_riskadj = Column(Integer, nullable=False)
+    confidence_vs_cash = Column(Integer, nullable=True)
+    confidence_vs_spy_pure = Column(Integer, nullable=True)
+
+    # Phase D A4 — structured invalidation (enum coerced in app layer).
     invalidation = Column(Text, nullable=True)
+    expected_failure_mode = Column(String, nullable=True)
+    trigger_threshold = Column(Float, nullable=True)
 
     snapshot = relationship("WeeklySnapshot", back_populates="decisions")
     outcomes = relationship("DecisionOutcome", back_populates="decision", cascade="all, delete-orphan")

@@ -218,14 +218,36 @@ Full rationale: `CLAUDE.md#Review-Principles`, `DESIGN.md#Decisions-Log`, `PRODU
 
 All items below are buildable today. Either no data gate, or existing (non-freeze) cron-ingested data already functional from day 1.
 
-- [ ] **A3: 3-scalar Confidence UI** — schema ✅. FridayDashboard decision-journal form: single confidence slider → 3 stacked sliders with anchor labels (risk-adj / vs cash / vs SPY pure). Subtle ordering-deviation observation hint (flag if `#1 < #2` or `#2 < #3`, not a warning).
-- [ ] **A4: Structured Invalidation UI** — schema ✅. Same form: `failure_mode` dropdown + `trigger_threshold` numeric input + retained free-text `invalidation`.
-- [ ] **A7: Weekly Snapshot Comment UI** — schema ✅. Collapsed 1–2 line textarea in freeze form ("💬 이번 주 코멘트 (선택)"). Empty input stores NULL. Snapshot POST endpoint extended to accept `comment`.
-- [ ] **R1: Remove Bell icon** — edit `frontend/src/app/layout.tsx:27-29`. No in-app notification system; alerts flow via Discord (primary) and Telegram (fallback).
-- [ ] **A1: Since Last Friday briefing card** — `/friday` top. Events since last freeze (regime transitions, matured outcomes, Discord/Telegram alert history, optional last-snapshot-comment snippet). Uses existing cron data; renders empty state pre-first-freeze. (Original "2 weeks+" tag described sub-component recency, not component function.)
-- [ ] **A2: Sleeve Health panel** — 6 sleeves × (current vs target % / drift bar / signal status / 4-week recency strip). Existing sleeve + signal data functional day 1; recency strip fills progressively.
-- [ ] **Discord briefing echo** — extend cron notification: when a snapshot has a non-empty comment, include it in the next week's "Since Last Friday" Discord message. Touches `notification_service.py` + `discord_notifier.py`.
-- [ ] **Legacy `confidence` alias cleanup** — after A3/A4/A7 UI land. Remove Pydantic legacy field (`main.py`), remove `confidence` kwarg + mutual-exclusion branch in `FridayService.add_decision`, drop `"confidence": primary` mirror from `friday_service._serialize_decision` and `intelligence_service` outcome payload.
+**Scope lock doc:** `docs/superpowers/decisions/2026-04-19-phase-d-ship-now-scope-lock.md` — authoritative per-plan boundaries for Plan B / Plan C / QA (locked before cross-session handoff).
+
+**Sequencing:** Plan A ✅ shipped (commits `bd8be17..bdb9eb0` + `bf4a321..09b2c2a` + hotfix `0f1af6d`). Plan B next (writing-plans), then Plan C, then Playwright QA.
+
+#### ✅ Shipped — Plan A (commits on `main`, Render prod live)
+
+- [x] **A3: 3-scalar Confidence UI** — schema + backend + API + UI landed. 3 stacked sliders with anchor labels + ordering-deviation observation.
+- [x] **A4: Structured Invalidation UI** — `failure_mode` dropdown + `trigger_threshold` numeric input + free-text invalidation.
+- [x] **A7: Weekly Snapshot Comment UI** — collapsed "💬 이번 주 코멘트 (선택)" textarea in freeze form + surfaced as italic quote on archive panel.
+- [x] **R1: Remove Bell icon** — `frontend/src/app/layout.tsx` cleaned.
+
+#### ⏳ Plan B — `/friday` top-of-page (A1 + A2)
+
+Plan doc target: `docs/superpowers/plans/2026-04-19-phase-d-friday-top.md`
+
+- [ ] **A1: Since Last Friday briefing card** — `/friday` top, above hero strip. Severity-grouped: regime transitions, matured outcomes, alert-history summary, optional last-snapshot-comment snippet. New endpoint `GET /api/v1/friday/briefing?since=<last_snapshot_date>` aggregates over `weekly_snapshots` + `decision_outcomes` + `cron_run_log`.
+- [ ] **A2: Sleeve Health panel** — `/friday`, between hero strip and Portfolio delta (which stays). 6 sleeves × (label | current / target | drift | signal | 4-week recency strip). Current/target/drift/signal use existing `WeeklyReport` props; new endpoint `GET /api/v1/friday/sleeve-history?weeks=4` supplies per-sleeve signal-firing count per week (Option A over client-side 4× fetch — avoids cold-start waterfall on Render free tier).
+
+#### ⏳ Plan C — Backend hygiene (Discord echo + legacy alias cleanup)
+
+Plan doc target: `docs/superpowers/plans/2026-04-19-phase-d-backend-hygiene.md`
+
+Safety gate: runs only AFTER Plan B is merged + `grep -rn "decision\.confidence\b" frontend/src` is clean.
+
+- [ ] **Discord briefing echo** — extend weekly cron success message in `notification_service.py` to append `> 💬 Last week's comment: "{comment}"` when the latest snapshot's `comment` is non-empty. Updates existing Discord tests.
+- [ ] **Legacy `confidence` alias cleanup — symmetric 4-layer removal** — (1) `friday_service._serialize_decision` mirror key, (2) `intelligence_service` outcome payload mirror key, (3) `api.ts::FridayDecision.confidence` field, (4) `api.ts::DecisionOutcomeData.decision.confidence` field. Plus upstream: remove Pydantic legacy field on `FridayDecisionCreateRequest`, drop `confidence` kwarg + mutual-exclusion branch on `FridayService.add_decision`.
+
+#### ⏳ Playwright MCP QA — Ship Now validation (no plan doc)
+
+Executed from a fresh chat session after Plans B and C ship. Primary against local dev server (avoid prod data pollution from QA freeze); secondary prod smoke (navigate + visual verify only, no freeze). Full checklist in the scope-lock doc §Playwright MCP QA. Deliverables: screenshots + PASS/FAIL list; any bugs → separate hotfix commits.
 
 ### Deferred — data-maturity gated (9 items)
 

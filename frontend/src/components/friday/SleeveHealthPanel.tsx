@@ -13,8 +13,11 @@ interface SleeveHealthPanelProps {
   sleeveHistory: SleeveHistoryData | null;
 }
 
+// Must stay in lockstep with backend `_normalize` in backend/app/services/briefing_service.py.
+// Strips -, _, space, and / so labels like "BONDS/CASH" / "BONDS-CASH" / "bonds_cash" all
+// collapse to BONDSCASH — prod targetDeviation emits "BONDS/CASH" while SLEEVES uses the hyphen form.
 function normalize(label: string): string {
-  return label.toUpperCase().replaceAll('-', '').replaceAll('_', '').replaceAll(' ', '');
+  return label.toUpperCase().replaceAll('-', '').replaceAll('_', '').replaceAll(' ', '').replaceAll('/', '');
 }
 
 function matchesSleeve(label: string | null | undefined, sleeve: string): boolean {

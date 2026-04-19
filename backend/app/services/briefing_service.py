@@ -17,8 +17,12 @@ SLEEVES: List[str] = ["NDX", "DBMF", "BRAZIL", "MSTR", "GLDM", "BONDS-CASH"]
 
 
 def _normalize(label: str) -> str:
-    """Case- and punctuation-insensitive comparator key for sleeve names."""
-    return label.upper().replace("-", "").replace("_", "").replace(" ", "")
+    """Case- and punctuation-insensitive comparator key for sleeve names.
+    Strips -, _, space, and / so labels like "BONDS/CASH" / "BONDS-CASH" / "bonds_cash"
+    all collapse to BONDSCASH. Must stay in lockstep with the frontend `normalize` in
+    components/friday/SleeveHealthPanel.tsx.
+    """
+    return label.upper().replace("-", "").replace("_", "").replace(" ", "").replace("/", "")
 
 
 class BriefingService:

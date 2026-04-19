@@ -222,6 +222,17 @@ def test_get_sleeve_history_matches_sleeve_labels_case_insensitively():
     assert result["NDX"] == [1]
 
 
+def test_get_sleeve_history_handles_slash_variant_for_bonds_cash():
+    # Prod targetDeviation emits "BONDS/CASH" (slash) while SLEEVES canonical form
+    # uses a hyphen. `_normalize` must strip `/` so both collapse to BONDSCASH.
+    r = _weekly_report(date(2026, 4, 26), [
+        {"ruleId": "R1", "affectedSleeves": ["BONDS/CASH"]},
+    ])
+    db = _FakeDBWithReports(reports=[r])
+    result = BriefingService.get_sleeve_history(db, weeks=1)
+    assert result["BONDS-CASH"] == [1]
+
+
 def test_get_sleeve_history_caps_weeks_between_1_and_52():
     db = _FakeDBWithReports()
     with pytest.raises(ValueError):

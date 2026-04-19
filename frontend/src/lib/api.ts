@@ -316,6 +316,39 @@ export interface FridaySnapshot extends FridaySnapshotSummary {
   frozenReport: WeeklyReport;
 }
 
+export interface FridayBriefingData {
+  sinceDate: string | null;
+  regimeTransitions: Array<{
+    bucket: string;
+    from: string;
+    to: string;
+  }>;
+  maturedOutcomes: Array<{
+    decisionId: number;
+    horizon: string;
+    outcomeDeltaPct: number | null;
+    scoreDelta: number | null;
+    evaluatedAt: string | null;
+    decisionType: string | null;
+    assetTicker: string | null;
+  }>;
+  alertHistory: {
+    success: number;
+    failed: number;
+    lastFailureAt: string | null;
+    lastFailureMessage: string | null;
+  };
+  lastSnapshotComment: {
+    snapshotDate: string | null;
+    comment: string;
+  } | null;
+}
+
+export type SleeveHistoryData = Record<
+  'NDX' | 'DBMF' | 'BRAZIL' | 'MSTR' | 'GLDM' | 'BONDS-CASH',
+  number[]
+>;
+
 export interface FridayComparison {
   snapshotA: FridaySnapshot;
   snapshotB: FridaySnapshot;
@@ -608,6 +641,31 @@ export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySna
       cache: 'no-store'
     });
     if (!res.ok) throw new Error('Failed to fetch Friday snapshot');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getFridayBriefing(since?: string): Promise<FridayBriefingData | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+    const res = await fetch(`${API_BASE}/api/v1/friday/briefing${qs}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch Friday briefing');
+    return res.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    return null;
+  }
+}
+
+export async function getFridaySleeveHistory(weeks: number = 4): Promise<SleeveHistoryData | null> {
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/friday/sleeve-history?weeks=${weeks}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch Friday sleeve history');
     return res.json();
   } catch (error) {
     console.error('API Error:', error);

@@ -7,9 +7,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import type { FridaySnapshot, FridaySnapshotSummary, WeeklyReport } from '@/lib/api';
+import type { FridayBriefingData, FridaySnapshot, FridaySnapshotSummary, SleeveHistoryData, WeeklyReport } from '@/lib/api';
 import { createFridayDecision, createFridaySnapshot } from '@/lib/api';
 import { CalendarDays, CheckCircle2, Clock3, GitCompareArrows, ShieldAlert, Sparkles } from 'lucide-react';
+import { SinceLastFridayBriefing } from '@/components/friday/SinceLastFridayBriefing';
+import { SleeveHealthPanel } from '@/components/friday/SleeveHealthPanel';
 
 
 function formatCurrency(value: number | null | undefined) {
@@ -41,9 +43,11 @@ interface FridayDashboardProps {
   report: WeeklyReport;
   snapshots: FridaySnapshotSummary[];
   currentSnapshot: FridaySnapshot | null;
+  briefing: FridayBriefingData | null;
+  sleeveHistory: SleeveHistoryData | null;
 }
 
-export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDashboardProps) {
+export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, sleeveHistory }: FridayDashboardProps) {
   const router = useRouter();
   const [freezeState, setFreezeState] = useState<'idle' | 'working' | 'done'>('idle');
   const [freezeMessage, setFreezeMessage] = useState<string>('Ready to freeze this Friday.');
@@ -160,6 +164,8 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
         </div>
       </div>
 
+      <SinceLastFridayBriefing data={briefing} />
+
       <div className="grid gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-2">
           <CardHeader>
@@ -217,6 +223,8 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
           </CardContent>
         </Card>
       </div>
+
+      <SleeveHealthPanel report={report} sleeveHistory={sleeveHistory} />
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-7 space-y-8">

@@ -1,11 +1,19 @@
 import { FridayDashboard } from '@/components/friday/FridayDashboard';
-import { getFridayCurrent, getFridaySnapshot, getFridaySnapshots } from '@/lib/api';
+import {
+  getFridayBriefing,
+  getFridayCurrent,
+  getFridaySleeveHistory,
+  getFridaySnapshot,
+  getFridaySnapshots,
+} from '@/lib/api';
 
 
 export default async function FridayPage() {
-  const [report, snapshots] = await Promise.all([
+  const [report, snapshots, briefing, sleeveHistory] = await Promise.all([
     getFridayCurrent(),
     getFridaySnapshots(),
+    getFridayBriefing(),
+    getFridaySleeveHistory(4),
   ]);
 
   if (!report) {
@@ -21,5 +29,13 @@ export default async function FridayPage() {
     ? await getFridaySnapshot(report.weekEnding)
     : null;
 
-  return <FridayDashboard report={report} snapshots={snapshots} currentSnapshot={currentSnapshot} />;
+  return (
+    <FridayDashboard
+      report={report}
+      snapshots={snapshots}
+      currentSnapshot={currentSnapshot}
+      briefing={briefing}
+      sleeveHistory={sleeveHistory}
+    />
+  );
 }

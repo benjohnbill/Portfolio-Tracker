@@ -75,6 +75,7 @@ class FridayService:
             "snapshotDate": snapshot.snapshot_date.isoformat() if snapshot.snapshot_date else None,
             "createdAt": snapshot.created_at.isoformat() if snapshot.created_at else None,
             "metadata": snapshot.snapshot_metadata or {},
+            "comment": snapshot.comment,
             "decisions": [FridayService._serialize_decision(item) for item in (decisions or [])],
         }
         if include_report:
@@ -228,7 +229,11 @@ class FridayService:
         return report, coverage, errors
 
     @staticmethod
-    def create_snapshot(db: Session, snapshot_date: Optional[date] = None) -> Dict[str, Any]:
+    def create_snapshot(
+        db: Session,
+        snapshot_date: Optional[date] = None,
+        comment: Optional[str] = None,
+    ) -> Dict[str, Any]:
         target_date = snapshot_date or ReportService.get_week_ending()
 
         if FridayService._find_snapshot_by_date(db, target_date):
@@ -264,6 +269,7 @@ class FridayService:
             created_at=datetime.now(timezone.utc),
             frozen_report=report,
             snapshot_metadata=metadata,
+            comment=comment,
         )
 
         try:

@@ -67,6 +67,8 @@ class EventAnnotationCreate(BaseModel):
 
 class FridaySnapshotCreateRequest(BaseModel):
     snapshot_date: Optional[str] = None
+    # Phase D A7 — optional per-freeze observation, 1-2 lines.
+    comment: Optional[str] = None
 
 
 class FridayDecisionCreateRequest(BaseModel):
@@ -405,7 +407,7 @@ def create_weekly_annotation(payload: EventAnnotationCreate, db: Session = Depen
 def create_friday_snapshot(payload: FridaySnapshotCreateRequest, db: Session = Depends(get_db)):
     try:
         snapshot_date = datetime.strptime(payload.snapshot_date, "%Y-%m-%d").date() if payload.snapshot_date else None
-        return FridayService.create_snapshot(db, snapshot_date=snapshot_date)
+        return FridayService.create_snapshot(db, snapshot_date=snapshot_date, comment=payload.comment)
     except ValueError as exc:
         if isinstance(exc, SnapshotConflictError):
             raise HTTPException(status_code=409, detail=str(exc))

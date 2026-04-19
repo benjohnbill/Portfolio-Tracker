@@ -182,3 +182,39 @@ def test_post_friday_decision_backward_compat_legacy_confidence(seeded_snapshot)
     body = response.json()
     assert body["confidenceVsSpyRiskadj"] == 7
     assert body["confidence"] == 7
+
+
+def test_post_friday_snapshot_accepts_comment(seeded_snapshot, monkeypatch):
+    # Different date to avoid colliding with the fixture's snapshot.
+    from app.services.report_service import ReportService
+
+    monkeypatch.setattr(
+        ReportService,
+        "build_weekly_report",
+        lambda db, d: {
+            "weekEnding": d.isoformat(),
+            "generatedAt": "2026-04-10T00:00:00+00:00",
+            "logicVersion": "weekly-report-v0",
+            "status": "final",
+            "dataFreshness": {"portfolioAsOf": d.isoformat(), "signalsAsOf": None, "macroKnownAsOf": None, "staleFlags": []},
+            "portfolioSnapshot": {"totalValueKRW": 1_000_000, "investedCapitalKRW": 1_000_000, "metrics": {}, "allocation": [{"asset": "QQQ", "name": "QQQ", "weight": 1.0, "value": 1_000_000}], "targetDeviation": []},
+            "macroSnapshot": {"overallState": "neutral", "buckets": [], "indicators": [], "knownAsOf": d.isoformat()},
+            "signalsSnapshot": {},
+            "score": {"total": 60, "fit": 20, "alignment": 20, "postureDiversification": 20, "bucketBreakdown": [], "positives": [], "negatives": []},
+            "triggeredRules": [],
+            "recommendation": {"stance": "hold", "actions": [], "rationale": []},
+            "eventAnnotations": [],
+            "userAction": None,
+            "outcomeWindow": None,
+            "notes": None,
+            "llmSummary": None,
+        },
+    )
+
+    response = client.post(
+        "/api/v1/friday/snapshot",
+        json={"snapshot_date": "2026-04-10", "comment": "지난 주와 비슷, 소폭 감소 지속 관찰."},
+    )
+    assert response.status_code == 200, response.json()
+    body = response.json()
+    assert body["comment"] == "지난 주와 비슷, 소폭 감소 지속 관찰."

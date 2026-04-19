@@ -488,3 +488,19 @@ def test_add_decision_rejects_both_legacy_and_new_confidence():
             db, snapshot_id=7, decision_type="hold", note="x",
             confidence=5, confidence_vs_spy_riskadj=6,
         )
+
+
+def test_create_snapshot_persists_comment(monkeypatch):
+    monkeypatch.setattr(ReportService, "build_weekly_report", lambda db, d: _report())
+    db = _FakeDB()
+    created = FridayService.create_snapshot(db, date(2026, 4, 3), comment="조용한 한 주, 판단 유지.")
+    assert created["comment"] == "조용한 한 주, 판단 유지."
+    assert db.snapshots[0].comment == "조용한 한 주, 판단 유지."
+
+
+def test_create_snapshot_comment_defaults_to_none(monkeypatch):
+    monkeypatch.setattr(ReportService, "build_weekly_report", lambda db, d: _report())
+    db = _FakeDB()
+    created = FridayService.create_snapshot(db, date(2026, 4, 3))
+    assert created["comment"] is None
+    assert db.snapshots[0].comment is None

@@ -76,12 +76,11 @@ class FridayDecisionCreateRequest(BaseModel):
     decision_type: str
     asset_ticker: Optional[str] = None
     note: str
-    # Phase D A3 — three confidence scalars. Exactly one of (confidence_vs_spy_riskadj)
-    # or legacy (confidence) is required; the rest are optional until the frontend ships A3 UI.
-    confidence_vs_spy_riskadj: Optional[int] = Field(default=None, ge=1, le=10)
+    # Phase D A3 — three confidence scalars. Primary (vs SPY risk-adj) required;
+    # cash + SPY-pure are optional until the UI surfaces them consistently.
+    confidence_vs_spy_riskadj: int = Field(ge=1, le=10)
     confidence_vs_cash: Optional[int] = Field(default=None, ge=1, le=10)
     confidence_vs_spy_pure: Optional[int] = Field(default=None, ge=1, le=10)
-    confidence: Optional[int] = Field(default=None, ge=1, le=10)  # legacy alias
     # Phase D A4 — structured invalidation alongside the existing free-text field.
     invalidation: Optional[str] = None
     expected_failure_mode: Optional[str] = None
@@ -478,7 +477,6 @@ def create_friday_decision(payload: FridayDecisionCreateRequest, db: Session = D
             decision_type=payload.decision_type,
             asset_ticker=payload.asset_ticker,
             note=payload.note,
-            confidence=payload.confidence,
             confidence_vs_spy_riskadj=payload.confidence_vs_spy_riskadj,
             confidence_vs_cash=payload.confidence_vs_cash,
             confidence_vs_spy_pure=payload.confidence_vs_spy_pure,

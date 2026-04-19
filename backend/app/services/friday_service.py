@@ -305,23 +305,16 @@ class FridayService:
         invalidation: Optional[str] = None,
         expected_failure_mode: Optional[str] = None,
         trigger_threshold: Optional[float] = None,
-        confidence: Optional[int] = None,  # legacy alias; remove after frontend A3 ships
     ) -> Dict[str, Any]:
         snapshot = FridayService._find_snapshot_by_id(db, snapshot_id)
         if not snapshot:
             raise SnapshotNotFoundError(f"Snapshot {snapshot_id} not found")
 
-        # Resolve primary scalar: exactly one of (legacy `confidence`) or (new `confidence_vs_spy_riskadj`) must be provided.
-        if confidence is not None and confidence_vs_spy_riskadj is not None:
-            raise SnapshotValidationError(
-                "Pass either `confidence` (legacy) or `confidence_vs_spy_riskadj` (new), not both",
-            )
-        primary = confidence_vs_spy_riskadj if confidence_vs_spy_riskadj is not None else confidence
-        if primary is None:
-            raise SnapshotValidationError("A confidence scalar is required")
+        if confidence_vs_spy_riskadj is None:
+            raise SnapshotValidationError("confidence_vs_spy_riskadj is required")
 
         for label, value in (
-            ("confidence_vs_spy_riskadj", primary),
+            ("confidence_vs_spy_riskadj", confidence_vs_spy_riskadj),
             ("confidence_vs_cash", confidence_vs_cash),
             ("confidence_vs_spy_pure", confidence_vs_spy_pure),
         ):
@@ -336,7 +329,7 @@ class FridayService:
             decision_type=decision_type,
             asset_ticker=asset_ticker,
             note=note,
-            confidence_vs_spy_riskadj=primary,
+            confidence_vs_spy_riskadj=confidence_vs_spy_riskadj,
             confidence_vs_cash=confidence_vs_cash,
             confidence_vs_spy_pure=confidence_vs_spy_pure,
             invalidation=invalidation,

@@ -227,7 +227,7 @@ def test_add_decision_persists_record():
     snapshot = WeeklySnapshot(id=7, snapshot_date=date(2026, 4, 3), created_at=datetime.now(timezone.utc), frozen_report=_report(), snapshot_metadata={})
     db = _FakeDB(snapshots=[snapshot])
 
-    decision = FridayService.add_decision(db, snapshot_id=7, decision_type="rebalance", asset_ticker="QQQ", note="Trim exposure", confidence=8, invalidation="Macro improves")
+    decision = FridayService.add_decision(db, snapshot_id=7, decision_type="rebalance", asset_ticker="QQQ", note="Trim exposure", confidence_vs_spy_riskadj=8, invalidation="Macro improves")
 
     assert decision["snapshotId"] == 7
     assert decision["decisionType"] == "rebalance"
@@ -238,7 +238,7 @@ def test_add_decision_rejects_missing_snapshot():
     db = _FakeDB()
 
     with pytest.raises(SnapshotNotFoundError):
-        FridayService.add_decision(db, snapshot_id=99, decision_type="hold", note="none", confidence=5)
+        FridayService.add_decision(db, snapshot_id=99, decision_type="hold", note="none", confidence_vs_spy_riskadj=5)
 
 
 def test_add_decision_rejects_invalid_confidence():
@@ -246,7 +246,7 @@ def test_add_decision_rejects_invalid_confidence():
     db = _FakeDB(snapshots=[snapshot])
 
     with pytest.raises(SnapshotValidationError):
-        FridayService.add_decision(db, snapshot_id=7, decision_type="hold", note="none", confidence=11)
+        FridayService.add_decision(db, snapshot_id=7, decision_type="hold", note="none", confidence_vs_spy_riskadj=11)
 
 
 def test_compare_snapshots_returns_score_and_value_deltas():
@@ -431,26 +431,6 @@ def test_add_decision_accepts_three_confidence_scalars_and_structured_invalidati
     assert payload["triggerThreshold"] == 0.05
 
 
-def test_add_decision_backward_compat_accepts_legacy_confidence_kwarg():
-    snapshot = WeeklySnapshot(
-        id=7, snapshot_date=date(2026, 4, 18),
-        created_at=datetime.now(timezone.utc),
-        frozen_report=_report(), snapshot_metadata={},
-    )
-    db = _FakeDB(snapshots=[snapshot])
-
-    payload = FridayService.add_decision(
-        db,
-        snapshot_id=7,
-        decision_type="hold",
-        note="Stay put",
-        confidence=7,  # legacy single-scalar call site
-    )
-
-    assert payload["confidenceVsSpyRiskadj"] == 7
-    assert payload["confidenceVsCash"] is None
-    assert payload["confidenceVsSpyPure"] is None
-    assert "confidence" not in payload
 
 
 def test_add_decision_rejects_invalid_confidence_scalar_range():
@@ -473,7 +453,7 @@ def test_add_decision_rejects_invalid_confidence_scalar_range():
         )
 
 
-def test_add_decision_rejects_both_legacy_and_new_confidence():
+def test_add_decision_requires_primary_scalar():
     snapshot = WeeklySnapshot(
         id=7, snapshot_date=date(2026, 4, 18),
         created_at=datetime.now(timezone.utc),
@@ -484,7 +464,6 @@ def test_add_decision_rejects_both_legacy_and_new_confidence():
     with pytest.raises(SnapshotValidationError):
         FridayService.add_decision(
             db, snapshot_id=7, decision_type="hold", note="x",
-            confidence=5, confidence_vs_spy_riskadj=6,
         )
 
 

@@ -168,20 +168,16 @@ def test_post_friday_decision_accepts_three_confidence_scalars(seeded_snapshot):
     assert body["triggerThreshold"] == 0.05
 
 
-def test_post_friday_decision_backward_compat_legacy_confidence(seeded_snapshot):
+def test_post_friday_decision_requires_confidence_vs_spy_riskadj(seeded_snapshot):
     response = client.post(
         "/api/v1/friday/decisions",
         json={
             "snapshot_id": seeded_snapshot["id"],
             "decision_type": "hold",
             "note": "Stay put",
-            "confidence": 7,
         },
     )
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["confidenceVsSpyRiskadj"] == 7
-    assert "confidence" not in body
+    assert response.status_code == 422, response.text
 
 
 def test_post_friday_snapshot_accepts_comment(seeded_snapshot, monkeypatch):

@@ -9,7 +9,7 @@ from typing import Optional
 
 import httpx
 
-from app.services import discord_notifier
+from . import discord_notifier
 
 
 class NotificationService:

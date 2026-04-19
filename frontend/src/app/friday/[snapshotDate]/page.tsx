@@ -24,6 +24,7 @@ export default async function FridaySnapshotDetailPage({ params }: { params: Pro
       backHref="/friday/archive"
       backLabel="Back to Friday Archive"
       decisions={snapshot.decisions}
+      comment={snapshot.comment}
     />
   );
 }

@@ -21,6 +21,8 @@ interface FridaySnapshotPanelProps {
   backHref?: string;
   backLabel?: string;
   decisions?: FridaySnapshot['decisions'];
+  // Phase D A7 — surfaced at the top of the panel as an italic quote when non-empty.
+  comment?: string | null;
 }
 
 export function FridaySnapshotPanel({
@@ -31,6 +33,7 @@ export function FridaySnapshotPanel({
   backHref,
   backLabel,
   decisions = [],
+  comment = null,
 }: FridaySnapshotPanelProps) {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -51,6 +54,13 @@ export function FridaySnapshotPanel({
           </Link>
         )}
       </div>
+
+      {comment && (
+        <div className="rounded-lg border-l-2 border-primary/60 bg-background/40 px-4 py-3">
+          <p className="text-sm text-white/90 italic">&ldquo;{comment}&rdquo;</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">Weekly comment</p>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-12">
         <Card className="lg:col-span-4">
@@ -195,11 +205,23 @@ export function FridaySnapshotPanel({
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">{decision.decisionType}</p>
                     <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase bg-white/5 text-muted-foreground">
-                      Confidence {decision.confidence}
+                      Conf {decision.confidenceVsSpyRiskadj}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">{decision.note}</p>
+                  {(decision.confidenceVsCash != null || decision.confidenceVsSpyPure != null) && (
+                    <p className="text-[11px] text-muted-foreground/80 mt-1">
+                      vs Cash {decision.confidenceVsCash ?? '—'} · vs SPY Pure {decision.confidenceVsSpyPure ?? '—'}
+                    </p>
+                  )}
                   {decision.invalidation && <p className="text-xs text-white/70 mt-2">Invalidation: {decision.invalidation}</p>}
+                  {(decision.expectedFailureMode || decision.triggerThreshold != null) && (
+                    <p className="text-[11px] text-muted-foreground/80 mt-1">
+                      {decision.expectedFailureMode && <>Mode: <span className="text-white/80">{decision.expectedFailureMode}</span></>}
+                      {decision.expectedFailureMode && decision.triggerThreshold != null && ' · '}
+                      {decision.triggerThreshold != null && <>Threshold: <span className="text-white/80">{decision.triggerThreshold}</span></>}
+                    </p>
+                  )}
                 </div>
               ))}
             </CardContent>

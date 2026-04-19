@@ -79,7 +79,7 @@ Plan C only runs AFTER Plan B is merged + the grep above confirms no remaining f
 ### Approach
 
 - **Primary: local dev server.** Faster, no prod data pollution, easy reset. All interactive tests (including freeze) happen here.
-- **Secondary: prod smoke.** After local QA passes, open https://portfolio-tracker-f8a3.onrender.com/friday, visually verify render + check that pre-existing archive cards show no regression. DO NOT freeze on prod (would leave a QA snapshot in the archive).
+- **Secondary: prod smoke.** After local QA passes, open the frontend prod URL (TBD — the backend at `https://portfolio-tracker-f8a3.onrender.com` is API-only and returns 404 on `/friday`; the Next.js frontend is hosted elsewhere — ask user for the URL before running). Visually verify render + check that pre-existing archive cards show no regression. DO NOT freeze on prod (would leave a QA snapshot in the archive). Backend prod smoke can still be done directly against `https://portfolio-tracker-f8a3.onrender.com/api/v1/friday/briefing` and `/sleeve-history?weeks=4` (both verified 200 on 2026-04-19 post-Plan-B).
 
 ### Checklist (against local dev)
 
@@ -110,14 +110,20 @@ Plan C only runs AFTER Plan B is merged + the grep above confirms no remaining f
 - Plain-text PASS/FAIL per checklist item.
 - If bugs: separate follow-up hotfix commits, not in-place fixes during the QA run.
 
+## Progress log
+
+- **2026-04-19 — Plan B shipped.** Commits `1b34f81..5af47de` + hotfix `8757e18` landed on `main` and deployed to Render prod. Backend endpoints verified live via Playwright MCP: `/api/v1/friday/briefing` returns structured payload (user's 2026-04-17 snapshot comment surfaces correctly); `/api/v1/friday/sleeve-history?weeks=4` returns the 6-sleeve zero strip (no recent triggered rules).
+- **2026-04-19 — Sleeve normalize hotfix.** Playwright smoke revealed `targetDeviation.category = "BONDS/CASH"` in prod while `SLEEVES` canonical form is `"BONDS-CASH"`. Original `_normalize` stripped `-_space` but not `/`. Commit `8757e18` fixed both backend `briefing_service._normalize` and frontend `SleeveHealthPanel.normalize` with cross-reference comments + regression test. 69/69 backend tests passing.
+- **2026-04-19 — Plan C safety gate verified.** `grep -rn "decision\.confidence\b" frontend/src` returns exactly **1 site**: `frontend/src/components/intelligence/OutcomesView.tsx:115` (`conf: {o.decision.confidence}/5`). Plan C must migrate this to `o.decision.confidenceVsSpyRiskadj` as part of the symmetric 4-layer cleanup. Consider whether the `/5` display denominator should become `/10` to match the actual 1..10 scalar range (design call for planning time).
+
 ## Cross-session handoff summary
 
-When resuming Plan B in a new chat session, the entry points are:
+When resuming Plan C in a new chat session, the entry points are:
 
-1. This decision log — authoritative scope for B / C / QA.
+1. This decision log — authoritative scope for C / QA + Progress log above.
 2. TODOS.md §Phase D → Ship Now — checklist state + pointers here.
 3. PRODUCT.md §9 — feature intent (Accumulation-as-Hero).
 4. DESIGN.md Friday Hierarchy — UI placement spec.
-5. `docs/superpowers/plans/2026-04-19-phase-d-friday-form-ui.md` (shipped Plan A UI) — style / pattern reference for the new components.
+5. `docs/superpowers/plans/2026-04-19-phase-d-friday-form-ui.md` (shipped Plan A UI) + `docs/superpowers/plans/2026-04-19-phase-d-friday-top.md` (shipped Plan B) — style / pattern references for Plan C commits and test-writing.
 
-First action in the new session: invoke `/superpowers:writing-plans` with Plan B scope from this document.
+**First action in the new session: invoke `/superpowers:writing-plans` with Plan C scope from this document + the resolved safety-gate result (OutcomesView.tsx:115).**

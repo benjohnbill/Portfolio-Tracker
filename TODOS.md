@@ -220,30 +220,31 @@ All items below are buildable today. Either no data gate, or existing (non-freez
 
 **Scope lock doc:** `docs/superpowers/decisions/2026-04-19-phase-d-ship-now-scope-lock.md` — authoritative per-plan boundaries for Plan B / Plan C / QA (locked before cross-session handoff).
 
-**Sequencing:** Plan A ✅ shipped (commits `bd8be17..bdb9eb0` + `bf4a321..09b2c2a` + hotfix `0f1af6d`). Plan B next (writing-plans), then Plan C, then Playwright QA.
+**Sequencing:** Plan A ✅ shipped (commits `bd8be17..bdb9eb0` + `bf4a321..09b2c2a` + hotfix `0f1af6d`). Plan B ✅ shipped (commits `1b34f81..5af47de` + hotfix `8757e18`, prod endpoints verified live). Plan C next (writing-plans in fresh session), then Playwright QA.
 
 #### ✅ Shipped — Plan A (commits on `main`, Render prod live)
 
 - [x] **A3: 3-scalar Confidence UI** — schema + backend + API + UI landed. 3 stacked sliders with anchor labels + ordering-deviation observation.
 - [x] **A4: Structured Invalidation UI** — `failure_mode` dropdown + `trigger_threshold` numeric input + free-text invalidation.
-- [x] **A7: Weekly Snapshot Comment UI** — collapsed "💬 이번 주 코멘트 (선택)" textarea in freeze form + surfaced as italic quote on archive panel.
+- [x] **A7: Weekly Snapshot Comment UI** — collapsed "💬 이번 주 코멘트 (선택)" textarea in freeze form + surfaced as italic quote on archive panel. Real user comment already saved on 2026-04-17 snapshot ("이란 전쟁 종전 분위기 / 주식 시장은 아직 위축") and surfaces correctly through Plan B briefing endpoint.
 - [x] **R1: Remove Bell icon** — `frontend/src/app/layout.tsx` cleaned.
 
-#### ⏳ Plan B — `/friday` top-of-page (A1 + A2)
+#### ✅ Shipped — Plan B — `/friday` top-of-page (A1 + A2)
 
-Plan doc target: `docs/superpowers/plans/2026-04-19-phase-d-friday-top.md`
+Plan doc: `docs/superpowers/plans/2026-04-19-phase-d-friday-top.md`
 
-- [ ] **A1: Since Last Friday briefing card** — `/friday` top, above hero strip. Severity-grouped: regime transitions, matured outcomes, alert-history summary, optional last-snapshot-comment snippet. New endpoint `GET /api/v1/friday/briefing?since=<last_snapshot_date>` aggregates over `weekly_snapshots` + `decision_outcomes` + `cron_run_log`.
-- [ ] **A2: Sleeve Health panel** — `/friday`, between hero strip and Portfolio delta (which stays). 6 sleeves × (label | current / target | drift | signal | 4-week recency strip). Current/target/drift/signal use existing `WeeklyReport` props; new endpoint `GET /api/v1/friday/sleeve-history?weeks=4` supplies per-sleeve signal-firing count per week (Option A over client-side 4× fetch — avoids cold-start waterfall on Render free tier).
+- [x] **A1: Since Last Friday briefing card** — `/friday` top, above hero strip. Severity-grouped: regime transitions, matured outcomes, alert-history summary, optional last-snapshot-comment snippet. Endpoint `GET /api/v1/friday/briefing?since=<last_snapshot_date>` aggregates over `weekly_snapshots` + `decision_outcomes` + `cron_run_log`. Verified live on prod.
+- [x] **A2: Sleeve Health panel** — `/friday`, between hero strip and Portfolio delta. 6 sleeves × (label | current / target | drift | signal | 4-week recency strip). Endpoint `GET /api/v1/friday/sleeve-history?weeks=4` returns per-sleeve signal-firing counts. Verified live.
+- [x] **Hotfix (`8757e18`)**: sleeve `_normalize` now strips `/` so prod `BONDS/CASH` category collapses into `BONDS-CASH` canonical form. Regression test + cross-reference comments added.
 
 #### ⏳ Plan C — Backend hygiene (Discord echo + legacy alias cleanup)
 
 Plan doc target: `docs/superpowers/plans/2026-04-19-phase-d-backend-hygiene.md`
 
-Safety gate: runs only AFTER Plan B is merged + `grep -rn "decision\.confidence\b" frontend/src` is clean.
+**Safety gate verified 2026-04-19:** `grep -rn "decision\.confidence\b" frontend/src` returns exactly 1 remaining site → `frontend/src/components/intelligence/OutcomesView.tsx:115`. Plan C legacy-alias cleanup must include migration of this line to `o.decision.confidenceVsSpyRiskadj` (denominator change from `/5` to `/10` if the display convention should also be updated).
 
 - [ ] **Discord briefing echo** — extend weekly cron success message in `notification_service.py` to append `> 💬 Last week's comment: "{comment}"` when the latest snapshot's `comment` is non-empty. Updates existing Discord tests.
-- [ ] **Legacy `confidence` alias cleanup — symmetric 4-layer removal** — (1) `friday_service._serialize_decision` mirror key, (2) `intelligence_service` outcome payload mirror key, (3) `api.ts::FridayDecision.confidence` field, (4) `api.ts::DecisionOutcomeData.decision.confidence` field. Plus upstream: remove Pydantic legacy field on `FridayDecisionCreateRequest`, drop `confidence` kwarg + mutual-exclusion branch on `FridayService.add_decision`.
+- [ ] **Legacy `confidence` alias cleanup — symmetric 4-layer removal** — (1) `friday_service._serialize_decision` mirror key, (2) `intelligence_service` outcome payload mirror key, (3) `api.ts::FridayDecision.confidence` field, (4) `api.ts::DecisionOutcomeData.decision.confidence` field. Plus upstream: remove Pydantic legacy field on `FridayDecisionCreateRequest`, drop `confidence` kwarg + mutual-exclusion branch on `FridayService.add_decision`. Plus downstream: migrate `OutcomesView.tsx:115` from `o.decision.confidence` to `o.decision.confidenceVsSpyRiskadj`.
 
 #### ⏳ Playwright MCP QA — Ship Now validation (no plan doc)
 

@@ -168,7 +168,12 @@ class IntelligenceService:
                     "type": decision.decision_type,
                     "assetTicker": decision.asset_ticker,
                     "note": decision.note,
-                    "confidence": decision.confidence,
+                    "confidenceVsSpyRiskadj": decision.confidence_vs_spy_riskadj,
+                    "confidenceVsCash": decision.confidence_vs_cash,
+                    "confidenceVsSpyPure": decision.confidence_vs_spy_pure,
+                    "confidence": decision.confidence_vs_spy_riskadj,  # legacy mirror
+                    "expectedFailureMode": decision.expected_failure_mode,
+                    "triggerThreshold": decision.trigger_threshold,
                 },
                 "portfolioValueAtDecision": outcome.portfolio_value_at_decision,
                 "portfolioValueAtHorizon": outcome.portfolio_value_at_horizon,

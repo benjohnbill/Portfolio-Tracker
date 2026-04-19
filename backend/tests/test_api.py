@@ -218,3 +218,18 @@ def test_post_friday_snapshot_accepts_comment(seeded_snapshot, monkeypatch):
     assert response.status_code == 200, response.json()
     body = response.json()
     assert body["comment"] == "지난 주와 비슷, 소폭 감소 지속 관찰."
+
+
+def test_get_friday_briefing_empty_state(monkeypatch):
+    response = client.get("/api/v1/friday/briefing")
+    assert response.status_code == 200
+    body = response.json()
+    assert "regimeTransitions" in body
+    assert "maturedOutcomes" in body
+    assert "alertHistory" in body
+    assert "lastSnapshotComment" in body
+
+
+def test_get_friday_briefing_rejects_invalid_since_date():
+    response = client.get("/api/v1/friday/briefing?since=not-a-date")
+    assert response.status_code == 400

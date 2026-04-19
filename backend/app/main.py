@@ -428,6 +428,21 @@ def list_friday_snapshots(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/v1/friday/briefing")
+def get_friday_briefing(since: Optional[str] = None, db: Session = Depends(get_db)):
+    try:
+        since_date = datetime.strptime(since, "%Y-%m-%d").date() if since else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="since must be YYYY-MM-DD")
+
+    try:
+        from .services.briefing_service import BriefingService
+        return BriefingService.get_briefing(db, since=since_date)
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/briefing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/friday/snapshot/{snapshot_date}")
 def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
     try:

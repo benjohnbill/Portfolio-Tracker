@@ -50,6 +50,7 @@ class FridayService:
 
     @staticmethod
     def _serialize_decision(decision: WeeklyDecision) -> Dict[str, Any]:
+        primary = decision.confidence_vs_spy_riskadj
         return {
             "id": decision.id,
             "snapshotId": decision.snapshot_id,
@@ -57,8 +58,14 @@ class FridayService:
             "decisionType": decision.decision_type,
             "assetTicker": decision.asset_ticker,
             "note": decision.note,
-            "confidence": decision.confidence,
+            "confidenceVsSpyRiskadj": primary,
+            "confidenceVsCash": decision.confidence_vs_cash,
+            "confidenceVsSpyPure": decision.confidence_vs_spy_pure,
+            # Backward-compat mirror for legacy frontend that still reads `confidence`.
+            "confidence": primary,
             "invalidation": decision.invalidation,
+            "expectedFailureMode": decision.expected_failure_mode,
+            "triggerThreshold": decision.trigger_threshold,
         }
 
     @staticmethod
@@ -288,15 +295,37 @@ class FridayService:
         snapshot_id: int,
         decision_type: str,
         note: str,
-        confidence: int,
+        confidence_vs_spy_riskadj: Optional[int] = None,
+        confidence_vs_cash: Optional[int] = None,
+        confidence_vs_spy_pure: Optional[int] = None,
         asset_ticker: Optional[str] = None,
         invalidation: Optional[str] = None,
+        expected_failure_mode: Optional[str] = None,
+        trigger_threshold: Optional[float] = None,
+        confidence: Optional[int] = None,  # legacy alias; remove after frontend A3 ships
     ) -> Dict[str, Any]:
         snapshot = FridayService._find_snapshot_by_id(db, snapshot_id)
         if not snapshot:
             raise SnapshotNotFoundError(f"Snapshot {snapshot_id} not found")
-        if confidence < 1 or confidence > 10:
-            raise SnapshotValidationError("confidence must be between 1 and 10")
+
+        # Resolve primary scalar: exactly one of (legacy `confidence`) or (new `confidence_vs_spy_riskadj`) must be provided.
+        if confidence is not None and confidence_vs_spy_riskadj is not None:
+            raise SnapshotValidationError(
+                "Pass either `confidence` (legacy) or `confidence_vs_spy_riskadj` (new), not both",
+            )
+        primary = confidence_vs_spy_riskadj if confidence_vs_spy_riskadj is not None else confidence
+        if primary is None:
+            raise SnapshotValidationError("A confidence scalar is required")
+
+        for label, value in (
+            ("confidence_vs_spy_riskadj", primary),
+            ("confidence_vs_cash", confidence_vs_cash),
+            ("confidence_vs_spy_pure", confidence_vs_spy_pure),
+        ):
+            if value is None:
+                continue
+            if not (1 <= value <= 10):
+                raise SnapshotValidationError(f"{label} must be between 1 and 10")
 
         decision = WeeklyDecision(
             snapshot_id=snapshot_id,
@@ -304,8 +333,12 @@ class FridayService:
             decision_type=decision_type,
             asset_ticker=asset_ticker,
             note=note,
-            confidence=confidence,
+            confidence_vs_spy_riskadj=primary,
+            confidence_vs_cash=confidence_vs_cash,
+            confidence_vs_spy_pure=confidence_vs_spy_pure,
             invalidation=invalidation,
+            expected_failure_mode=expected_failure_mode,
+            trigger_threshold=trigger_threshold,
         )
         db.add(decision)
         db.commit()

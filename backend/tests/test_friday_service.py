@@ -207,7 +207,7 @@ def test_list_snapshots_returns_reverse_chronological_order():
 
 def test_get_snapshot_includes_decisions():
     snapshot = WeeklySnapshot(id=7, snapshot_date=date(2026, 4, 3), created_at=datetime.now(timezone.utc), frozen_report=_report(), snapshot_metadata={})
-    decision = WeeklyDecision(id=9, snapshot_id=7, created_at=datetime.now(timezone.utc), decision_type="hold", asset_ticker="QQQ", note="Stay put", confidence=7, invalidation="Break trend")
+    decision = WeeklyDecision(id=9, snapshot_id=7, created_at=datetime.now(timezone.utc), decision_type="hold", asset_ticker="QQQ", note="Stay put", confidence_vs_spy_riskadj=7, invalidation="Break trend")
     db = _FakeDB(snapshots=[snapshot], decisions=[decision])
 
     payload = FridayService.get_snapshot(db, date(2026, 4, 3))
@@ -400,3 +400,91 @@ def test_weekly_snapshot_model_has_comment_column():
 
     column_names = {c.name for c in WeeklySnapshot.__table__.columns}
     assert "comment" in column_names
+
+
+def test_add_decision_accepts_three_confidence_scalars_and_structured_invalidation():
+    snapshot = WeeklySnapshot(
+        id=7, snapshot_date=date(2026, 4, 18),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=_report(), snapshot_metadata={},
+    )
+    db = _FakeDB(snapshots=[snapshot])
+
+    payload = FridayService.add_decision(
+        db,
+        snapshot_id=7,
+        decision_type="rebalance",
+        asset_ticker="QQQ",
+        note="Trim exposure",
+        confidence_vs_spy_riskadj=8,
+        confidence_vs_cash=7,
+        confidence_vs_spy_pure=6,
+        invalidation="Macro improves",
+        expected_failure_mode="regime_shift",
+        trigger_threshold=0.05,
+    )
+
+    assert payload["confidenceVsSpyRiskadj"] == 8
+    assert payload["confidenceVsCash"] == 7
+    assert payload["confidenceVsSpyPure"] == 6
+    assert payload["expectedFailureMode"] == "regime_shift"
+    assert payload["triggerThreshold"] == 0.05
+    # Backward-compat mirror during transition.
+    assert payload["confidence"] == 8
+
+
+def test_add_decision_backward_compat_accepts_legacy_confidence_kwarg():
+    snapshot = WeeklySnapshot(
+        id=7, snapshot_date=date(2026, 4, 18),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=_report(), snapshot_metadata={},
+    )
+    db = _FakeDB(snapshots=[snapshot])
+
+    payload = FridayService.add_decision(
+        db,
+        snapshot_id=7,
+        decision_type="hold",
+        note="Stay put",
+        confidence=7,  # legacy single-scalar call site
+    )
+
+    assert payload["confidenceVsSpyRiskadj"] == 7
+    assert payload["confidenceVsCash"] is None
+    assert payload["confidenceVsSpyPure"] is None
+    assert payload["confidence"] == 7
+
+
+def test_add_decision_rejects_invalid_confidence_scalar_range():
+    snapshot = WeeklySnapshot(
+        id=7, snapshot_date=date(2026, 4, 18),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=_report(), snapshot_metadata={},
+    )
+    db = _FakeDB(snapshots=[snapshot])
+
+    # Primary scalar out of range.
+    with pytest.raises(SnapshotValidationError):
+        FridayService.add_decision(db, snapshot_id=7, decision_type="hold", note="x", confidence_vs_spy_riskadj=11)
+
+    # vs_cash out of range.
+    with pytest.raises(SnapshotValidationError):
+        FridayService.add_decision(
+            db, snapshot_id=7, decision_type="hold", note="x",
+            confidence_vs_spy_riskadj=5, confidence_vs_cash=0,
+        )
+
+
+def test_add_decision_rejects_both_legacy_and_new_confidence():
+    snapshot = WeeklySnapshot(
+        id=7, snapshot_date=date(2026, 4, 18),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=_report(), snapshot_metadata={},
+    )
+    db = _FakeDB(snapshots=[snapshot])
+
+    with pytest.raises(SnapshotValidationError):
+        FridayService.add_decision(
+            db, snapshot_id=7, decision_type="hold", note="x",
+            confidence=5, confidence_vs_spy_riskadj=6,
+        )

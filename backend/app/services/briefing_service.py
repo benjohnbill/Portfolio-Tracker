@@ -140,3 +140,44 @@ class BriefingService:
                     "comment": snap.comment,
                 }
         return None
+
+    @staticmethod
+    def get_sleeve_history(db: Session, weeks: int = 4) -> Dict[str, List[int]]:
+        """
+        Per-sleeve rule-firing count for the last N weekly reports (ascending by
+        week_ending in the output arrays — oldest first, newest last).
+        """
+        if not (1 <= weeks <= 52):
+            raise ValueError("weeks must be between 1 and 52")
+
+        rows = (
+            db.query(WeeklyReport)
+            .order_by(WeeklyReport.week_ending.desc())
+            .all()
+        )
+        recent = rows[:weeks]
+        recent.reverse()  # oldest-first in output
+
+        # Pad left with zero-reports if fewer than `weeks` rows exist.
+        padding = weeks - len(recent)
+        padded: List[Optional[WeeklyReport]] = [None] * padding + list(recent)
+
+        result: Dict[str, List[int]] = {sleeve: [] for sleeve in SLEEVES}
+        sleeve_keys = {sleeve: _normalize(sleeve) for sleeve in SLEEVES}
+
+        for report in padded:
+            rules = []
+            if report is not None:
+                rules = (report.report_json or {}).get("triggeredRules", []) or []
+            counts = {sleeve: 0 for sleeve in SLEEVES}
+            for rule in rules:
+                if not isinstance(rule, dict):
+                    continue
+                affected = rule.get("affectedSleeves") or []
+                affected_norm = {_normalize(str(a)) for a in affected if a}
+                for sleeve, norm_key in sleeve_keys.items():
+                    if norm_key in affected_norm:
+                        counts[sleeve] += 1
+            for sleeve in SLEEVES:
+                result[sleeve].append(counts[sleeve])
+        return result

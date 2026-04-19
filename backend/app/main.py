@@ -443,6 +443,18 @@ def get_friday_briefing(since: Optional[str] = None, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/v1/friday/sleeve-history")
+def get_friday_sleeve_history(weeks: int = 4, db: Session = Depends(get_db)):
+    try:
+        from .services.briefing_service import BriefingService
+        return BriefingService.get_sleeve_history(db, weeks=weeks)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as e:
+        print(f"Error in GET /api/v1/friday/sleeve-history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/friday/snapshot/{snapshot_date}")
 def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
     try:

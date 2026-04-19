@@ -153,3 +153,78 @@ def test_get_briefing_returns_most_recent_non_empty_snapshot_comment():
     db = _FakeDB(snapshots=[s3, s2, s1])
     result = BriefingService.get_briefing(db)
     assert result["lastSnapshotComment"] == {"snapshotDate": "2026-04-19", "comment": "most recent"}
+
+
+from app.models import WeeklyReport
+
+
+def _weekly_report(week_ending, rules):
+    return WeeklyReport(
+        id=hash(week_ending) % 1000,
+        week_ending=week_ending,
+        generated_at=datetime.now(timezone.utc),
+        logic_version="weekly-report-v0",
+        status="final",
+        report_json={"triggeredRules": rules},
+    )
+
+
+class _FakeDBWithReports(_FakeDB):
+    def __init__(self, reports=None, **kwargs):
+        super().__init__(**kwargs)
+        self.reports = reports or []
+
+    def query(self, model):
+        name = getattr(model, "__name__", str(model))
+        if name == "WeeklyReport":
+            return _FakeQuery(self.reports)
+        return super().query(model)
+
+
+def test_get_sleeve_history_returns_zero_strip_when_no_reports():
+    db = _FakeDBWithReports()
+    result = BriefingService.get_sleeve_history(db, weeks=4)
+    for sleeve in ["NDX", "DBMF", "BRAZIL", "MSTR", "GLDM", "BONDS-CASH"]:
+        assert result[sleeve] == [0, 0, 0, 0]
+
+
+def test_get_sleeve_history_counts_rules_per_sleeve_per_week():
+    r1 = _weekly_report(date(2026, 4, 5), [
+        {"ruleId": "R1", "affectedSleeves": ["NDX"]},
+        {"ruleId": "R2", "affectedSleeves": ["NDX", "DBMF"]},
+    ])
+    r2 = _weekly_report(date(2026, 4, 12), [
+        {"ruleId": "R3", "affectedSleeves": ["BRAZIL"]},
+    ])
+    r3 = _weekly_report(date(2026, 4, 19), [])
+    r4 = _weekly_report(date(2026, 4, 26), [
+        {"ruleId": "R4", "affectedSleeves": ["NDX"]},
+        {"ruleId": "R5", "affectedSleeves": ["GLDM"]},
+    ])
+    db = _FakeDBWithReports(reports=[r4, r3, r2, r1])
+    result = BriefingService.get_sleeve_history(db, weeks=4)
+    assert result["NDX"] == [2, 0, 0, 1]
+    assert result["DBMF"] == [1, 0, 0, 0]
+    assert result["BRAZIL"] == [0, 1, 0, 0]
+    assert result["GLDM"] == [0, 0, 0, 1]
+    assert result["MSTR"] == [0, 0, 0, 0]
+    assert result["BONDS-CASH"] == [0, 0, 0, 0]
+
+
+def test_get_sleeve_history_matches_sleeve_labels_case_insensitively():
+    r = _weekly_report(date(2026, 4, 26), [
+        {"ruleId": "R1", "affectedSleeves": ["bonds-cash"]},
+        {"ruleId": "R2", "affectedSleeves": ["ndx"]},
+    ])
+    db = _FakeDBWithReports(reports=[r])
+    result = BriefingService.get_sleeve_history(db, weeks=1)
+    assert result["BONDS-CASH"] == [1]
+    assert result["NDX"] == [1]
+
+
+def test_get_sleeve_history_caps_weeks_between_1_and_52():
+    db = _FakeDBWithReports()
+    with pytest.raises(ValueError):
+        BriefingService.get_sleeve_history(db, weeks=0)
+    with pytest.raises(ValueError):
+        BriefingService.get_sleeve_history(db, weeks=53)

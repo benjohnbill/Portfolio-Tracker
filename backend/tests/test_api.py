@@ -233,3 +233,18 @@ def test_get_friday_briefing_empty_state(monkeypatch):
 def test_get_friday_briefing_rejects_invalid_since_date():
     response = client.get("/api/v1/friday/briefing?since=not-a-date")
     assert response.status_code == 400
+
+
+def test_get_friday_sleeve_history_returns_zeros_when_no_reports():
+    response = client.get("/api/v1/friday/sleeve-history?weeks=4")
+    assert response.status_code == 200
+    body = response.json()
+    for sleeve in ["NDX", "DBMF", "BRAZIL", "MSTR", "GLDM", "BONDS-CASH"]:
+        assert body[sleeve] == [0, 0, 0, 0]
+
+
+def test_get_friday_sleeve_history_rejects_out_of_range_weeks():
+    response = client.get("/api/v1/friday/sleeve-history?weeks=0")
+    assert response.status_code == 400
+    response = client.get("/api/v1/friday/sleeve-history?weeks=53")
+    assert response.status_code == 400

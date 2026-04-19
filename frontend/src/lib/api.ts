@@ -287,8 +287,6 @@ export interface FridayDecision {
   confidenceVsSpyRiskadj: number;
   confidenceVsCash: number | null;
   confidenceVsSpyPure: number | null;
-  // Legacy mirror of confidenceVsSpyRiskadj — retained so old read sites keep rendering until Plan 3 cleanup.
-  confidence: number;
   // Phase D A4 — structured invalidation.
   invalidation: string | null;
   expectedFailureMode: string | null;
@@ -714,7 +712,6 @@ export async function createFridayDecision(payload: {
   asset_ticker?: string;
   note: string;
   // Phase D A3 — primary required; siblings optional.
-  // Stricter than backend, which still accepts legacy `confidence` alone during the Plan 3 transition.
   confidence_vs_spy_riskadj: number;
   confidence_vs_cash?: number;
   confidence_vs_spy_pure?: number;
@@ -758,7 +755,7 @@ export interface AttributionData {
 export interface DecisionOutcomeData {
   snapshotDate: string;
   horizon: string;
-  decision: { type: string; assetTicker: string | null; note: string; confidenceVsSpyRiskadj: number; confidence: number };
+  decision: { type: string; assetTicker: string | null; note: string; confidenceVsSpyRiskadj: number };
   portfolioValueAtDecision: number | null;
   portfolioValueAtHorizon: number | null;
   scoreAtDecision: number | null;

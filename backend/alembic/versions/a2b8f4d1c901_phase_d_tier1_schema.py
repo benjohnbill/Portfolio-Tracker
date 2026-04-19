@@ -1,7 +1,7 @@
 """Phase D Tier 1 schema — 3-scalar confidence, structured invalidation, weekly snapshot comment
 
 Revision ID: a2b8f4d1c901
-Revises: f1a9c3d8e210
+Revises: b3e7f1a2c456
 Create Date: 2026-04-19 17:30:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'a2b8f4d1c901'
-down_revision: Union[str, Sequence[str], None] = 'f1a9c3d8e210'
+down_revision: Union[str, Sequence[str], None] = 'b3e7f1a2c456'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

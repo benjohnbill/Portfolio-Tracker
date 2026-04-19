@@ -189,70 +189,79 @@ The portfolio tracker becomes infrastructure for life decisions, not just an inv
 
 **Priority:** High
 **Added:** 2026-04-19 (multi-phase design-evolution conversation: Phase 1 codebase verification → Phase 2 external reviewer 5-axis evaluation → Phase 2.5 N8 gap generation → Phase 3 integrated roadmap. Codex challenge consulted twice.)
+**Restructured:** 2026-04-19 — repartitioned by data-maturity axis after A3/A4/A7 schema landed. See `docs/superpowers/decisions/2026-04-19-phase-d-partition.md` for rationale. Pre-restructure tier form preserved in git at commit `b89fc48`.
 
 Full rationale: `CLAUDE.md#Review-Principles`, `DESIGN.md#Decisions-Log`, `PRODUCT.md#9-Accumulation-as-Hero`.
 
-### Schema migrations required
+### Schema status
+
+**✅ Landed** (commit series `bd8be17..bdb9eb0` on `main`, Alembic revision `a2b8f4d1c901`):
 
 - `weekly_decisions`:
-  - Rename existing `confidence` → `confidence_vs_spy_riskadj` (migrate values as-is; historical confidence values reinterpret as the primary risk-adjusted scalar per portfolio design intent).
-  - Add `confidence_vs_cash` INT NULL.
-  - Add `confidence_vs_spy_pure` INT NULL.
-  - Add `expected_failure_mode` VARCHAR NULL (enum coerced in app layer: price_drop / regime_shift / correlation_breakdown / liquidity_crunch / other).
-  - Add `trigger_threshold` NUMERIC NULL.
+  - Renamed `confidence` → `confidence_vs_spy_riskadj`.
+  - Added `confidence_vs_cash` INT NULL.
+  - Added `confidence_vs_spy_pure` INT NULL.
+  - Added `expected_failure_mode` VARCHAR NULL (enum coerced in app layer: price_drop / regime_shift / correlation_breakdown / liquidity_crunch / other).
+  - Added `trigger_threshold` NUMERIC NULL.
 - `weekly_snapshots`:
-  - Add `comment` TEXT NULL.
-  - Add `risk_metrics` JSONB NULL (trailing-1Y portfolio + SPY-KRW snapshot at freeze time).
-  - Add `ritual_consistency_state` VARCHAR NULL (enum: on_time / late / missed, computed at freeze insert).
-- `decision_outcomes`:
-  - Add `outcome_delta_vs_spy_pure` NUMERIC NULL (per-horizon).
-  - Add `outcome_delta_calmar_vs_spy` NUMERIC NULL (per-horizon).
-- New table `execution_slippage` (C1 dependency):
-  - `id` PK, `decision_id` FK → `weekly_decisions`, `executed_at` DATE NULL, `executed_price` NUMERIC NULL, `executed_qty` NUMERIC NULL, `notes` TEXT NULL.
+  - Added `comment` TEXT NULL.
 
-### Tier 1 — ship next
+**⏳ Deferred** (not required for Ship Now set):
 
-- [ ] **A1: Since Last Friday briefing card** — `/friday` top. Events since last freeze (regime transitions, matured outcomes, Discord/Telegram alert history, optional last-snapshot-comment snippet). Existing data. Maturity: 2 weeks+.
-- [ ] **A2: Sleeve Health panel** — 6 sleeves × (current vs target % / drift bar / signal status / 4-week recency strip). Existing data. Maturity: 4 weeks+.
-- [ ] **A3: 3-scalar Confidence** — UI + schema. 3 stacked sliders in freeze form with anchor labels. Schema migration per above. Subtle ordering-deviation hint (flag if `#1 < #2` or `#2 < #3`, not a warning — observation).
-- [ ] **A4: Structured Invalidation** — UI + schema. `failure_mode` dropdown + `trigger_threshold` numeric + existing free-text `invalidation`. Schema migration per above.
-- [ ] **A5: Prior Invalidation Retrieval card** — shown AFTER confidence + invalidation input (bias-avoidant per Codex). Retrieval key = `regime + asset_class`, not strict ticker. Existing data. Maturity: 4 weeks+.
-- [ ] **A7: Weekly Snapshot Comment** — optional 1–2 line textarea in freeze form, collapsed by default. Schema: `weekly_snapshots.comment` TEXT NULL. Discord briefing echoes the latest non-empty comment in next week's message. Maturity: immediate.
-- [ ] **R1: Remove Bell icon** — edit `frontend/src/app/layout.tsx:27-29`. No in-app notification system; alerts flow via Discord (primary) and Telegram (fallback) per env config.
-- [ ] **B2: Quadrant Calibration plots** — 3 faceted scatter (per confidence scalar × matching outcome delta) + 1 Ordering Deviation time series. Depends on A3 + new outcome_delta columns. Maturity: 12 weeks+.
-- [ ] **B3: Trust Calibration Audit** — grid on `/intelligence/rules`. Minimum-support `n ≥ 5` gating. Drift secondary tab (24+ weeks gated). Existing data + new compute logic. Maturity: 12 weeks+ per rule.
-- [ ] **B5: Risk-Adjusted Scorecard** — new page `/intelligence/risk-adjusted`. 6 metrics vs SPY-KRW; Calmar headline. Maturity: 26 weeks+.
-- [ ] **B6: Invalidation Auto-Review cards** — in `/intelligence/outcomes`. 3M post-freeze generation with system threshold auto-detection + user rating form. Data reuses existing tables. Maturity: 3M after first freeze.
+- `weekly_snapshots.risk_metrics` JSONB NULL — B4 dep (trailing-1Y portfolio + SPY-KRW snapshot at freeze time).
+- `weekly_snapshots.ritual_consistency_state` VARCHAR NULL — A6 dep (enum: on_time / late / missed).
+- `decision_outcomes.outcome_delta_vs_spy_pure` NUMERIC NULL — B2/B5 dep (per-horizon).
+- `decision_outcomes.outcome_delta_calmar_vs_spy` NUMERIC NULL — B2/B5 dep (per-horizon).
+- New table `execution_slippage` — C1 dep: `id` PK, `decision_id` FK → `weekly_decisions`, `executed_at` DATE NULL, `executed_price` NUMERIC NULL, `executed_qty` NUMERIC NULL, `notes` TEXT NULL.
+
+### Ship Now — data-maturity independent (8 items, locked scope)
+
+All items below are buildable today. Either no data gate, or existing (non-freeze) cron-ingested data already functional from day 1.
+
+- [ ] **A3: 3-scalar Confidence UI** — schema ✅. FridayDashboard decision-journal form: single confidence slider → 3 stacked sliders with anchor labels (risk-adj / vs cash / vs SPY pure). Subtle ordering-deviation observation hint (flag if `#1 < #2` or `#2 < #3`, not a warning).
+- [ ] **A4: Structured Invalidation UI** — schema ✅. Same form: `failure_mode` dropdown + `trigger_threshold` numeric input + retained free-text `invalidation`.
+- [ ] **A7: Weekly Snapshot Comment UI** — schema ✅. Collapsed 1–2 line textarea in freeze form ("💬 이번 주 코멘트 (선택)"). Empty input stores NULL. Snapshot POST endpoint extended to accept `comment`.
+- [ ] **R1: Remove Bell icon** — edit `frontend/src/app/layout.tsx:27-29`. No in-app notification system; alerts flow via Discord (primary) and Telegram (fallback).
+- [ ] **A1: Since Last Friday briefing card** — `/friday` top. Events since last freeze (regime transitions, matured outcomes, Discord/Telegram alert history, optional last-snapshot-comment snippet). Uses existing cron data; renders empty state pre-first-freeze. (Original "2 weeks+" tag described sub-component recency, not component function.)
+- [ ] **A2: Sleeve Health panel** — 6 sleeves × (current vs target % / drift bar / signal status / 4-week recency strip). Existing sleeve + signal data functional day 1; recency strip fills progressively.
 - [ ] **Discord briefing echo** — extend cron notification: when a snapshot has a non-empty comment, include it in the next week's "Since Last Friday" Discord message. Touches `notification_service.py` + `discord_notifier.py`.
+- [ ] **Legacy `confidence` alias cleanup** — after A3/A4/A7 UI land. Remove Pydantic legacy field (`main.py`), remove `confidence` kwarg + mutual-exclusion branch in `FridayService.add_decision`, drop `"confidence": primary` mirror from `friday_service._serialize_decision` and `intelligence_service` outcome payload.
 
-### Tier 2 — ship after Tier 1 stabilizes
+### Deferred — data-maturity gated (9 items)
 
-- [ ] **A6: Ritual-Consistency Strip** — header 8-dot. Past week's on-time freeze + field-completion. Process signal, not outcome. Existing data + `ritual_consistency_state` computation. Maturity: 8 weeks+.
-- [ ] **B1: Regime Ribbon + embedded decisions** — `/intelligence` top. Primary historical index. Hover → weekly comment tooltip. Existing data. Maturity: 8 weeks+.
-- [ ] **B4: Calmar Trajectory + Decision Annotations** — trailing-1Y `Calmar(Portfolio) − Calmar(SPY-KRW)` line with decision markers. Depends on `risk_metrics` JSONB + `benchmark_service.py`. Maturity: 52 weeks+.
-- [ ] **B7: Error Signature Detector** — clusters past invalidations by `failure_mode`. Surfaces pattern card when N ≥ 3 same-mode. Data: A4 accumulation. Maturity: 12 weeks+.
-- [ ] **C1: Slippage Log** — optional post-freeze recording. New `execution_slippage` table. N3 preservation: records only, not routing. Maturity: 4 weeks+.
+All items below need N weeks / months of *frozen decision history* to surface anything meaningful. Shipping earlier would produce empty-state-only UI.
 
-### Tier 3
+- [ ] **A5: Prior Invalidation Retrieval card** — 4 weeks of frozen decisions with matching `regime + asset_class`. Shown AFTER confidence + invalidation input (bias-avoidant per Codex).
+- [ ] **A6: Ritual-Consistency Strip** — 8-dot header. 8 weeks freeze history + deferred schema `ritual_consistency_state`.
+- [ ] **B1: Regime Ribbon + embedded decisions** — `/intelligence` top. 8 weeks freeze history.
+- [ ] **B3: Trust Calibration Audit** — per-rule × per-regime grid on `/intelligence/rules`. `n ≥ 5` minimum-support gate; 12+ weeks per rule. Drift secondary tab 24+ weeks gated.
+- [ ] **B6: Invalidation Auto-Review cards** — in `/intelligence/outcomes`. 3M post-freeze generation, starts 3M after first A4-formatted freeze.
+- [ ] **B7: Error Signature Detector** — N ≥ 3 same-`failure_mode` invalidations required (~12 weeks A4 accumulation).
+- [ ] **B8: Archetype Compression Layer** — compact widget on top of B1 ribbon; depends on B1; 12 weeks.
+- [ ] **D1: Counterfactual Portfolio Path** — rule-follow-always parallel path with override-point divergence markers. Needs counterfactual simulation engine (large scope). Subsumes the originally-proposed "Rule Ghost line." Phase D Late.
+- [ ] **E1: Annual Synthesis Contract** — semi-automated yearly review (raw stats auto, interpretation manual, immutable storage). Revisit after 12 months of accumulated Ship Now + maturity-gated data.
 
-- [ ] **B8: Archetype Compression Layer** — compact widget on top of B1 ribbon. Initial grouping = `decision_type × regime` (no outcome-based clustering to avoid hindsight). Maturity: 12 weeks+.
+### Deferred — schema / backend prerequisite (4 items)
 
-### Deferred (prerequisite required)
+All items below need a deferred schema migration and/or new backend service before UI work is meaningful.
 
-- [ ] **D1: Counterfactual Portfolio Path** — rule-follow-always parallel path with override-point divergence markers. Requires counterfactual simulation engine. Subsumes the originally-proposed "Rule Ghost line." Maturity: Phase D Late.
+- [ ] **B2: Quadrant Calibration plots** — 3 faceted scatter (per confidence scalar × matching outcome delta) + 1 Ordering Deviation time series. Needs `decision_outcomes.outcome_delta_vs_spy_pure` + `outcome_delta_calmar_vs_spy` columns. Then 12+ weeks data.
+- [ ] **B4: Calmar Trajectory + Decision Annotations** — trailing-1Y `Calmar(Portfolio) − Calmar(SPY-KRW)` line with decision markers. Needs `weekly_snapshots.risk_metrics` JSONB + new `services/benchmark_service.py`. Then 52 weeks data.
+- [ ] **B5: Risk-Adjusted Scorecard** — new page `/intelligence/risk-adjusted`. 6 metrics vs SPY-KRW; Calmar headline. Needs new `services/benchmark_service.py` + new `services/risk_adjusted_service.py`. Then 26 weeks data.
+- [ ] **C1: Slippage Log** — optional post-freeze recording. Needs new `execution_slippage` table + UI. N3 preservation: records only, not routing. 4 weeks maturity gate on usefulness.
 
-### Backlog
+### Deploy / Cleanup (2 items)
 
-- **E1: Annual Synthesis Contract** — semi-automated yearly review (raw stats auto, interpretation manual, immutable storage). Revisit after 12 months of Tier 1 + 2 data to verify underlying insights stick before committing to a synthesis format.
+- [ ] Run `alembic upgrade head` against Render prod DB — migration `a2b8f4d1c901` on `main` but not yet applied to prod.
 
-### New backend services / modules
+### New backend services / modules (planned, tied to Deferred work)
 
-- `services/benchmark_service.py` — SPY daily KRW-converted price series (SPY × USD/KRW time series).
-- `services/risk_adjusted_service.py` — compute trailing-1Y CAGR / MDD / SD / Sharpe / Calmar / Sortino for portfolio + SPY-KRW.
-- `services/outcome_evaluator.py` — extend with SPY-KRW comparison horizons and Calmar delta at each horizon maturation.
+- `services/benchmark_service.py` — SPY daily KRW-converted price series (SPY × USD/KRW time series). B4 / B5.
+- `services/risk_adjusted_service.py` — compute trailing-1Y CAGR / MDD / SD / Sharpe / Calmar / Sortino for portfolio + SPY-KRW. B5.
+- `services/outcome_evaluator.py` — extend with SPY-KRW comparison horizons and Calmar delta at each horizon maturation. B2 / B5.
 - `services/intelligence_service.py` — add endpoints: Trust Calibration (n-gated), Quadrant Calibration (incl. ordering deviation), Regime Ribbon, Calmar Trajectory, Error Signature, Risk-Adjusted Scorecard, Invalidation Auto-Review.
 
-### New frontend routes / components
+### New frontend routes / components (planned)
 
 - `/intelligence/risk-adjusted` — Scorecard (B5).
 - `/intelligence/outcomes` — extended with Invalidation Auto-Review cards (B6).

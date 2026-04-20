@@ -113,7 +113,7 @@ class WeeklySnapshot(Base):
     comment = Column(Text, nullable=True)
     # B4 — per-freeze precomputed risk metric snapshot (portfolio + SPY-KRW trailing-1Y).
     # Shape: see docs/superpowers/decisions/2026-04-20-phase-d-B4-B5-scope-lock.md
-    risk_metrics = Column(JSONB, nullable=True)
+    risk_metrics = Column(JsonVariant, nullable=True)
 
     decisions = relationship("WeeklyDecision", back_populates="snapshot", cascade="all, delete-orphan")
     attributions = relationship("ScoringAttribution", back_populates="snapshot", cascade="all, delete-orphan")

@@ -61,19 +61,20 @@ class BenchmarkService:
 
         running_max = cumulative.cummax()
         drawdown = (cumulative / running_max) - 1.0
-        mdd = float(drawdown.min())
+        mdd_raw = float(drawdown.min())
+        mdd = None if math.isnan(mdd_raw) else mdd_raw
 
         sharpe = None
         if sd_annual > 0:
             sharpe = (mean_daily * TRADING_DAYS_PER_YEAR - risk_free) / sd_annual
 
         calmar = None
-        if mdd < 0 and cagr is not None:
+        if mdd is not None and mdd < 0 and cagr is not None:
             calmar = cagr / abs(mdd)
 
         downside = arr[arr < 0]
         sortino = None
-        if downside.size > 0:
+        if downside.size >= 2:
             downside_sd_annual = float(downside.std(ddof=1)) * math.sqrt(TRADING_DAYS_PER_YEAR)
             if downside_sd_annual > 0:
                 sortino = (mean_daily * TRADING_DAYS_PER_YEAR - risk_free) / downside_sd_annual

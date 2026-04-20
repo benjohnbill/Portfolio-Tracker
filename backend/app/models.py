@@ -111,6 +111,9 @@ class WeeklySnapshot(Base):
     snapshot_metadata = Column("metadata", JsonVariant, nullable=False)
     # Phase D A7 — optional per-freeze observation (1-2 lines), surfaced on /archive.
     comment = Column(Text, nullable=True)
+    # B4 — per-freeze precomputed risk metric snapshot (portfolio + SPY-KRW trailing-1Y).
+    # Shape: see docs/superpowers/decisions/2026-04-20-phase-d-B4-B5-scope-lock.md
+    risk_metrics = Column(JSONB, nullable=True)
 
     decisions = relationship("WeeklyDecision", back_populates="snapshot", cascade="all, delete-orphan")
     attributions = relationship("ScoringAttribution", back_populates="snapshot", cascade="all, delete-orphan")
@@ -211,6 +214,9 @@ class DecisionOutcome(Base):
     outcome_delta_pct = Column(Float, nullable=True)
     score_delta = Column(Integer, nullable=True)
     regime_changed = Column(String, nullable=True)  # "true"/"false" as string for JSONB compat
+    # B2 — SPY-KRW benchmark deltas populated by OutcomeEvaluatorService on matured outcomes.
+    outcome_delta_vs_spy_pure = Column(Float, nullable=True)
+    outcome_delta_calmar_vs_spy = Column(Float, nullable=True)
 
     decision = relationship("WeeklyDecision", back_populates="outcomes")
     snapshot = relationship("WeeklySnapshot")

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AttributionData, RuleAccuracyData, DecisionOutcomeData } from '@/lib/api';
+import { CalmarTrajectoryPlaceholder } from './CalmarTrajectoryPlaceholder';
 
 function DataDensityBadge({ weeks }: { weeks: number }) {
   if (weeks < 4) {
@@ -122,6 +123,9 @@ export function IntelligenceDashboard({
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Score Heatmap (52 weeks)</p>
         <ContributionHeatmap attributions={attributions} />
       </div>
+
+      {/* Calmar Trajectory */}
+      <CalmarTrajectoryPlaceholder />
 
       {/* Recent decisions */}
       <div className="bg-card rounded-lg p-6 border border-border/40">

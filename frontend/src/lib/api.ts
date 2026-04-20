@@ -909,3 +909,60 @@ export async function getAnnualReview(year: string): Promise<ReviewAggregation |
     return null;
   }
 }
+
+export type RiskMetricValues = {
+  cagr: number | null;
+  mdd: number | null;
+  sd: number | null;
+  sharpe: number | null;
+  calmar: number | null;
+  sortino: number | null;
+};
+
+export type HorizonMetrics = {
+  portfolio: RiskMetricValues;
+  spy_krw: RiskMetricValues;
+};
+
+export type RiskAdjustedScorecardPayload = {
+  ready: boolean;
+  based_on_freezes: number;
+  based_on_weeks: number;
+  first_freeze_date: string | null;
+  maturity_gate: { required_weeks: number; current_weeks: number; ready: boolean };
+  horizons: { "6M": HorizonMetrics; "1Y": HorizonMetrics; ITD: HorizonMetrics };
+};
+
+export type CalmarTrajectoryPoint = {
+  date: string;
+  portfolio_calmar: number | null;
+  spy_krw_calmar: number | null;
+  delta: number | null;
+};
+
+export type CalmarDecisionMarker = {
+  date: string;
+  decisions: Array<{ ticker: string | null; decision_type: string; note: string }>;
+};
+
+export type CalmarTrajectoryPayload = {
+  ready: boolean;
+  based_on_freezes: number;
+  required_weeks: number;
+  points: CalmarTrajectoryPoint[];
+  decision_markers: CalmarDecisionMarker[];
+};
+
+export async function fetchRiskAdjustedScorecard(): Promise<RiskAdjustedScorecardPayload> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/scorecard`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch risk-adjusted scorecard');
+  return res.json();
+}
+
+export async function fetchCalmarTrajectory(): Promise<CalmarTrajectoryPayload> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/calmar-trajectory`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch calmar trajectory');
+  return res.json();
+}

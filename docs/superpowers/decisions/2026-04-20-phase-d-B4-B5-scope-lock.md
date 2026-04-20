@@ -161,7 +161,9 @@ Summary of the six open questions from the brainstorming session and their commi
 
 ## Progress log
 
-_Empty until implementation begins. Progress entries added as each sequencing step completes, following the Plan A/B/C log pattern._
+| Date | Step | Status | Notes |
+|------|------|--------|-------|
+| 2026-04-21 | Tasks 1–15 all complete | ✅ merged to main | 21 commits; rebase required post-merge due to JsonVariant types refactor landing on main during branch work. `risk_metrics` column updated to `JsonVariant`. 105 backend tests passing, 3 frontend tests passing. |
 
 ## Cross-session handoff summary
 

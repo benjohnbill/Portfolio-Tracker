@@ -208,10 +208,10 @@ Full rationale: `CLAUDE.md#Review-Principles`, `DESIGN.md#Decisions-Log`, `PRODU
 
 **⏳ Deferred** (not required for Ship Now set):
 
-- `weekly_snapshots.risk_metrics` JSONB NULL — B4 dep (trailing-1Y portfolio + SPY-KRW snapshot at freeze time).
+- ~~`weekly_snapshots.risk_metrics` JSONB NULL~~ ✅ shipped 2026-04-21 (B4/B5/B2 bundle)
 - `weekly_snapshots.ritual_consistency_state` VARCHAR NULL — A6 dep (enum: on_time / late / missed).
-- `decision_outcomes.outcome_delta_vs_spy_pure` NUMERIC NULL — B2/B5 dep (per-horizon).
-- `decision_outcomes.outcome_delta_calmar_vs_spy` NUMERIC NULL — B2/B5 dep (per-horizon).
+- ~~`decision_outcomes.outcome_delta_vs_spy_pure` NUMERIC NULL~~ ✅ shipped 2026-04-21 (B4/B5/B2 bundle)
+- ~~`decision_outcomes.outcome_delta_calmar_vs_spy` NUMERIC NULL~~ ✅ shipped 2026-04-21 (B4/B5/B2 bundle)
 - New table `execution_slippage` — C1 dep: `id` PK, `decision_id` FK → `weekly_decisions`, `executed_at` DATE NULL, `executed_price` NUMERIC NULL, `executed_qty` NUMERIC NULL, `notes` TEXT NULL.
 
 ### Ship Now — data-maturity independent (8 items, locked scope)
@@ -266,9 +266,9 @@ All items below need N weeks / months of *frozen decision history* to surface an
 
 All items below need a deferred schema migration and/or new backend service before UI work is meaningful.
 
-- [ ] **B2: Quadrant Calibration plots** — 3 faceted scatter (per confidence scalar × matching outcome delta) + 1 Ordering Deviation time series. Needs `decision_outcomes.outcome_delta_vs_spy_pure` + `outcome_delta_calmar_vs_spy` columns. Then 12+ weeks data.
-- [ ] **B4: Calmar Trajectory + Decision Annotations** — trailing-1Y `Calmar(Portfolio) − Calmar(SPY-KRW)` line with decision markers. Needs `weekly_snapshots.risk_metrics` JSONB + new `services/benchmark_service.py`. Then 52 weeks data.
-- [ ] **B5: Risk-Adjusted Scorecard** — new page `/intelligence/risk-adjusted`. 6 metrics vs SPY-KRW; Calmar headline. Needs new `services/benchmark_service.py` + new `services/risk_adjusted_service.py`. Then 26 weeks data.
+- [ ] **B2: Quadrant Calibration plots** — 3 faceted scatter (per confidence scalar × matching outcome delta) + 1 Ordering Deviation time series. ✅ schema+backend prereqs shipped (2026-04-21). Still needs 12+ weeks data before UI is meaningful.
+- [ ] **B4: Calmar Trajectory + Decision Annotations** — trailing-1Y `Calmar(Portfolio) − Calmar(SPY-KRW)` line with decision markers. ✅ schema+backend+frontend scaffold shipped (2026-04-21); `CalmarTrajectoryPlaceholder` on `/intelligence` root. Still needs 52 weeks data.
+- [ ] **B5: Risk-Adjusted Scorecard** — `/intelligence/risk-adjusted`. ✅ schema+backend+frontend scaffold shipped (2026-04-21); page live. Still needs 26 weeks data for scorecard to unlock.
 - [ ] **C1: Slippage Log** — optional post-freeze recording. Needs new `execution_slippage` table + UI. N3 preservation: records only, not routing. 4 weeks maturity gate on usefulness.
 
 ### Deploy / Cleanup
@@ -279,17 +279,17 @@ All items below need a deferred schema migration and/or new backend service befo
 
 ### New backend services / modules (planned, tied to Deferred work)
 
-- `services/benchmark_service.py` — SPY daily KRW-converted price series (SPY × USD/KRW time series). B4 / B5.
-- `services/risk_adjusted_service.py` — compute trailing-1Y CAGR / MDD / SD / Sharpe / Calmar / Sortino for portfolio + SPY-KRW. B5.
-- `services/outcome_evaluator.py` — extend with SPY-KRW comparison horizons and Calmar delta at each horizon maturation. B2 / B5.
+- ~~`services/benchmark_service.py`~~ ✅ shipped 2026-04-21 (SPY×KRW series + compute_metrics primitives)
+- ~~`services/risk_adjusted_service.py`~~ ✅ shipped 2026-04-21 (scorecard + calmar_trajectory + freeze-time precompute)
+- ~~`services/outcome_evaluator.py`~~ ✅ shipped 2026-04-21 (backfill_spy_deltas cron step)
 - `services/intelligence_service.py` — add endpoints: Trust Calibration (n-gated), Quadrant Calibration (incl. ordering deviation), Regime Ribbon, Calmar Trajectory, Error Signature, Risk-Adjusted Scorecard, Invalidation Auto-Review.
 
 ### New frontend routes / components (planned)
 
-- `/intelligence/risk-adjusted` — Scorecard (B5).
+- ~~`/intelligence/risk-adjusted`~~ ✅ shipped 2026-04-21 (scaffold, data-gated).
 - `/intelligence/outcomes` — extended with Invalidation Auto-Review cards (B6).
 - `/intelligence/rules` — extended with Trust Calibration Audit + drift tab (B3).
-- `/intelligence` (root) — Regime Ribbon (B1) + Quadrant Calibration (B2) + Calmar Trajectory (B4) + Error Signature Detector (B7) + Ritual-Consistency Strip (A6).
+- `/intelligence` (root) — Regime Ribbon (B1) + Quadrant Calibration (B2) + ~~Calmar Trajectory placeholder (B4)~~ ✅ 2026-04-21 + Error Signature Detector (B7) + Ritual-Consistency Strip (A6).
 - `/friday` — Since Last Friday card (A1), Sleeve Health panel (A2), 3-scalar sliders (A3), structured invalidation (A4), Prior Invalidation retrieval (A5), Weekly snapshot comment (A7).
 - `/archive` — card layout updated with prominent snapshot comment.
 - Header — remove Bell (R1), add Ritual-Consistency Strip (A6).

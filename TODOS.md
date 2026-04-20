@@ -273,6 +273,10 @@ All items below need a deferred schema migration and/or new backend service befo
 
 ### Deploy / Cleanup
 
+#### ✅ Test infrastructure shipped (2026-04-20)
+
+- [x] **Phase D test infrastructure — C + D hybrid**. Plan: `docs/superpowers/plans/2026-04-20-phase-d-test-infrastructure.md`. `JsonVariant` TypeDecorator + sqlite-backed C track (default, `python -m pytest -q`) + ephemeral postgres D track (`python -m pytest -m integration`, Docker Desktop required) + function-based seed helpers. Legacy `_FakeDB` tests unchanged. Routing rules in `backend/tests/AGENTS.md`. Revisit triggers in the 2026-04-19 scope-lock decision doc apply.
+
 ### New backend services / modules (planned, tied to Deferred work)
 
 - `services/benchmark_service.py` — SPY daily KRW-converted price series (SPY × USD/KRW time series). B4 / B5.

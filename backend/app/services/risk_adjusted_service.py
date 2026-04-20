@@ -83,3 +83,67 @@ class RiskAdjustedService:
         idx = [pd.Timestamp(r.date) for r in rows]
         vals = [float(getattr(r, "total_value", 0) or 0) for r in rows]
         return pd.Series(vals, index=idx, dtype=float)
+
+    @staticmethod
+    def scorecard(db: Session) -> Dict[str, Any]:
+        """B5 endpoint payload — multi-horizon scorecard assembled from risk_metrics JSONB.
+
+        Shape is invariant across ready/not-ready states: all keys present, metric
+        values are None when horizon has insufficient data or when maturity gate
+        is not yet met.
+        """
+        snapshots = (
+            db.query(WeeklySnapshot)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        populated = [
+            s for s in snapshots
+            if s.risk_metrics and (s.risk_metrics.get("data_quality", {}).get("source") != "unavailable")
+        ]
+        n_freezes = len(populated)
+        n_weeks = n_freezes
+
+        first_freeze_date = populated[0].snapshot_date.isoformat() if populated else None
+        ready = n_weeks >= SCORECARD_MATURITY_WEEKS
+
+        empty_metric = {"cagr": None, "mdd": None, "sd": None, "sharpe": None, "calmar": None, "sortino": None}
+        empty_horizon = {"portfolio": dict(empty_metric), "spy_krw": dict(empty_metric)}
+        horizons = {"6M": dict(empty_horizon), "1Y": dict(empty_horizon), "ITD": dict(empty_horizon)}
+
+        if ready:
+            horizons = RiskAdjustedService._build_horizons(populated)
+
+        return {
+            "ready": ready,
+            "based_on_freezes": n_freezes,
+            "based_on_weeks": n_weeks,
+            "first_freeze_date": first_freeze_date,
+            "maturity_gate": {
+                "required_weeks": SCORECARD_MATURITY_WEEKS,
+                "current_weeks": n_weeks,
+                "ready": ready,
+            },
+            "horizons": horizons,
+        }
+
+    @staticmethod
+    def _build_horizons(populated: list) -> Dict[str, Any]:
+        """Aggregate trailing-1Y metrics from JSONB into 6M/1Y/ITD horizons.
+
+        Strategy: use the latest snapshot's 'trailing_1y' directly for '1Y'. For '6M',
+        take the most-recent-half subset. For 'ITD', take the first snapshot's trailing_1y.
+        """
+        def _trailing(s: Any) -> Dict[str, Any]:
+            return (s.risk_metrics or {}).get("trailing_1y", {"portfolio": {}, "spy_krw": {}})
+
+        latest = populated[-1]
+        first = populated[0]
+        mid_index = max(0, len(populated) - max(1, len(populated) // 2))
+        mid = populated[mid_index]
+
+        return {
+            "6M": _trailing(mid),
+            "1Y": _trailing(latest),
+            "ITD": _trailing(first),
+        }

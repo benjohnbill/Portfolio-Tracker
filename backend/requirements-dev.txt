@@ -1,0 +1,9 @@
+# Dev-only dependencies for the Phase D test infrastructure (C + D tracks).
+# Production deps remain in requirements.txt.
+#
+# Install:  ./.venv/bin/pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest>=9.0,<10
+freezegun>=1.5,<2
+testcontainers[postgres]>=4.8,<5

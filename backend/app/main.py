@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from .database import SessionLocal, engine, Base, get_db
-from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog
+from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -709,13 +709,23 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "regime_alerts_sent": regime_alerts_sent,
         }
         db.commit()
-        
+
+        # Fetch the most recent snapshot comment for the Discord/Telegram echo.
+        # Stateless query; keeps NotificationService DB-agnostic.
+        latest_snapshot = (
+            db.query(WeeklySnapshot)
+            .order_by(WeeklySnapshot.snapshot_date.desc())
+            .first()
+        )
+        latest_comment = latest_snapshot.comment if latest_snapshot else None
+
         # Send success notification
         NotificationService.send_cron_success(
             duration_seconds=duration,
             vxn_updated=vxn_updated,
             mstr_seeded=mstr_seeded,
             weekly_score=weekly_score,
+            latest_comment=latest_comment,
         )
         
         return {

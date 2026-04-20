@@ -69,10 +69,11 @@ class NotificationService:
         mstr_seeded: bool,
         weekly_score: Optional[int],
         records_processed: int = 0,
+        latest_comment: Optional[str] = None,
     ) -> bool:
         """Send a success notification for cron job completion."""
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        
+
         message = (
             f"✅ <b>Portfolio Update Success</b>\n"
             f"━━━━━━━━━━━━━━━\n"
@@ -83,6 +84,9 @@ class NotificationService:
             f"━━━━━━━━━━━━━━━\n"
             f"🕐 {timestamp}"
         )
+
+        if latest_comment and latest_comment.strip():
+            message += f"\n> 💬 Last week's comment: \"{latest_comment.strip()}\""
 
         result = NotificationService.send_telegram_message(message)
         discord_notifier.send_discord_message(message)

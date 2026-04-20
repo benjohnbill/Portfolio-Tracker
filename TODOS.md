@@ -237,18 +237,16 @@ Plan doc: `docs/superpowers/plans/2026-04-19-phase-d-friday-top.md`
 - [x] **A2: Sleeve Health panel** — `/friday`, between hero strip and Portfolio delta. 6 sleeves × (label | current / target | drift | signal | 4-week recency strip). Endpoint `GET /api/v1/friday/sleeve-history?weeks=4` returns per-sleeve signal-firing counts. Verified live.
 - [x] **Hotfix (`8757e18`)**: sleeve `_normalize` now strips `/` so prod `BONDS/CASH` category collapses into `BONDS-CASH` canonical form. Regression test + cross-reference comments added.
 
-#### ⏳ Plan C — Backend hygiene (Discord echo + legacy alias cleanup)
+#### ✅ Shipped — Plan C — Backend hygiene (Discord echo + legacy alias cleanup)
 
-Plan doc target: `docs/superpowers/plans/2026-04-19-phase-d-backend-hygiene.md`
+Commits: `2c3f00a..ce600e2` on `feature/phase-d-plan-c-backend-hygiene`, fast-forward merged to `main`. Docs: `38256dc`.
 
-**Safety gate verified 2026-04-19:** `grep -rn "decision\.confidence\b" frontend/src` returns exactly 1 remaining site → `frontend/src/components/intelligence/OutcomesView.tsx:115`. Plan C legacy-alias cleanup must include migration of this line to `o.decision.confidenceVsSpyRiskadj` (denominator change from `/5` to `/10` if the display convention should also be updated).
+- [x] **Discord briefing echo** — weekly cron success message now appends `> 💬 Last week's comment: "{comment}"` via new `latest_comment` parameter on `send_cron_success` (None/empty/whitespace-safe).
+- [x] **Legacy `confidence` alias cleanup — symmetric 4-layer removal** — removed across frontend types (`api.ts::FridayDecision.confidence`, `DecisionOutcomeData.decision.confidence`), frontend read site (`OutcomesView.tsx:115` migrated to `o.decision.confidenceVsSpyRiskadj` with denominator 5→10), backend response serializers (`_serialize_decision` + intelligence outcomes mirrors), and backend write path (`FridayDecisionCreateRequest.confidence_vs_spy_riskadj` now required; `add_decision` legacy kwarg + mutual-exclusion branch removed). 72/72 backend tests passing, frontend tsc clean.
 
-- [ ] **Discord briefing echo** — extend weekly cron success message in `notification_service.py` to append `> 💬 Last week's comment: "{comment}"` when the latest snapshot's `comment` is non-empty. Updates existing Discord tests.
-- [ ] **Legacy `confidence` alias cleanup — symmetric 4-layer removal** — (1) `friday_service._serialize_decision` mirror key, (2) `intelligence_service` outcome payload mirror key, (3) `api.ts::FridayDecision.confidence` field, (4) `api.ts::DecisionOutcomeData.decision.confidence` field. Plus upstream: remove Pydantic legacy field on `FridayDecisionCreateRequest`, drop `confidence` kwarg + mutual-exclusion branch on `FridayService.add_decision`. Plus downstream: migrate `OutcomesView.tsx:115` from `o.decision.confidence` to `o.decision.confidenceVsSpyRiskadj`.
+#### ✅ Playwright MCP QA — Ship Now validation (executed 2026-04-20)
 
-#### ⏳ Playwright MCP QA — Ship Now validation (no plan doc)
-
-Executed from a fresh chat session after Plans B and C ship. Primary against local dev server (avoid prod data pollution from QA freeze); secondary prod smoke (navigate + visual verify only, no freeze). Full checklist in the scope-lock doc §Playwright MCP QA. Deliverables: screenshots + PASS/FAIL list; any bugs → separate hotfix commits.
+Screenshots: `.playwright-mcp/phase-d-ship-now-qa/` (7 files). Result: **11/13 PASS, 2 SKIPPED** (interactive freeze + POST write-path — local backend bound to prod Supabase via `backend/.env`; sqlite isolation blocked by postgres-only `JSONB` columns on `weekly_snapshots`; current week already frozen). Zero regressions; no hotfix commits required. Plan C legacy-`confidence`-key absence confirmed via read-path (`GET /api/v1/friday/snapshot/2026-04-17` returns the decision with all three `confidenceVs*` scalars + `expectedFailureMode` + `triggerThreshold` + `invalidation` keys and no legacy `confidence`). Full PASS/FAIL list in `docs/superpowers/decisions/2026-04-19-phase-d-ship-now-scope-lock.md` §Progress log.
 
 ### Deferred — data-maturity gated (9 items)
 
@@ -273,9 +271,7 @@ All items below need a deferred schema migration and/or new backend service befo
 - [ ] **B5: Risk-Adjusted Scorecard** — new page `/intelligence/risk-adjusted`. 6 metrics vs SPY-KRW; Calmar headline. Needs new `services/benchmark_service.py` + new `services/risk_adjusted_service.py`. Then 26 weeks data.
 - [ ] **C1: Slippage Log** — optional post-freeze recording. Needs new `execution_slippage` table + UI. N3 preservation: records only, not routing. 4 weeks maturity gate on usefulness.
 
-### Deploy / Cleanup (2 items)
-
-- [ ] Run `alembic upgrade head` against Render prod DB — migration `a2b8f4d1c901` on `main` but not yet applied to prod.
+### Deploy / Cleanup
 
 ### New backend services / modules (planned, tied to Deferred work)
 

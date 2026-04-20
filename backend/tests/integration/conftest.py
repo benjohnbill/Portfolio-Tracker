@@ -1,14 +1,19 @@
 """Session-scoped PostgreSQL container + metadata create_all — D track.
 
-Note: alembic upgrade head is skipped here because the migration chain was built
-against an existing SQLite database and is not clean-slate PostgreSQL-compatible
-(initial migration is a no-op; tables were never created via migrations).
-Base.metadata.create_all() gives us a correct fresh schema from the ORM definitions.
+The migration chain was built against an existing database (initial migration is a
+no-op), so we use Base.metadata.create_all() for schema creation and then
+`alembic stamp head` to register the current revision. This lets test_migrations.py
+do a downgrade/upgrade roundtrip against the last migration without replaying the
+full broken chain.
 """
 
 from __future__ import annotations
 
+import os
+
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -34,6 +39,19 @@ def pg_url(pg_container: PostgresContainer) -> str:
 def pg_engine(pg_url: str):
     engine = create_engine(pg_url)
     Base.metadata.create_all(engine)
+
+    # Stamp alembic_version so downgrade/upgrade roundtrips work in test_migrations.py.
+    prior = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = pg_url
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.stamp(alembic_cfg, "head")
+    finally:
+        if prior is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = prior
+
     try:
         yield engine
     finally:

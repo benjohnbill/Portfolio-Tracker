@@ -147,3 +147,65 @@ class RiskAdjustedService:
             "1Y": _trailing(latest),
             "ITD": _trailing(first),
         }
+
+    @staticmethod
+    def calmar_trajectory(db: Session) -> Dict[str, Any]:
+        """B4 endpoint payload — one point per populated freeze + decision markers."""
+        snapshots = (
+            db.query(WeeklySnapshot)
+            .order_by(WeeklySnapshot.snapshot_date.asc())
+            .all()
+        )
+        points: list = []
+        for s in snapshots:
+            rm = s.risk_metrics or {}
+            if rm.get("data_quality", {}).get("source") == "unavailable":
+                continue
+            trailing = rm.get("trailing_1y", {})
+            pcal = trailing.get("portfolio", {}).get("calmar")
+            scal = trailing.get("spy_krw", {}).get("calmar")
+            if pcal is None and scal is None:
+                continue
+            delta = (pcal - scal) if (pcal is not None and scal is not None) else None
+            points.append({
+                "date": s.snapshot_date.isoformat(),
+                "portfolio_calmar": pcal,
+                "spy_krw_calmar": scal,
+                "delta": delta,
+            })
+
+        decision_markers = RiskAdjustedService._decision_markers_for(db, [p["date"] for p in points])
+
+        n_freezes = len(points)
+        ready = n_freezes >= TRAJECTORY_MATURITY_WEEKS
+
+        return {
+            "ready": ready,
+            "based_on_freezes": n_freezes,
+            "required_weeks": TRAJECTORY_MATURITY_WEEKS,
+            "points": points,
+            "decision_markers": decision_markers,
+        }
+
+    @staticmethod
+    def _decision_markers_for(db: Session, iso_dates: list) -> list:
+        """Build per-freeze decision marker list."""
+        if not iso_dates:
+            return []
+        decisions = (
+            db.query(WeeklyDecision)
+            .join(WeeklySnapshot, WeeklyDecision.snapshot_id == WeeklySnapshot.id)
+            .filter(WeeklySnapshot.snapshot_date.in_(iso_dates))
+            .all()
+        )
+        by_date: Dict[str, list] = {d: [] for d in iso_dates}
+        for dec in decisions:
+            snap = getattr(dec, "snapshot", None)
+            dkey = snap.snapshot_date.isoformat() if snap else None
+            if dkey and dkey in by_date:
+                by_date[dkey].append({
+                    "ticker": dec.asset_ticker,
+                    "decision_type": dec.decision_type,
+                    "note": (dec.note or "")[:120],
+                })
+        return [{"date": d, "decisions": by_date[d]} for d in iso_dates if by_date[d]]

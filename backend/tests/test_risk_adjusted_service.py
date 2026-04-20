@@ -138,3 +138,40 @@ def test_scorecard_skips_unavailable_source_freezes_in_count():
 
     assert payload["based_on_freezes"] == 25  # unavailable row excluded
     assert payload["ready"] is False  # 25 < 26 gate
+
+
+# ---------------------------------------------------------------------------
+# Task 6: calmar_trajectory (B4)
+# ---------------------------------------------------------------------------
+
+def test_calmar_trajectory_empty_db_shape():
+    db = MagicMock()
+    db.query.return_value.order_by.return_value.all.return_value = []
+
+    payload = RiskAdjustedService.calmar_trajectory(db)
+
+    assert payload["ready"] is False
+    assert payload["based_on_freezes"] == 0
+    assert payload["required_weeks"] == 52
+    assert payload["points"] == []
+    assert payload["decision_markers"] == []
+
+
+def test_calmar_trajectory_partial_weeks_points_ordered_ready_false():
+    snapshots = _populated_snapshots(10)
+    db = MagicMock()
+    ordered_query = db.query.return_value.order_by.return_value
+    ordered_query.all.return_value = snapshots
+    # Second query (decision markers) returns empty list for simplicity.
+    db.query.return_value.join.return_value.filter.return_value.all.return_value = []
+
+    payload = RiskAdjustedService.calmar_trajectory(db)
+
+    assert payload["ready"] is False
+    assert payload["based_on_freezes"] == 10
+    assert len(payload["points"]) == 10
+    # Points must be in ascending date order.
+    dates = [p["date"] for p in payload["points"]]
+    assert dates == sorted(dates)
+    # Delta present for every point (both sides have calmar in fixture).
+    assert all(p["delta"] is not None for p in payload["points"])

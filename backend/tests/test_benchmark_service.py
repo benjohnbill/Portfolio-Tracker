@@ -105,6 +105,7 @@ def test_get_spy_krw_series_cache_hit_skips_upstreams():
         series = BenchmarkService.get_spy_krw_series(db, _date(2025, 1, 1), _date(2025, 1, 5))
 
     assert len(series) == 2
+    assert float(series.iloc[0]) == 135000.0
     MockPrice.get_historical_prices.assert_not_called()
     MockFx.get_usd_krw_history.assert_not_called()
 

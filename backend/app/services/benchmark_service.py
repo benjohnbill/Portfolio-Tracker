@@ -103,7 +103,7 @@ class BenchmarkService:
         for same-day-ending ranges (so a new day naturally invalidates). Returns an empty
         Series on upstream failure; callers must graceful-degrade.
         """
-        cache_key = f"{BenchmarkService.CACHE_KEY_PREFIX}_{start.isoformat()}_{end.isoformat()}"
+        cache_key = f"{BenchmarkService.CACHE_KEY_PREFIX}_{start.isoformat()}_{end.isoformat()}_{date.today().isoformat()}"
         cached = CacheService.get_cache(db, cache_key)
         if cached:
             try:

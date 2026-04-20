@@ -1,3 +1,6 @@
+from datetime import date as _date
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 
@@ -60,3 +63,81 @@ def test_compute_metrics_all_nan_treated_as_empty():
     m = BenchmarkService.compute_metrics(returns)
     assert m.n_obs == 0
     assert m.cagr is None
+
+
+def _fake_spy_usd_series():
+    idx = pd.date_range("2025-01-01", periods=250, freq="B")
+    return pd.Series(range(100, 350), index=idx, dtype=float)
+
+
+def _fake_fx_series():
+    idx = pd.date_range("2025-01-01", periods=250, freq="B")
+    return pd.Series([1350.0] * 250, index=idx, dtype=float)
+
+
+def test_get_spy_krw_series_cache_miss_composes_upstreams():
+    db = MagicMock()
+    with patch("app.services.benchmark_service.CacheService") as MockCache, \
+         patch("app.services.benchmark_service.PriceService") as MockPrice, \
+         patch("app.services.benchmark_service.ExchangeService") as MockFx:
+        MockCache.get_cache.return_value = None
+        MockPrice.get_historical_prices.return_value = _fake_spy_usd_series()
+        MockFx.get_usd_krw_history.return_value = _fake_fx_series()
+
+        series = BenchmarkService.get_spy_krw_series(db, _date(2025, 1, 1), _date(2025, 12, 31))
+
+    assert isinstance(series, pd.Series)
+    assert len(series) == 250
+    assert float(series.iloc[0]) == 100.0 * 1350.0
+    MockPrice.get_historical_prices.assert_called_once()
+    MockFx.get_usd_krw_history.assert_called_once()
+    MockCache.set_cache.assert_called_once()
+
+
+def test_get_spy_krw_series_cache_hit_skips_upstreams():
+    db = MagicMock()
+    cached_payload = {"2025-01-02": 135000.0, "2025-01-03": 135500.0}
+    with patch("app.services.benchmark_service.CacheService") as MockCache, \
+         patch("app.services.benchmark_service.PriceService") as MockPrice, \
+         patch("app.services.benchmark_service.ExchangeService") as MockFx:
+        MockCache.get_cache.return_value = cached_payload
+
+        series = BenchmarkService.get_spy_krw_series(db, _date(2025, 1, 1), _date(2025, 1, 5))
+
+    assert len(series) == 2
+    MockPrice.get_historical_prices.assert_not_called()
+    MockFx.get_usd_krw_history.assert_not_called()
+
+
+def test_get_spy_krw_series_upstream_empty_returns_empty_series():
+    db = MagicMock()
+    with patch("app.services.benchmark_service.CacheService") as MockCache, \
+         patch("app.services.benchmark_service.PriceService") as MockPrice, \
+         patch("app.services.benchmark_service.ExchangeService") as MockFx:
+        MockCache.get_cache.return_value = None
+        MockPrice.get_historical_prices.return_value = pd.Series(dtype=float)
+        MockFx.get_usd_krw_history.return_value = _fake_fx_series()
+
+        series = BenchmarkService.get_spy_krw_series(db, _date(2025, 1, 1), _date(2025, 12, 31))
+
+    assert isinstance(series, pd.Series)
+    assert series.empty
+    MockCache.set_cache.assert_not_called()
+
+
+def test_get_spy_krw_series_inner_join_drops_misaligned_dates():
+    db = MagicMock()
+    spy_idx = pd.date_range("2025-01-01", periods=5, freq="B")
+    fx_idx = pd.date_range("2025-01-02", periods=5, freq="B")
+    spy_series = pd.Series([100.0] * 5, index=spy_idx)
+    fx_series = pd.Series([1350.0] * 5, index=fx_idx)
+    with patch("app.services.benchmark_service.CacheService") as MockCache, \
+         patch("app.services.benchmark_service.PriceService") as MockPrice, \
+         patch("app.services.benchmark_service.ExchangeService") as MockFx:
+        MockCache.get_cache.return_value = None
+        MockPrice.get_historical_prices.return_value = spy_series
+        MockFx.get_usd_krw_history.return_value = fx_series
+
+        series = BenchmarkService.get_spy_krw_series(db, _date(2025, 1, 1), _date(2025, 1, 10))
+
+    assert len(series) == 4  # intersection, not union

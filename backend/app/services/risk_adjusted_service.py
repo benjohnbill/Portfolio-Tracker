@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -70,7 +70,7 @@ class RiskAdjustedService:
 
     @staticmethod
     def _load_portfolio_series(db: Session, start: date, end: date) -> pd.Series:
-        """Load PortfolioSnapshot.total_value values indexed by snapshot_date between [start, end]."""
+        """Load PortfolioSnapshot.total_value values indexed by date between [start, end]."""
         rows = (
             db.query(PortfolioSnapshot)
             .filter(PortfolioSnapshot.date >= start)

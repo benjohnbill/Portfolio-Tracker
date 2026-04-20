@@ -175,3 +175,22 @@ def test_calmar_trajectory_partial_weeks_points_ordered_ready_false():
     assert dates == sorted(dates)
     # Delta present for every point (both sides have calmar in fixture).
     assert all(p["delta"] is not None for p in payload["points"])
+
+
+def test_decision_markers_for_groups_decisions_by_date():
+    dec = MagicMock()
+    dec.asset_ticker = "SPY"
+    dec.decision_type = "BUY"
+    dec.note = "x" * 200
+    dec.snapshot.snapshot_date = date(2025, 10, 17)
+
+    db = MagicMock()
+    db.query.return_value.join.return_value.filter.return_value.all.return_value = [dec]
+
+    result = RiskAdjustedService._decision_markers_for(db, ["2025-10-17", "2025-10-24"])
+
+    assert len(result) == 1
+    assert result[0]["date"] == "2025-10-17"
+    assert result[0]["decisions"][0]["ticker"] == "SPY"
+    assert result[0]["decisions"][0]["decision_type"] == "BUY"
+    assert len(result[0]["decisions"][0]["note"]) == 120

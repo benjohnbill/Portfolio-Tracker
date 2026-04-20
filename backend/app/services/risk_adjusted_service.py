@@ -107,9 +107,13 @@ class RiskAdjustedService:
         first_freeze_date = populated[0].snapshot_date.isoformat() if populated else None
         ready = n_weeks >= SCORECARD_MATURITY_WEEKS
 
-        empty_metric = {"cagr": None, "mdd": None, "sd": None, "sharpe": None, "calmar": None, "sortino": None}
-        empty_horizon = {"portfolio": dict(empty_metric), "spy_krw": dict(empty_metric)}
-        horizons = {"6M": dict(empty_horizon), "1Y": dict(empty_horizon), "ITD": dict(empty_horizon)}
+        def _empty_side() -> Dict[str, Optional[float]]:
+            return {"cagr": None, "mdd": None, "sd": None, "sharpe": None, "calmar": None, "sortino": None}
+
+        def _empty_horizon() -> Dict[str, Any]:
+            return {"portfolio": _empty_side(), "spy_krw": _empty_side()}
+
+        horizons = {"6M": _empty_horizon(), "1Y": _empty_horizon(), "ITD": _empty_horizon()}
 
         if ready:
             horizons = RiskAdjustedService._build_horizons(populated)

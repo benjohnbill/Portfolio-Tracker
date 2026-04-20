@@ -244,3 +244,38 @@ def test_get_friday_sleeve_history_rejects_out_of_range_weeks():
     assert response.status_code == 400
     response = client.get("/api/v1/friday/sleeve-history?weeks=53")
     assert response.status_code == 400
+
+
+def test_update_signals_invokes_spy_delta_backfill(monkeypatch):
+    import os
+    from unittest.mock import MagicMock, patch
+
+    monkeypatch.setenv("CRON_SECRET", "test-secret")
+
+    with patch("app.main.PriceIngestionService"), \
+         patch("app.main.PortfolioService"), \
+         patch("app.main.QuantService") as MockQuant, \
+         patch("app.main.AlgoService"), \
+         patch("app.main.ReportService") as MockReport, \
+         patch("app.main.AttributionService"), \
+         patch("app.main.IntelligenceService") as MockIntel, \
+         patch("app.main.NotificationService"), \
+         patch("app.main.send_discord_message"), \
+         patch("app.main.OutcomeEvaluatorService") as MockEval:
+
+        MockQuant.update_vxn_history.return_value = True
+        MockQuant.seed_mstr_corporate_actions.return_value = False
+        MockReport.generate_weekly_report.return_value = {
+            "portfolioSnapshot": {}, "score": {"total": 80}, "weekEnding": "2026-04-18"
+        }
+        MockIntel.evaluate_decision_outcomes.return_value = 0
+        MockIntel.detect_regime_transitions.return_value = []
+        MockEval.backfill_spy_deltas.return_value = {"processed": 2, "skipped_insufficient_data": 0, "errors": 0}
+
+        response = client.post(
+            "/api/cron/update-signals",
+            headers={"x-cron-secret": "test-secret"},
+        )
+
+    assert response.status_code == 200
+    MockEval.backfill_spy_deltas.assert_called_once()

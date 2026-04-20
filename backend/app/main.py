@@ -27,6 +27,7 @@ from .services.notification_service import NotificationService
 from .services.discord_notifier import send_discord_message
 from .services.attribution_service import AttributionService
 from .services.intelligence_service import IntelligenceService
+from .services.outcome_evaluator import OutcomeEvaluatorService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -598,6 +599,20 @@ def get_intelligence_annual_review(year: str, db: Session = Depends(get_db)):
     return result
 
 
+@app.get("/api/v1/intelligence/risk-adjusted/scorecard")
+def get_risk_adjusted_scorecard(db: Session = Depends(get_db)):
+    """B5 — multi-horizon risk-adjusted scorecard."""
+    from .services.risk_adjusted_service import RiskAdjustedService
+    return RiskAdjustedService.scorecard(db)
+
+
+@app.get("/api/v1/intelligence/risk-adjusted/calmar-trajectory")
+def get_calmar_trajectory(db: Session = Depends(get_db)):
+    """B4 — Calmar ratio trajectory over accumulated freezes."""
+    from .services.risk_adjusted_service import RiskAdjustedService
+    return RiskAdjustedService.calmar_trajectory(db)
+
+
 @app.post("/api/admin/backfill-attributions")
 def backfill_attributions(db: Session = Depends(get_db)):
     """One-time backfill of scoring_attributions for all existing weekly_snapshots."""
@@ -691,6 +706,14 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         except Exception:
             pass
 
+        # Step 10: Backfill SPY-KRW delta columns on matured outcomes (B2, non-blocking)
+        spy_delta_result = {"processed": 0, "skipped_insufficient_data": 0, "errors": 0}
+        try:
+            current_step = "spy_delta_backfill"
+            spy_delta_result = OutcomeEvaluatorService.backfill_spy_deltas(db)
+        except Exception:
+            pass
+
         # Calculate duration and update run log
         duration = time.time() - start_time
         finished_at = datetime.now(timezone.utc)
@@ -707,6 +730,7 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
             "attribution_ok": attribution_ok,
             "outcomes_created": outcomes_created,
             "regime_alerts_sent": regime_alerts_sent,
+            "spy_delta_processed": spy_delta_result.get("processed", 0),
         }
         db.commit()
 

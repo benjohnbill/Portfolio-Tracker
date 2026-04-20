@@ -279,3 +279,23 @@ def test_update_signals_invokes_spy_delta_backfill(monkeypatch):
 
     assert response.status_code == 200
     MockEval.backfill_spy_deltas.assert_called_once()
+
+
+def test_get_scorecard_empty_db_returns_ready_false_shape():
+    response = client.get("/api/v1/intelligence/risk-adjusted/scorecard")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["based_on_freezes"] == 0
+    assert payload["maturity_gate"]["required_weeks"] == 26
+    assert set(payload["horizons"].keys()) == {"6M", "1Y", "ITD"}
+
+
+def test_get_calmar_trajectory_empty_db_returns_shape_stable():
+    response = client.get("/api/v1/intelligence/risk-adjusted/calmar-trajectory")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["required_weeks"] == 52
+    assert payload["points"] == []
+    assert payload["decision_markers"] == []

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
+from app.types import JsonVariant
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
@@ -107,8 +107,8 @@ class WeeklySnapshot(Base):
     id = Column(Integer, primary_key=True, index=True)
     snapshot_date = Column(Date, index=True, unique=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    frozen_report = Column(JSONB, nullable=False)
-    snapshot_metadata = Column("metadata", JSONB, nullable=False)
+    frozen_report = Column(JsonVariant, nullable=False)
+    snapshot_metadata = Column("metadata", JsonVariant, nullable=False)
     # Phase D A7 — optional per-freeze observation (1-2 lines), surfaced on /archive.
     comment = Column(Text, nullable=True)
 
@@ -176,13 +176,13 @@ class ScoringAttribution(Base):
     total_score = Column(Integer, nullable=False)
 
     # Regime snapshot at freeze time
-    regime_snapshot = Column(JSONB, nullable=True)
+    regime_snapshot = Column(JsonVariant, nullable=True)
 
     # Raw indicator values copied from frozen_report
-    indicator_values = Column(JSONB, nullable=True)
+    indicator_values = Column(JsonVariant, nullable=True)
 
     # Rules that fired this week with was_followed status
-    rules_fired = Column(JSONB, nullable=True)
+    rules_fired = Column(JsonVariant, nullable=True)
 
     snapshot = relationship("WeeklySnapshot", back_populates="attributions")
 

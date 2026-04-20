@@ -21,7 +21,7 @@ def upgrade() -> None:
     # B4 — per-freeze precomputed risk metrics JSONB.
     op.add_column(
         'weekly_snapshots',
-        sa.Column('risk_metrics', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('risk_metrics', postgresql.JSONB(), nullable=True),
     )
 
     # B2 — SPY-KRW benchmark deltas on matured decision outcomes.

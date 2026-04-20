@@ -502,3 +502,46 @@ def test_create_snapshot_comment_defaults_to_none(monkeypatch):
     created = FridayService.create_snapshot(db, date(2026, 4, 3))
     assert created["comment"] is None
     assert db.snapshots[0].comment is None
+
+
+def test_create_snapshot_populates_risk_metrics_on_success():
+    from app.services.friday_service import FridayService
+    from datetime import date as _date
+    from unittest.mock import patch
+
+    payload = {
+        "as_of": "2026-04-17",
+        "trailing_1y": {"portfolio": {}, "spy_krw": {}},
+        "data_quality": {"portfolio_days": 252, "spy_krw_days": 250, "source": "yfinance+fdr"},
+    }
+    with patch("app.services.friday_service.RiskAdjustedService") as MockRA, \
+         patch("app.services.friday_service.ReportService") as MockReport:
+        MockRA.compute_snapshot_metrics.return_value = payload
+        MockReport.get_week_ending.return_value = _date(2026, 4, 17)
+        MockReport.build_weekly_report.return_value = {"portfolioSnapshot": {}, "score": {"total": 80}}
+
+        db = _FakeDB()
+        result = FridayService.create_snapshot(db, snapshot_date=_date(2026, 4, 17), comment="qa")
+
+    stored = db.snapshots[-1]
+    assert stored.risk_metrics == payload
+    assert result["comment"] == "qa"
+
+
+def test_create_snapshot_tolerates_risk_metrics_failure():
+    from app.services.friday_service import FridayService
+    from datetime import date as _date
+    from unittest.mock import patch
+
+    with patch("app.services.friday_service.RiskAdjustedService") as MockRA, \
+         patch("app.services.friday_service.ReportService") as MockReport:
+        MockRA.compute_snapshot_metrics.side_effect = RuntimeError("upstream blew up")
+        MockReport.get_week_ending.return_value = _date(2026, 4, 17)
+        MockReport.build_weekly_report.return_value = {"portfolioSnapshot": {}, "score": {"total": 80}}
+
+        db = _FakeDB()
+        result = FridayService.create_snapshot(db, snapshot_date=_date(2026, 4, 17))
+
+    stored = db.snapshots[-1]
+    assert stored.risk_metrics is None  # freeze still succeeded; metrics left NULL
+    assert result is not None

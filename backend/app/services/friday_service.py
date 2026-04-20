@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,7 +12,10 @@ from .algo_service import AlgoService
 from .macro_service import MacroService
 from .portfolio_service import PortfolioService
 from .report_service import ReportService
+from .risk_adjusted_service import RiskAdjustedService
 from .score_service import build_target_deviation, compute_alignment_score, compute_fit_score, compute_posture_diversification_score
+
+logger = logging.getLogger(__name__)
 
 
 class SnapshotConflictError(ValueError):
@@ -276,6 +280,13 @@ class FridayService:
         except IntegrityError:
             getattr(db, "rollback", lambda: None)()
             raise SnapshotConflictError(f"Snapshot already exists for {target_date.isoformat()}")
+
+        # B4 — precompute risk_metrics JSONB. Failure does NOT fail the freeze.
+        try:
+            snapshot.risk_metrics = RiskAdjustedService.compute_snapshot_metrics(db, snapshot)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 — intentional broad catch to protect freeze
+            logger.warning("risk_metrics compute failed for %s: %s", target_date, exc)
 
         return FridayService._serialize_snapshot(snapshot, include_report=True)
 

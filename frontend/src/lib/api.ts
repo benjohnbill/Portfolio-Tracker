@@ -275,6 +275,16 @@ export interface WeeklyReport {
   };
 }
 
+export interface ExecutionSlippage {
+  id: number;
+  decisionId: number;
+  createdAt: string | null;
+  executedAt: string | null;
+  executedPrice: number | null;
+  executedQty: number | null;
+  notes: string | null;
+}
+
 export interface FridayDecision {
   id: number;
   snapshotId: number;
@@ -291,6 +301,7 @@ export interface FridayDecision {
   invalidation: string | null;
   expectedFailureMode: string | null;
   triggerThreshold: number | null;
+  slippageEntries: ExecutionSlippage[];
 }
 
 export interface FridaySnapshotSummary {
@@ -734,6 +745,26 @@ export async function createFridayDecision(payload: {
     throw new Error(errorData.detail || 'Failed to create Friday decision');
   }
 
+  return res.json();
+}
+
+export async function createFridaySlippage(payload: {
+  decision_id: number;
+  executed_at?: string;
+  executed_price?: number;
+  executed_qty?: number;
+  notes?: string;
+}): Promise<ExecutionSlippage> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE}/api/v1/friday/slippage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
   return res.json();
 }
 

@@ -246,7 +246,7 @@ Commits: `2c3f00a..ce600e2` on `feature/phase-d-plan-c-backend-hygiene`, fast-fo
 
 #### ✅ Playwright MCP QA — Ship Now validation (executed 2026-04-20)
 
-Screenshots: `.playwright-mcp/phase-d-ship-now-qa/` (7 files). Result: **11/13 PASS, 2 SKIPPED** (interactive freeze + POST write-path — local backend bound to prod Supabase via `backend/.env`; sqlite isolation blocked by postgres-only `JSONB` columns on `weekly_snapshots`; current week already frozen). Zero regressions; no hotfix commits required. Plan C legacy-`confidence`-key absence confirmed via read-path (`GET /api/v1/friday/snapshot/2026-04-17` returns the decision with all three `confidenceVs*` scalars + `expectedFailureMode` + `triggerThreshold` + `invalidation` keys and no legacy `confidence`). Full PASS/FAIL list in `docs/superpowers/decisions/2026-04-19-phase-d-ship-now-scope-lock.md` §Progress log.
+Screenshots: `docs/qa-evidence/phase-d-ship-now-qa/` (7 files, archived from Playwright MCP scratch). Result: **11/13 PASS, 2 SKIPPED** (interactive freeze + POST write-path — local backend bound to prod Supabase via `backend/.env`; sqlite isolation blocked by postgres-only `JSONB` columns on `weekly_snapshots`; current week already frozen). Zero regressions; no hotfix commits required. Plan C legacy-`confidence`-key absence confirmed via read-path (`GET /api/v1/friday/snapshot/2026-04-17` returns the decision with all three `confidenceVs*` scalars + `expectedFailureMode` + `triggerThreshold` + `invalidation` keys and no legacy `confidence`). Full PASS/FAIL list in `docs/superpowers/decisions/2026-04-19-phase-d-ship-now-scope-lock.md` §Progress log.
 
 ### Deferred — data-maturity gated (9 items)
 

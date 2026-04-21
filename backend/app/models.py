@@ -143,6 +143,7 @@ class WeeklyDecision(Base):
 
     snapshot = relationship("WeeklySnapshot", back_populates="decisions")
     outcomes = relationship("DecisionOutcome", back_populates="decision", cascade="all, delete-orphan")
+    slippage_entries = relationship("ExecutionSlippage", back_populates="decision", cascade="all, delete-orphan", order_by="ExecutionSlippage.created_at")
 
 
 class ScoringAttribution(Base):
@@ -252,3 +253,17 @@ class CronRunLog(Base):
     duration_seconds = Column(Float, nullable=True)
     error_message = Column(String, nullable=True)
     details_json = Column(JSON, nullable=True)  # Additional context: records processed, etc.
+
+
+class ExecutionSlippage(Base):
+    __tablename__ = "execution_slippage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    decision_id = Column(Integer, ForeignKey("weekly_decisions.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    executed_at = Column(Date, nullable=True)
+    executed_price = Column(Float, nullable=True)
+    executed_qty = Column(Float, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    decision = relationship("WeeklyDecision", back_populates="slippage_entries")

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import EventAnnotation, WeeklyDecision, WeeklySnapshot
+from ..models import EventAnnotation, ExecutionSlippage, WeeklyDecision, WeeklySnapshot
 from .algo_service import AlgoService
 from .macro_service import MacroService
 from .portfolio_service import PortfolioService
@@ -27,6 +27,10 @@ class SnapshotNotFoundError(LookupError):
 
 
 class SnapshotValidationError(ValueError):
+    pass
+
+
+class DecisionNotFoundError(LookupError):
     pass
 
 
@@ -53,7 +57,23 @@ class FridayService:
         ).all()
 
     @staticmethod
+    def _serialize_slippage(entry: "ExecutionSlippage") -> Dict[str, Any]:
+        return {
+            "id": entry.id,
+            "decisionId": entry.decision_id,
+            "createdAt": entry.created_at.isoformat() if entry.created_at else None,
+            "executedAt": entry.executed_at.isoformat() if entry.executed_at else None,
+            "executedPrice": entry.executed_price,
+            "executedQty": entry.executed_qty,
+            "notes": entry.notes,
+        }
+
+    @staticmethod
     def _serialize_decision(decision: WeeklyDecision) -> Dict[str, Any]:
+        try:
+            slippage_entries = list(decision.slippage_entries)
+        except Exception:
+            slippage_entries = []
         return {
             "id": decision.id,
             "snapshotId": decision.snapshot_id,
@@ -67,6 +87,7 @@ class FridayService:
             "invalidation": decision.invalidation,
             "expectedFailureMode": decision.expected_failure_mode,
             "triggerThreshold": decision.trigger_threshold,
+            "slippageEntries": [FridayService._serialize_slippage(s) for s in slippage_entries],
         }
 
     @staticmethod
@@ -351,6 +372,42 @@ class FridayService:
         db.commit()
         db.refresh(decision)
         return FridayService._serialize_decision(decision)
+
+    @staticmethod
+    def add_slippage(
+        db: Session,
+        decision_id: int,
+        executed_at=None,
+        executed_price=None,
+        executed_qty=None,
+        notes=None,
+    ) -> Dict[str, Any]:
+        decision = db.query(WeeklyDecision).filter(WeeklyDecision.id == decision_id).first()
+        if not decision:
+            raise DecisionNotFoundError(f"Decision {decision_id} not found")
+
+        entry = ExecutionSlippage(
+            decision_id=decision_id,
+            created_at=datetime.now(timezone.utc),
+            executed_at=executed_at,
+            executed_price=executed_price,
+            executed_qty=executed_qty,
+            notes=notes,
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+        return FridayService._serialize_slippage(entry)
+
+    @staticmethod
+    def get_slippage_for_decision(db: Session, decision_id: int) -> List[Dict[str, Any]]:
+        entries = (
+            db.query(ExecutionSlippage)
+            .filter(ExecutionSlippage.decision_id == decision_id)
+            .order_by(ExecutionSlippage.created_at.asc())
+            .all()
+        )
+        return [FridayService._serialize_slippage(e) for e in entries]
 
     @staticmethod
     def _get_nested(payload: Dict[str, Any], path: List[str], default: Any = None) -> Any:

@@ -21,7 +21,7 @@ from .services.quant_service import QuantService
 from .services.algo_service import AlgoService
 from .services.ingestion_service import PriceIngestionService
 from .services.annotation_service import AnnotationService
-from .services.friday_service import FridayService, SnapshotConflictError, SnapshotNotFoundError, SnapshotValidationError
+from .services.friday_service import FridayService, DecisionNotFoundError, SnapshotConflictError, SnapshotNotFoundError, SnapshotValidationError
 from .services.report_service import ReportService
 from .services.notification_service import NotificationService
 from .services.discord_notifier import send_discord_message
@@ -86,6 +86,14 @@ class FridayDecisionCreateRequest(BaseModel):
     invalidation: Optional[str] = None
     expected_failure_mode: Optional[str] = None
     trigger_threshold: Optional[float] = None
+
+
+class SlippageCreateRequest(BaseModel):
+    decision_id: int
+    executed_at: Optional[str] = None   # YYYY-MM-DD
+    executed_price: Optional[float] = None
+    executed_qty: Optional[float] = None
+    notes: Optional[str] = None
 
 # CORS configuration
 origins = ["*"] # Broaden for local development
@@ -491,6 +499,29 @@ def create_friday_decision(payload: FridayDecisionCreateRequest, db: Session = D
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
         print(f"Error in POST /api/v1/friday/decisions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/friday/slippage")
+def create_friday_slippage(payload: SlippageCreateRequest, db: Session = Depends(get_db)):
+    try:
+        executed_at = datetime.strptime(payload.executed_at, "%Y-%m-%d").date() if payload.executed_at else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="executed_at must be YYYY-MM-DD")
+
+    try:
+        return FridayService.add_slippage(
+            db,
+            decision_id=payload.decision_id,
+            executed_at=executed_at,
+            executed_price=payload.executed_price,
+            executed_qty=payload.executed_qty,
+            notes=payload.notes,
+        )
+    except DecisionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as e:
+        print(f"Error in POST /api/v1/friday/slippage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

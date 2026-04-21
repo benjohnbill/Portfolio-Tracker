@@ -212,7 +212,7 @@ Full rationale: `CLAUDE.md#Review-Principles`, `DESIGN.md#Decisions-Log`, `PRODU
 - `weekly_snapshots.ritual_consistency_state` VARCHAR NULL — A6 dep (enum: on_time / late / missed).
 - ~~`decision_outcomes.outcome_delta_vs_spy_pure` NUMERIC NULL~~ ✅ shipped 2026-04-21 (B4/B5/B2 bundle)
 - ~~`decision_outcomes.outcome_delta_calmar_vs_spy` NUMERIC NULL~~ ✅ shipped 2026-04-21 (B4/B5/B2 bundle)
-- New table `execution_slippage` — C1 dep: `id` PK, `decision_id` FK → `weekly_decisions`, `executed_at` DATE NULL, `executed_price` NUMERIC NULL, `executed_qty` NUMERIC NULL, `notes` TEXT NULL.
+- ~~New table `execution_slippage` — C1 dep: `id` PK, `decision_id` FK → `weekly_decisions`, `executed_at` DATE NULL, `executed_price` NUMERIC NULL, `executed_qty` NUMERIC NULL, `notes` TEXT NULL.~~ ✅ shipped 2026-04-21 (C1 bundle, commits `d551970..918c49b`)
 
 ### Ship Now — data-maturity independent (8 items, locked scope)
 
@@ -269,7 +269,7 @@ All items below need a deferred schema migration and/or new backend service befo
 - [ ] **B2: Quadrant Calibration plots** — 3 faceted scatter (per confidence scalar × matching outcome delta) + 1 Ordering Deviation time series. ✅ schema+backend prereqs shipped (2026-04-21). Still needs 12+ weeks data before UI is meaningful.
 - [ ] **B4: Calmar Trajectory + Decision Annotations** — trailing-1Y `Calmar(Portfolio) − Calmar(SPY-KRW)` line with decision markers. ✅ schema+backend+frontend scaffold shipped (2026-04-21); `CalmarTrajectoryPlaceholder` on `/intelligence` root. Still needs 52 weeks data.
 - [ ] **B5: Risk-Adjusted Scorecard** — `/intelligence/risk-adjusted`. ✅ schema+backend+frontend scaffold shipped (2026-04-21); page live. Still needs 26 weeks data for scorecard to unlock.
-- [ ] **C1: Slippage Log** — optional post-freeze recording. Needs new `execution_slippage` table + UI. N3 preservation: records only, not routing. 4 weeks maturity gate on usefulness.
+- [ ] **C1: Slippage Log** — optional post-freeze recording. ✅ schema+backend+frontend shipped (2026-04-21, commits `d551970..918c49b`); per-decision collapsible form live on `/friday`, `POST /api/v1/friday/slippage` live. N3 preservation: records only, not routing. Still needs 4 weeks of usage data before the slippage surface has meaning.
 
 ### Deploy / Cleanup
 

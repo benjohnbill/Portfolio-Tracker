@@ -42,3 +42,31 @@ node_modules/
 site-packages/
 pip-wheel-metadata/
 .gstack/
+
+# Local sqlite / test DBs
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+
+# Browser testing artifacts (tool scratch)
+.playwright-mcp/
+
+# Third-party agent / tool scratch directories
+.agent/
+.codex
+.context/
+.omc/
+.omg/
+.omx/
+.opencode/
+.sisyphus/
+.claude/skills/
+backend/.omc/
+frontend/.omc/
+
+# Per-dev tool configs
+.envrc
+.mcp.json
+opencode.json
+.github/copilot-instructions.md
+conductor/optimization-plan.md

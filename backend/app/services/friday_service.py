@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from ..models import EventAnnotation, ExecutionSlippage, WeeklyDecision, WeeklySnapshot
 from .algo_service import AlgoService
@@ -70,9 +71,11 @@ class FridayService:
 
     @staticmethod
     def _serialize_decision(decision: WeeklyDecision) -> Dict[str, Any]:
+        # Legacy _FakeDB tests (test_friday_service.py) pass detached WeeklyDecision
+        # instances; the relationship can't lazy-load, so we degrade gracefully.
         try:
             slippage_entries = list(decision.slippage_entries)
-        except Exception:
+        except DetachedInstanceError:
             slippage_entries = []
         return {
             "id": decision.id,
@@ -377,10 +380,10 @@ class FridayService:
     def add_slippage(
         db: Session,
         decision_id: int,
-        executed_at=None,
-        executed_price=None,
-        executed_qty=None,
-        notes=None,
+        executed_at: Optional[date] = None,
+        executed_price: Optional[float] = None,
+        executed_qty: Optional[float] = None,
+        notes: Optional[str] = None,
     ) -> Dict[str, Any]:
         decision = db.query(WeeklyDecision).filter(WeeklyDecision.id == decision_id).first()
         if not decision:
@@ -388,7 +391,6 @@ class FridayService:
 
         entry = ExecutionSlippage(
             decision_id=decision_id,
-            created_at=datetime.now(timezone.utc),
             executed_at=executed_at,
             executed_price=executed_price,
             executed_qty=executed_qty,

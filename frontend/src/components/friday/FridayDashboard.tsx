@@ -39,6 +39,14 @@ function orderingDeviationNote(
   return null;
 }
 
+interface SlippageDraft {
+  executed_at: string;
+  executed_price: string;
+  executed_qty: string;
+  notes: string;
+}
+const EMPTY_SLIPPAGE: SlippageDraft = { executed_at: '', executed_price: '', executed_qty: '', notes: '' };
+
 interface FridayDashboardProps {
   report: WeeklyReport;
   snapshots: FridaySnapshotSummary[];
@@ -72,16 +80,9 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
   // because it is tied to the freeze action, not per-decision state.
   const [snapshotComment, setSnapshotComment] = useState('');
 
-  interface SlippageDraft {
-    executed_at: string;
-    executed_price: string;
-    executed_qty: string;
-    notes: string;
-  }
-  const EMPTY_SLIPPAGE: SlippageDraft = { executed_at: '', executed_price: '', executed_qty: '', notes: '' };
-
   const [slippageDrafts, setSlippageDrafts] = useState<Record<number, SlippageDraft>>({});
   const [slippageState, setSlippageState] = useState<Record<number, 'idle' | 'saving' | 'error'>>({});
+  const [slippageError, setSlippageError] = useState<Record<number, string>>({});
 
   const latestSnapshot = snapshots[0] ?? null;
   const scoreDelta = latestSnapshot?.score != null ? report.score.total - latestSnapshot.score : null;
@@ -159,6 +160,9 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
   async function handleSlippageSubmit(decisionId: number, e: React.FormEvent) {
     e.preventDefault();
     const draft = slippageDrafts[decisionId] ?? EMPTY_SLIPPAGE;
+    if (!draft.executed_at && !draft.executed_price && !draft.executed_qty && !draft.notes) {
+      return;
+    }
     setSlippageState(prev => ({ ...prev, [decisionId]: 'saving' }));
     try {
       await createFridaySlippage({
@@ -169,10 +173,12 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
         notes: draft.notes || undefined,
       });
       setSlippageDrafts(prev => ({ ...prev, [decisionId]: EMPTY_SLIPPAGE }));
+      setSlippageError(prev => ({ ...prev, [decisionId]: '' }));
       setSlippageState(prev => ({ ...prev, [decisionId]: 'idle' }));
       router.refresh();
-    } catch {
+    } catch (err) {
       setSlippageState(prev => ({ ...prev, [decisionId]: 'error' }));
+      setSlippageError(prev => ({ ...prev, [decisionId]: err instanceof Error ? err.message : 'Failed to save. Try again.' }));
     }
   }
 
@@ -541,7 +547,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
                         <div className="flex gap-2">
                           <input
                             type="date"
-                            className="flex-1 rounded bg-background border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="flex-1 rounded bg-background border border-border/50 px-2 py-1 text-[11px] text-white focus-visible:border-ring focus-visible:outline-none"
                             value={slippageDrafts[decision.id]?.executed_at ?? ''}
                             onChange={e => setSlippageDrafts(prev => ({ ...prev, [decision.id]: { ...(prev[decision.id] ?? EMPTY_SLIPPAGE), executed_at: e.target.value } }))}
                           />
@@ -549,7 +555,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
                             type="number"
                             step="any"
                             placeholder="Price"
-                            className="w-24 rounded bg-background border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="w-24 rounded bg-background border border-border/50 px-2 py-1 text-[11px] text-white focus-visible:border-ring focus-visible:outline-none"
                             value={slippageDrafts[decision.id]?.executed_price ?? ''}
                             onChange={e => setSlippageDrafts(prev => ({ ...prev, [decision.id]: { ...(prev[decision.id] ?? EMPTY_SLIPPAGE), executed_price: e.target.value } }))}
                           />
@@ -557,7 +563,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
                             type="number"
                             step="any"
                             placeholder="Qty"
-                            className="w-20 rounded bg-background border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="w-20 rounded bg-background border border-border/50 px-2 py-1 text-[11px] text-white focus-visible:border-ring focus-visible:outline-none"
                             value={slippageDrafts[decision.id]?.executed_qty ?? ''}
                             onChange={e => setSlippageDrafts(prev => ({ ...prev, [decision.id]: { ...(prev[decision.id] ?? EMPTY_SLIPPAGE), executed_qty: e.target.value } }))}
                           />
@@ -565,7 +571,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
                         <input
                           type="text"
                           placeholder="Notes (optional)"
-                          className="w-full rounded bg-background border border-white/10 px-2 py-1 text-[11px] text-white"
+                          className="w-full rounded bg-background border border-border/50 px-2 py-1 text-[11px] text-white focus-visible:border-ring focus-visible:outline-none"
                           value={slippageDrafts[decision.id]?.notes ?? ''}
                           onChange={e => setSlippageDrafts(prev => ({ ...prev, [decision.id]: { ...(prev[decision.id] ?? EMPTY_SLIPPAGE), notes: e.target.value } }))}
                         />
@@ -577,7 +583,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot, briefing, 
                           {slippageState[decision.id] === 'saving' ? 'Saving...' : 'Save'}
                         </button>
                         {slippageState[decision.id] === 'error' && (
-                          <p className="text-[11px] text-red-400">Failed to save. Try again.</p>
+                          <p className="text-[11px] text-red-300">{slippageError[decision.id] ?? 'Failed to save. Try again.'}</p>
                         )}
                       </form>
                     </details>

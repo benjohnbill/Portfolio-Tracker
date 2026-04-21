@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Enum, JSON, Text, UniqueConstraint
-from app.types import JsonVariant
+from .types import JsonVariant
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum

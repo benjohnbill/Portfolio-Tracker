@@ -180,7 +180,7 @@ class PortfolioService:
         end_date_str = today.strftime('%Y-%m-%d')
 
         # 2. Fetch all necessary data
-        asset_ids = list(set(t.asset_id for t in transactions))
+        asset_ids = list({t.asset_id for t in transactions if t.asset_id is not None})
         assets = {a.id: a for a in db.query(Asset).filter(Asset.id.in_(asset_ids)).all()}
         dirty = False
         for asset in assets.values():
@@ -229,6 +229,11 @@ class PortfolioService:
         # 3. Calculate daily values
         history = []
         current_holdings = {aid: 0.0 for aid in asset_ids}
+        explicit_cashflows = any(t.type in {"DEPOSIT", "WITHDRAW"} for t in transactions)
+        cash_balance = 0.0
+        invested_capital = 0.0
+        previous_absolute_value = None
+        performance_value = None
         tx_index = 0
         
         # For benchmark normalization (start SPY at the same value as portfolio)
@@ -238,12 +243,29 @@ class PortfolioService:
         current_date = start_date
         while current_date <= today:
             # Update holdings
+            net_cashflow = 0.0
             while tx_index < len(transactions) and transactions[tx_index].date.date() <= current_date:
                 t = transactions[tx_index]
                 if t.type == "BUY":
-                    current_holdings[t.asset_id] += t.quantity
+                    if t.asset_id is not None:
+                        current_holdings[t.asset_id] = current_holdings.get(t.asset_id, 0.0) + (t.quantity or 0.0)
+                    if explicit_cashflows:
+                        cash_balance -= float(t.total_amount or ((t.quantity or 0.0) * (t.price or 0.0)) or 0.0)
                 elif t.type == "SELL":
-                    current_holdings[t.asset_id] -= t.quantity
+                    if t.asset_id is not None:
+                        current_holdings[t.asset_id] = current_holdings.get(t.asset_id, 0.0) - (t.quantity or 0.0)
+                    if explicit_cashflows:
+                        cash_balance += float(t.total_amount or ((t.quantity or 0.0) * (t.price or 0.0)) or 0.0)
+                elif t.type == "DEPOSIT":
+                    amount = float(t.total_amount or 0.0)
+                    cash_balance += amount
+                    invested_capital += amount
+                    net_cashflow += amount
+                elif t.type == "WITHDRAW":
+                    amount = float(t.total_amount or 0.0)
+                    cash_balance -= amount
+                    invested_capital = max(0.0, invested_capital - amount)
+                    net_cashflow -= amount
                 tx_index += 1
             
             # Get current FX rate
@@ -280,9 +302,22 @@ class PortfolioService:
                         else:
                             daily_value_krw += qty * price
             
-            if daily_value_krw > 0:
+            absolute_value_krw = daily_value_krw + (cash_balance if explicit_cashflows else 0.0)
+
+            if absolute_value_krw > 0:
                 if initial_portfolio_value is None:
-                    initial_portfolio_value = daily_value_krw
+                    initial_portfolio_value = absolute_value_krw
+
+                performance_daily_return = None
+                if explicit_cashflows:
+                    if previous_absolute_value is None or performance_value is None:
+                        performance_daily_return = 0.0
+                        performance_value = absolute_value_krw
+                    elif previous_absolute_value > 0:
+                        performance_daily_return = (absolute_value_krw - previous_absolute_value - net_cashflow) / previous_absolute_value
+                        performance_value = performance_value * (1 + performance_daily_return)
+                    else:
+                        performance_daily_return = 0.0
                 
                 # Calculate Benchmark (Normalized SPY)
                 spy_val = 0
@@ -295,15 +330,27 @@ class PortfolioService:
                     if initial_spy_price and initial_spy_price > 0:
                         spy_val = (current_spy_price / initial_spy_price) * initial_portfolio_value
 
-                alpha = ((daily_value_krw / initial_portfolio_value) - 1) - ((spy_val / initial_portfolio_value) - 1) if initial_portfolio_value and initial_portfolio_value > 0 else 0
-                history.append({
+                alpha = ((absolute_value_krw / initial_portfolio_value) - 1) - ((spy_val / initial_portfolio_value) - 1) if initial_portfolio_value and initial_portfolio_value > 0 else 0
+                item = {
                     "date": current_date.isoformat(),
-                    "total_value": int(daily_value_krw),
+                    "total_value": int(absolute_value_krw),
                     "benchmark_value": int(spy_val),
                     "fx_rate": current_fx,
                     "daily_return": 0,
                     "alpha": round(alpha, 6),
-                })
+                    "invested_capital": float(invested_capital) if explicit_cashflows else None,
+                    "cash_balance": float(cash_balance) if explicit_cashflows else None,
+                    "net_cashflow": float(net_cashflow) if explicit_cashflows else None,
+                }
+                if explicit_cashflows and performance_value is not None:
+                    item.update({
+                        "performance_value": float(performance_value),
+                        "performance_daily_return": float(performance_daily_return or 0.0),
+                        "performance_alpha": 0.0,
+                        "performance_coverage_status": "ready",
+                    })
+                history.append(item)
+                previous_absolute_value = absolute_value_krw
             
             current_date += timedelta(days=1)
 
@@ -485,5 +532,4 @@ class PortfolioService:
         }
         PortfolioService._set_to_cache(db, cache_key, result)
         return result
-
 

@@ -1,12 +1,29 @@
-export interface PortfolioHistoryData {
+export interface AbsoluteHistoryPoint {
   date: string;
-  total_value: number;
-  cash?: number;
-  invested?: number;
-  daily_return?: number;
-  fx_rate?: number;
-  benchmark_value?: number;
-  alpha?: number;
+  absolute_wealth: number;
+  invested_capital?: number;
+  cash_balance?: number;
+  net_cashflow?: number;
+}
+
+export interface PerformanceHistoryPoint {
+  date: string;
+  performance_value: number;
+  benchmark_value: number;
+  alpha: number;
+  daily_return: number;
+}
+
+export interface PortfolioHistoryData {
+  period: string;
+  archive: {
+    series: AbsoluteHistoryPoint[];
+  };
+  performance: {
+    coverage_start: string | null;
+    status: 'ready' | 'partial' | 'unavailable';
+    series: PerformanceHistoryPoint[];
+  };
 }
 
 export interface NDXHistoryPoint {
@@ -41,32 +58,65 @@ export interface Asset {
   source: string;
 }
 
-export interface TransactionCreate {
+export type TradeTransactionCreate = {
   symbol: string;
   type: 'BUY' | 'SELL';
   quantity: number;
-  price?: number; // Now optional, backend will auto-fetch if missing
-  date?: string; // ISO format YYYY-MM-DD
+  price?: number;
+  date?: string;
   account_type?: 'ISA' | 'OVERSEAS' | 'PENSION';
   account_silo?: 'ISA_ETF' | 'OVERSEAS_ETF' | 'BRAZIL_BOND';
-}
+};
 
-export interface Transaction extends TransactionCreate {
-  id: number;
+export type CashflowTransactionCreate = {
+  type: 'DEPOSIT' | 'WITHDRAW';
   total_amount: number;
+  date?: string;
+  account_type: 'ISA' | 'OVERSEAS' | 'PENSION';
+  account_silo?: 'ISA_ETF' | 'OVERSEAS_ETF' | 'BRAZIL_BOND';
+  note?: string;
+};
+
+export type TransactionCreate = TradeTransactionCreate | CashflowTransactionCreate;
+
+export interface Transaction {
+  id: number;
+  symbol?: string;
+  type: 'BUY' | 'SELL' | 'DEPOSIT' | 'WITHDRAW';
+  quantity?: number;
+  price?: number;
+  total_amount: number;
+  date?: string;
+  account_type?: 'ISA' | 'OVERSEAS' | 'PENSION';
+  account_silo?: 'ISA_ETF' | 'OVERSEAS_ETF' | 'BRAZIL_BOND';
+  note?: string;
 }
 
 // Temporary Mock Data strictly adhering to Backend API schema
 // [{ date: '2024-01-01', total_value: 10000000 }, ...]
-export const mockPortfolioHistory: PortfolioHistoryData[] = [
-  { date: '2024-01-01', total_value: 10000000 },
-  { date: '2024-01-02', total_value: 10150000 },
-  { date: '2024-01-03', total_value: 10120000 },
-  { date: '2024-01-04', total_value: 10250000 },
-  { date: '2024-01-05', total_value: 10400000 },
-  { date: '2024-01-08', total_value: 10350000 },
-  { date: '2024-01-09', total_value: 10500000 },
-];
+export const mockPortfolioHistory: PortfolioHistoryData = {
+  period: 'all',
+  archive: {
+    series: [
+      { date: '2024-01-01', absolute_wealth: 10000000 },
+      { date: '2024-01-02', absolute_wealth: 10150000 },
+      { date: '2024-01-03', absolute_wealth: 10120000 },
+      { date: '2024-01-04', absolute_wealth: 10250000 },
+      { date: '2024-01-05', absolute_wealth: 10400000 },
+      { date: '2024-01-08', absolute_wealth: 10350000 },
+      { date: '2024-01-09', absolute_wealth: 10500000 },
+    ],
+  },
+  performance: {
+    coverage_start: '2024-01-01',
+    status: 'ready',
+    series: [
+      { date: '2024-01-01', performance_value: 10000000, benchmark_value: 10000000, alpha: 0, daily_return: 0 },
+      { date: '2024-01-02', performance_value: 10150000, benchmark_value: 10090000, alpha: 0.006, daily_return: 0.015 },
+      { date: '2024-01-03', performance_value: 10120000, benchmark_value: 10110000, alpha: 0.001, daily_return: -0.00296 },
+    ],
+  },
+};
 
 export interface PortfolioSummary {
   total_value: number;
@@ -376,22 +426,91 @@ export interface FridayComparison {
   };
 }
 
+const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
+  period,
+  archive: { series: [] },
+  performance: {
+    coverage_start: null,
+    status: 'unavailable',
+    series: [],
+  },
+});
+
+type LegacyPortfolioHistoryPoint = {
+  date: string;
+  total_value: number;
+  invested_capital?: number;
+  cash_balance?: number;
+  daily_return?: number;
+  benchmark_value?: number;
+  alpha?: number;
+};
+
+function normalizePortfolioHistoryResponse(payload: unknown, period: string): PortfolioHistoryData {
+  if (Array.isArray(payload)) {
+    const archiveSeries: AbsoluteHistoryPoint[] = payload
+      .filter((point): point is LegacyPortfolioHistoryPoint => !!point && typeof point === 'object' && 'date' in point && 'total_value' in point)
+      .map((point) => ({
+        date: point.date,
+        absolute_wealth: point.total_value,
+        invested_capital: point.invested_capital,
+        cash_balance: point.cash_balance,
+      }));
+
+    const performanceSeries: PerformanceHistoryPoint[] = payload
+      .filter((point): point is LegacyPortfolioHistoryPoint => !!point && typeof point === 'object' && 'date' in point && 'total_value' in point)
+      .filter((point) => point.benchmark_value !== undefined || point.alpha !== undefined)
+      .map((point) => ({
+        date: point.date,
+        performance_value: point.total_value,
+        benchmark_value: point.benchmark_value ?? 0,
+        alpha: point.alpha ?? 0,
+        daily_return: point.daily_return ?? 0,
+      }));
+
+    return {
+      period,
+      archive: { series: archiveSeries },
+      performance: {
+        coverage_start: performanceSeries[0]?.date ?? null,
+        status: performanceSeries.length > 0 ? 'ready' : 'unavailable',
+        series: performanceSeries,
+      },
+    };
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return emptyPortfolioHistory(period);
+  }
+
+  const data = payload as PortfolioHistoryData;
+  return {
+    period: data.period ?? period,
+    archive: {
+      series: Array.isArray(data.archive?.series) ? data.archive.series : [],
+    },
+    performance: {
+      coverage_start: data.performance?.coverage_start ?? null,
+      status: data.performance?.status ?? 'unavailable',
+      series: Array.isArray(data.performance?.series) ? data.performance.series : [],
+    },
+  };
+}
+
 /**
- * Fetches portfolio history from the Backend.
- * Backend endpoint: http://localhost:8000/api/portfolio/history
+ * Fetches split archive/performance portfolio history from the backend.
  */
-export async function getPortfolioHistory(period: string = 'all'): Promise<PortfolioHistoryData[]> {
+export async function getPortfolioHistory(period: string = 'all'): Promise<PortfolioHistoryData> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/portfolio/history?period=${period}`, {
       cache: 'no-store' 
     });
     if (!res.ok) throw new Error('Failed to fetch from backend');
-    return res.json();
+    return normalizePortfolioHistoryResponse(await res.json(), period);
   } catch (error) {
     console.error('API Error:', error);
-    // Return empty list instead of confusing mock data
-    return [];
+    return emptyPortfolioHistory(period);
   }
 }
 
@@ -508,7 +627,7 @@ export async function getMSTRHistory(period: string = '1y'): Promise<MSTRHistory
 }
 
 export async function getPortfolioPageData(period: string = 'all'): Promise<{
-  history: ApiResult<PortfolioHistoryData[]>;
+  history: ApiResult<PortfolioHistoryData>;
   allocation: ApiResult<PortfolioAllocationData[]>;
   summary: ApiResult<PortfolioSummary>;
   ndxHistory: NDXHistoryPoint[];
@@ -534,7 +653,7 @@ export async function getPortfolioPageData(period: string = 'all'): Promise<{
   };
 
   const [history, allocation, summary, ndxHistory, mstrHistory] = await Promise.all([
-    fetchJson<PortfolioHistoryData[]>(`/api/portfolio/history?period=${period}`),
+    getPortfolioHistory(period).then((data) => ({ data, error: null as string | null })).catch((error) => ({ data: null, error: error instanceof Error ? error.message : 'Unknown API error' })),
     fetchJson<PortfolioAllocationData[]>('/api/portfolio/allocation'),
     fetchJson<PortfolioSummary>('/api/portfolio/summary'),
     getNDXHistory(period),

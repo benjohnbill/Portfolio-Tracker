@@ -1,8 +1,9 @@
 """Risk-adjusted composition — B4 trajectory + B5 scorecard + freeze-time precompute.
 
 Layer 2/3 for the B4/B5/B2 bundle. Consumes BenchmarkService primitives and
-PortfolioSnapshot rows to produce the JSONB payload written at freeze time and
-the two read-only API payloads served to the frontend.
+cashflow-neutral PortfolioPerformanceSnapshot rows to produce the JSONB payload
+written at freeze time and the two read-only API payloads served to the
+frontend.
 """
 from __future__ import annotations
 
@@ -14,10 +15,13 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from ..models import PortfolioSnapshot, WeeklyDecision, WeeklySnapshot
+from .. import models as app_models
+from ..models import WeeklyDecision, WeeklySnapshot
 from .benchmark_service import BenchmarkService, RiskMetrics
 
 logger = logging.getLogger(__name__)
+
+PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 TRAILING_1Y_DAYS = 365
 SCORECARD_MATURITY_WEEKS = 26
@@ -70,18 +74,34 @@ class RiskAdjustedService:
 
     @staticmethod
     def _load_portfolio_series(db: Session, start: date, end: date) -> pd.Series:
-        """Load PortfolioSnapshot.total_value values indexed by date between [start, end]."""
+        """Load covered performance values indexed by date between [start, end].
+
+        Risk metrics are performance-only. If the split performance table is not
+        present yet, or coverage rows are unavailable, return an empty series
+        rather than falling back to absolute portfolio_snapshots.
+        """
+        model = PortfolioPerformanceSnapshot
+        if model is None:
+            return pd.Series(dtype=float)
+
         rows = (
-            db.query(PortfolioSnapshot)
-            .filter(PortfolioSnapshot.date >= start)
-            .filter(PortfolioSnapshot.date <= end)
-            .order_by(PortfolioSnapshot.date.asc())
+            db.query(model)
+            .filter(model.date >= start)
+            .filter(model.date <= end)
+            .order_by(model.date.asc())
             .all()
         )
         if not rows:
             return pd.Series(dtype=float)
-        idx = [pd.Timestamp(r.date) for r in rows]
-        vals = [float(getattr(r, "total_value", 0) or 0) for r in rows]
+        covered_rows = [
+            r for r in rows
+            if getattr(r, "coverage_status", "ready") != "unavailable"
+            and getattr(r, "performance_value", None) is not None
+        ]
+        if not covered_rows:
+            return pd.Series(dtype=float)
+        idx = [pd.Timestamp(r.date) for r in covered_rows]
+        vals = [float(getattr(r, "performance_value")) for r in covered_rows]
         return pd.Series(vals, index=idx, dtype=float)
 
     @staticmethod

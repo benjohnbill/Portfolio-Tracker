@@ -7,9 +7,10 @@ from datetime import date, datetime, timedelta, timezone
 import random
 import time
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Any, Dict, List, Optional
 
 from .database import SessionLocal, engine, Base, get_db
+from . import models as app_models
 from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
@@ -30,6 +31,8 @@ from .services.intelligence_service import IntelligenceService
 from .services.outcome_evaluator import OutcomeEvaluatorService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
+
+PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 @app.on_event("startup")
 def on_startup():
@@ -249,20 +252,90 @@ def get_portfolio_allocation(db: Session = Depends(get_db)):
     """Calculates current holdings and weights in KRW"""
     return PortfolioService.get_portfolio_allocation(db)
 
+
+def _coerce_iso_date(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _performance_value(row: Any) -> Optional[float]:
+    for field in ("performance_value", "neutralized_value", "neutralized_performance_value"):
+        value = getattr(row, field, None)
+        if value is not None:
+            return float(value)
+    return None
+
+
+def _load_portfolio_performance_history(db: Session, start_date: Optional[date], end_date: date) -> Dict[str, Any]:
+    """Load covered cashflow-neutral history without falling back to absolute snapshots."""
+    model = PortfolioPerformanceSnapshot
+    if model is None:
+        return {"coverage_start": None, "status": "unavailable", "series": []}
+
+    query = db.query(model)
+    if start_date is not None:
+        query = query.filter(model.date >= start_date)
+    rows = (
+        query
+        .filter(model.date <= end_date)
+        .order_by(model.date.asc())
+        .all()
+    )
+
+    series = []
+    coverage_start = None
+    statuses = []
+    for row in rows:
+        status = getattr(row, "coverage_status", "ready") or "ready"
+        if status == "unavailable":
+            continue
+        value = _performance_value(row)
+        if value is None:
+            continue
+        row_coverage_start = _coerce_iso_date(getattr(row, "coverage_start_date", None))
+        coverage_start = coverage_start or row_coverage_start or _coerce_iso_date(getattr(row, "date", None))
+        statuses.append(status)
+        series.append({
+            "date": _coerce_iso_date(row.date),
+            "performance_value": value,
+            "benchmark_value": float(getattr(row, "benchmark_value", 0) or 0),
+            "alpha": float(getattr(row, "alpha", 0) or 0),
+            "daily_return": float(getattr(row, "daily_return", 0) or 0),
+        })
+
+    if not series:
+        return {"coverage_start": None, "status": "unavailable", "series": []}
+
+    return {
+        "coverage_start": coverage_start,
+        "status": "partial" if any(status == "partial" for status in statuses) else "ready",
+        "series": series,
+    }
+
+
 @app.get("/api/portfolio/history")
 def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
-    """Returns live-calculated portfolio value history for charts."""
+    """Return split archive and cashflow-neutral performance histories."""
     history = PortfolioService.get_equity_curve(db, period=period)
-    return [
+    archive_series = [
         {
             "date": day["date"],
-            "total_value": day["total_value"],
-            "daily_return": day["daily_return"],
-            "benchmark_value": day.get("benchmark_value", 0),
-            "alpha": day.get("alpha", 0),
+            "absolute_wealth": day["total_value"],
+            "invested_capital": day.get("invested_capital"),
+            "cash_balance": day.get("cash_balance"),
+            "net_cashflow": day.get("net_cashflow"),
         }
         for day in history
     ]
+    start_date = date.fromisoformat(archive_series[0]["date"]) if archive_series else None
+    return {
+        "period": period,
+        "archive": {"series": archive_series},
+        "performance": _load_portfolio_performance_history(db, start_date, date.today()),
+    }
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):

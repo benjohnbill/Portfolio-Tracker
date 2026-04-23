@@ -13,15 +13,17 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from .. import models as app_models
 from ..models import (
     DecisionOutcome,
-    PortfolioSnapshot,
     ScoringAttribution,
     WeeklyDecision,
     WeeklySnapshot,
 )
 
 logger = logging.getLogger(__name__)
+
+PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 # Horizon definitions in days
 HORIZON_DAYS: Dict[str, int] = {

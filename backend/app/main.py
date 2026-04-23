@@ -41,10 +41,11 @@ def on_startup():
 
 # Request Models
 class TransactionCreate(BaseModel):
-    symbol: str
-    type: str # BUY, SELL
-    quantity: float
+    symbol: Optional[str] = None
+    type: str # BUY, SELL, DEPOSIT, WITHDRAW
+    quantity: Optional[float] = None
     price: Optional[float] = None
+    total_amount: Optional[float] = None
     date: Optional[str] = None # Change to str for easier Pydantic parsing from JSON
     account_type: Optional[str] = None
     account_silo: Optional[str] = None
@@ -140,7 +141,7 @@ def get_transactions(db: Session = Depends(get_db)):
         {
             "id": t.id,
             "date": t.date.isoformat(),
-            "asset": t.asset.symbol,
+            "asset": t.asset.symbol if t.asset else None,
             "type": t.type,
             "quantity": t.quantity,
             "price": t.price,
@@ -148,16 +149,24 @@ def get_transactions(db: Session = Depends(get_db)):
         } for t in txs
     ]
 
+
+def _serialize_transaction(t: Transaction) -> Dict[str, Any]:
+    return {
+        "id": t.id,
+        "date": t.date.isoformat() if t.date else None,
+        "asset": t.asset.symbol if t.asset else None,
+        "type": t.type,
+        "quantity": t.quantity,
+        "price": t.price,
+        "total_amount": t.total_amount,
+        "account_type": t.account_type.value if t.account_type else None,
+    }
+
+
 @app.post("/api/transactions")
 def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
-    """Creates a new trade record, automatically creating new assets if they don't exist"""
-    symbol_upper = tx.symbol.strip().upper()
-    is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
-    
-    # 1. Find existing asset or create a new one
-    asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
-    if not asset and is_kr:
-        asset = db.query(Asset).filter(Asset.code == symbol_upper, Asset.source == "KR").first()
+    """Creates a trade or external cashflow record."""
+    tx_type = (tx.type or "").upper()
 
     requested_type = None
     if tx.account_type:
@@ -172,7 +181,49 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
             requested_silo = AccountSilo[tx.account_silo.upper()]
         except KeyError:
             raise HTTPException(status_code=400, detail="Invalid account_silo")
+
+    try:
+        final_date = datetime.strptime(tx.date, "%Y-%m-%d").date() if tx.date else date.today()
+    except:
+        try:
+            final_date = datetime.strptime(tx.date, "%m/%d/%Y").date()
+        except:
+            final_date = date.today()
+
+    if tx_type in {"DEPOSIT", "WITHDRAW"}:
+        if tx.symbol or tx.quantity is not None or tx.price is not None:
+            raise HTTPException(status_code=400, detail="Cashflow transactions must not include symbol, quantity, or price")
+        if tx.total_amount is None or tx.total_amount <= 0:
+            raise HTTPException(status_code=400, detail="Cashflow transactions require positive total_amount")
+
+        new_tx = Transaction(
+            asset_id=None,
+            type=tx_type,
+            quantity=None,
+            price=None,
+            total_amount=float(tx.total_amount),
+            date=final_date,
+            account_type=requested_type or AccountType.OVERSEAS,
+        )
+        db.add(new_tx)
+        db.commit()
+        db.refresh(new_tx)
+        PortfolioService.clear_cache(db)
+        return _serialize_transaction(new_tx)
+
+    if tx_type not in {"BUY", "SELL"}:
+        raise HTTPException(status_code=400, detail="type must be BUY, SELL, DEPOSIT, or WITHDRAW")
+    if not tx.symbol or tx.quantity is None or tx.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Trade transactions require symbol and positive quantity")
+
+    symbol_upper = tx.symbol.strip().upper()
+    is_kr = symbol_upper.isdigit() and len(symbol_upper) == 6
     
+    # 1. Find existing asset or create a new one
+    asset = db.query(Asset).filter(Asset.symbol == symbol_upper).first()
+    if not asset and is_kr:
+        asset = db.query(Asset).filter(Asset.code == symbol_upper, Asset.source == "KR").first()
+
     if not asset:
         source = "KR" if is_kr else "US"
         asset = Asset(
@@ -218,20 +269,10 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         else:
             final_price = fetched_price
         
-    # 3. Parse date
-    try:
-        final_date = datetime.strptime(tx.date, "%Y-%m-%d").date() if tx.date else date.today()
-    except:
-        # Handle MM/DD/YYYY format if frontend sends it
-        try:
-            final_date = datetime.strptime(tx.date, "%m/%d/%Y").date()
-        except:
-            final_date = date.today()
-
     # 4. Create the transaction
     new_tx = Transaction(
         asset_id=asset.id,
-        type=tx.type,
+        type=tx_type,
         quantity=tx.quantity,
         price=final_price,
         total_amount=tx.quantity * final_price,
@@ -245,7 +286,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     # Invalidate cache so new transactions are reflected immediately
     PortfolioService.clear_cache(db)
     
-    return new_tx
+    return _serialize_transaction(new_tx)
 
 @app.get("/api/portfolio/allocation")
 def get_portfolio_allocation(db: Session = Depends(get_db)):
@@ -269,11 +310,33 @@ def _performance_value(row: Any) -> Optional[float]:
     return None
 
 
-def _load_portfolio_performance_history(db: Session, start_date: Optional[date], end_date: date) -> Dict[str, Any]:
+def _performance_from_live_history(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    series = []
+    for day in history:
+        if day.get("performance_coverage_status") != "ready" or day.get("performance_value") is None:
+            continue
+        series.append({
+            "date": day["date"],
+            "performance_value": float(day["performance_value"]),
+            "benchmark_value": float(day.get("benchmark_value", 0) or 0),
+            "alpha": float(day.get("performance_alpha", 0) or 0),
+            "daily_return": float(day.get("performance_daily_return", 0) or 0),
+        })
+    if not series:
+        return {"coverage_start": None, "status": "unavailable", "series": []}
+    return {"coverage_start": series[0]["date"], "status": "ready", "series": series}
+
+
+def _load_portfolio_performance_history(
+    db: Session,
+    start_date: Optional[date],
+    end_date: date,
+    fallback_history: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Load covered cashflow-neutral history without falling back to absolute snapshots."""
     model = PortfolioPerformanceSnapshot
     if model is None:
-        return {"coverage_start": None, "status": "unavailable", "series": []}
+        return _performance_from_live_history(fallback_history or [])
 
     query = db.query(model)
     if start_date is not None:
@@ -307,7 +370,7 @@ def _load_portfolio_performance_history(db: Session, start_date: Optional[date],
         })
 
     if not series:
-        return {"coverage_start": None, "status": "unavailable", "series": []}
+        return _performance_from_live_history(fallback_history or [])
 
     return {
         "coverage_start": coverage_start,
@@ -334,7 +397,7 @@ def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
     return {
         "period": period,
         "archive": {"series": archive_series},
-        "performance": _load_portfolio_performance_history(db, start_date, date.today()),
+        "performance": _load_portfolio_performance_history(db, start_date, date.today(), history),
     }
 
 @app.get("/api/portfolio/summary")

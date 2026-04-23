@@ -1,24 +1,26 @@
 'use client';
 
 import {
-  Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, CartesianGrid, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { format } from 'date-fns';
-import { PortfolioHistoryData } from '@/lib/api';
+import { PerformanceHistoryPoint } from '@/lib/api';
 
 interface AlphaChartProps {
-  data: PortfolioHistoryData[];
+  data: PerformanceHistoryPoint[];
 }
 
 export function AlphaChart({ data }: AlphaChartProps) {
   const chartData = data
-    .filter((point) => !Number.isNaN(new Date(point.date).getTime()) && point.alpha !== undefined)
+    .filter((point) => !Number.isNaN(new Date(point.date).getTime()))
     .map((point) => {
       const alphaPercent = Number(((point.alpha ?? 0) * 100).toFixed(2));
 
       return {
         date: point.date,
         alpha: alphaPercent,
+        benchmarkValue: point.benchmark_value,
+        performanceValue: point.performance_value,
         alphaPositive: alphaPercent > 0 ? alphaPercent : 0,
         alphaNegative: alphaPercent < 0 ? alphaPercent : 0,
       };
@@ -109,6 +111,8 @@ export function AlphaChart({ data }: AlphaChartProps) {
             fill="transparent"
             strokeWidth={0}
           />
+          <Line type="monotone" dataKey="benchmarkValue" stroke="transparent" dot={false} />
+          <Line type="monotone" dataKey="performanceValue" stroke="transparent" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

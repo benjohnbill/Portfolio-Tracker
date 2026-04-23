@@ -1,13 +1,13 @@
 'use client';
 
 import {
-  Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis
+  Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis
 } from 'recharts';
 import { format } from 'date-fns';
-import { PortfolioHistoryData } from '@/lib/api';
+import { AbsoluteHistoryPoint } from '@/lib/api';
 
 interface HistoryChartProps {
-  data: PortfolioHistoryData[];
+  data: AbsoluteHistoryPoint[];
 }
 
 export function HistoryChart({ data }: HistoryChartProps) {
@@ -70,41 +70,24 @@ export function HistoryChart({ data }: HistoryChartProps) {
               const date = new Date(label);
               return Number.isNaN(date.getTime()) ? 'Unknown date' : format(date, 'MMM d, yyyy');
             }}
-            formatter={(value: number, name: string) => {
-              const label = name === 'benchmark_value' ? 'SPY Benchmark' : 'Portfolio';
-              return [formatCurrency(value), label];
-            }}
+            formatter={(value: number) => [formatCurrency(value), 'Archive Wealth']}
           />
           <Area
             type="monotone"
-            dataKey="total_value"
+            dataKey="absolute_wealth"
             stroke="#4fd1c5"
             fillOpacity={1}
             fill="url(#colorValue)"
             strokeWidth={2}
             animationDuration={1500}
-            name="total_value"
-          />
-          <Line
-            type="monotone"
-            dataKey="benchmark_value"
-            stroke="#94a3b8"
-            strokeWidth={1.5}
-            strokeDasharray="4 4"
-            dot={false}
-            animationDuration={1500}
-            name="benchmark_value"
+            name="absolute_wealth"
           />
         </AreaChart>
       </ResponsiveContainer>
       <div className="flex items-center justify-center gap-6 mt-2 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-[#4fd1c5] rounded" />
-          <span>Portfolio</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 bg-[#94a3b8] rounded" style={{ borderBottom: '1px dashed #94a3b8' }} />
-          <span>SPY Benchmark</span>
+          <span>Archive Wealth</span>
         </div>
       </div>
     </div>

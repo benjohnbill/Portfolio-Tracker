@@ -20,24 +20,17 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 def test_get_portfolio_history_mock():
-    # Test getting history (should return mock data as DB is empty)
+    # Test split archive/performance contract. This endpoint may read the
+    # configured dev DB in legacy tests, so assert shape rather than fixture size.
     response = client.get("/api/portfolio/history?period=1y")
     assert response.status_code == 200
 
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) > 0
-
-    # Check data structure
-    first_item = data[0]
-    assert "date" in first_item
-    assert "total_value" in first_item
-    assert "daily_return" in first_item
-    assert "benchmark_value" in first_item
-    assert "alpha" in first_item
-
-    # Check values logic (mock data always starts at 10M)
-    assert first_item["total_value"] > 0
+    assert data["period"] == "1y"
+    assert set(data.keys()) == {"period", "archive", "performance"}
+    assert isinstance(data["archive"]["series"], list)
+    assert set(data["performance"].keys()) == {"coverage_start", "status", "series"}
+    assert data["performance"]["status"] in {"ready", "partial", "unavailable"}
 
 
 # ---------------------------------------------------------------------------

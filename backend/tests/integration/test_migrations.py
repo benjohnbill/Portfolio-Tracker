@@ -37,6 +37,20 @@ def test_migration_roundtrip_preserves_plan_d_columns(pg_engine, pg_url):
 
         snap_cols = {c["name"] for c in insp.get_columns("weekly_snapshots")}
         assert "comment" in snap_cols
+
+        assert "portfolio_performance_snapshots" in insp.get_table_names()
+        perf_cols = {c["name"] for c in insp.get_columns("portfolio_performance_snapshots")}
+        assert {
+            "date",
+            "performance_value",
+            "benchmark_value",
+            "daily_return",
+            "alpha",
+            "coverage_start_date",
+            "coverage_status",
+            "source_version",
+            "updated_at",
+        }.issubset(perf_cols)
     finally:
         if prior is None:
             os.environ.pop("DATABASE_URL", None)

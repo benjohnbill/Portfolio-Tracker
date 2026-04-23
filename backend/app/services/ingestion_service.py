@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import func
 import pandas as pd
 
-from ..models import Asset, RawDailyPrice, PortfolioSnapshot
+from ..models import Asset, RawDailyPrice, PortfolioSnapshot, PortfolioPerformanceSnapshot
 from .portfolio_service import PortfolioService
 from .price_service import PriceService
 
@@ -93,6 +93,8 @@ class PriceIngestionService:
             return
 
         records = []
+        performance_records = []
+        coverage_start_date = None
         for day in history:
             # Handle both string and datetime types for flexibility
             date_val = day["date"]
@@ -104,9 +106,23 @@ class PriceIngestionService:
             records.append({
                 "date": date_val,
                 "total_value": float(day["total_value"]),
-                "invested_capital": 0.0,
-                "cash_balance": 0.0
+                "invested_capital": float(day.get("invested_capital") or 0.0),
+                "cash_balance": float(day.get("cash_balance") or 0.0)
             })
+
+            if day.get("performance_coverage_status") == "ready" and day.get("performance_value") is not None:
+                coverage_start_date = coverage_start_date or date_val
+                performance_records.append({
+                    "date": date_val,
+                    "performance_value": float(day["performance_value"]),
+                    "benchmark_value": float(day.get("benchmark_value") or 0.0),
+                    "daily_return": float(day.get("performance_daily_return") or 0.0),
+                    "alpha": float(day.get("performance_alpha") or 0.0),
+                    "coverage_start_date": coverage_start_date,
+                    "coverage_status": "ready",
+                    "source_version": PortfolioService.VALUATION_VERSION,
+                    "updated_at": datetime.now(timezone.utc),
+                })
         
         count = 0
         if records:
@@ -126,3 +142,25 @@ class PriceIngestionService:
             print(f"Successfully generated/updated {count} portfolio snapshots.")
         else:
             print("No valid snapshot records to insert.")
+
+        perf_count = 0
+        for record in performance_records:
+            stmt = insert(PortfolioPerformanceSnapshot).values(**record)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['date'],
+                set_=dict(
+                    performance_value=stmt.excluded.performance_value,
+                    benchmark_value=stmt.excluded.benchmark_value,
+                    daily_return=stmt.excluded.daily_return,
+                    alpha=stmt.excluded.alpha,
+                    coverage_start_date=stmt.excluded.coverage_start_date,
+                    coverage_status=stmt.excluded.coverage_status,
+                    source_version=stmt.excluded.source_version,
+                    updated_at=stmt.excluded.updated_at,
+                )
+            )
+            db.execute(stmt)
+            perf_count += 1
+        if performance_records:
+            db.commit()
+            print(f"Successfully generated/updated {perf_count} portfolio performance snapshots.")

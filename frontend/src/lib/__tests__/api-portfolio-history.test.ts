@@ -46,7 +46,7 @@ test('getPortfolioHistory preserves the split archive/performance contract', asy
   });
 });
 
-test('getPortfolioHistory normalizes legacy flat arrays without dropping coverage state', async () => {
+test('getPortfolioHistory treats legacy flat arrays as archive-only', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
     json: async () => [
@@ -61,14 +61,10 @@ test('getPortfolioHistory normalizes legacy flat arrays without dropping coverag
     { date: '2026-04-20', absolute_wealth: 1000, invested_capital: undefined, cash_balance: undefined },
     { date: '2026-04-21', absolute_wealth: 1500, invested_capital: undefined, cash_balance: undefined },
   ]);
-  expect(history.performance.coverage_start).toBe('2026-04-20');
-  expect(history.performance.status).toBe('ready');
-  expect(history.performance.series[1]).toEqual({
-    date: '2026-04-21',
-    performance_value: 1500,
-    benchmark_value: 1010,
-    alpha: 0.49,
-    daily_return: 0.5,
+  expect(history.performance).toEqual({
+    coverage_start: null,
+    status: 'unavailable',
+    series: [],
   });
 });
 

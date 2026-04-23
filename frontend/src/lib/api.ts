@@ -457,24 +457,13 @@ function normalizePortfolioHistoryResponse(payload: unknown, period: string): Po
         cash_balance: point.cash_balance,
       }));
 
-    const performanceSeries: PerformanceHistoryPoint[] = payload
-      .filter((point): point is LegacyPortfolioHistoryPoint => !!point && typeof point === 'object' && 'date' in point && 'total_value' in point)
-      .filter((point) => point.benchmark_value !== undefined || point.alpha !== undefined)
-      .map((point) => ({
-        date: point.date,
-        performance_value: point.total_value,
-        benchmark_value: point.benchmark_value ?? 0,
-        alpha: point.alpha ?? 0,
-        daily_return: point.daily_return ?? 0,
-      }));
-
     return {
       period,
       archive: { series: archiveSeries },
       performance: {
-        coverage_start: performanceSeries[0]?.date ?? null,
-        status: performanceSeries.length > 0 ? 'ready' : 'unavailable',
-        series: performanceSeries,
+        coverage_start: null,
+        status: 'unavailable',
+        series: [],
       },
     };
   }

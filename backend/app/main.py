@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date, datetime, timedelta, timezone
@@ -10,8 +11,7 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
 from .database import SessionLocal, engine, Base, get_db
-from . import models as app_models
-from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot
+from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot, PortfolioPerformanceSnapshot
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -31,8 +31,6 @@ from .services.intelligence_service import IntelligenceService
 from .services.outcome_evaluator import OutcomeEvaluatorService
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
-
-PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 @app.on_event("startup")
 def on_startup():
@@ -310,43 +308,25 @@ def _performance_value(row: Any) -> Optional[float]:
     return None
 
 
-def _performance_from_live_history(history: List[Dict[str, Any]]) -> Dict[str, Any]:
-    series = []
-    for day in history:
-        if day.get("performance_coverage_status") != "ready" or day.get("performance_value") is None:
-            continue
-        series.append({
-            "date": day["date"],
-            "performance_value": float(day["performance_value"]),
-            "benchmark_value": float(day.get("benchmark_value", 0) or 0),
-            "alpha": float(day.get("performance_alpha", 0) or 0),
-            "daily_return": float(day.get("performance_daily_return", 0) or 0),
-        })
-    if not series:
-        return {"coverage_start": None, "status": "unavailable", "series": []}
-    return {"coverage_start": series[0]["date"], "status": "ready", "series": series}
-
-
 def _load_portfolio_performance_history(
     db: Session,
     start_date: Optional[date],
     end_date: date,
-    fallback_history: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Load covered cashflow-neutral history without falling back to absolute snapshots."""
-    model = PortfolioPerformanceSnapshot
-    if model is None:
-        return _performance_from_live_history(fallback_history or [])
-
-    query = db.query(model)
+    query = db.query(PortfolioPerformanceSnapshot)
     if start_date is not None:
-        query = query.filter(model.date >= start_date)
-    rows = (
-        query
-        .filter(model.date <= end_date)
-        .order_by(model.date.asc())
-        .all()
-    )
+        query = query.filter(PortfolioPerformanceSnapshot.date >= start_date)
+    try:
+        rows = (
+            query
+            .filter(PortfolioPerformanceSnapshot.date <= end_date)
+            .order_by(PortfolioPerformanceSnapshot.date.asc())
+            .all()
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        return {"coverage_start": None, "status": "unavailable", "series": []}
 
     series = []
     coverage_start = None
@@ -370,7 +350,7 @@ def _load_portfolio_performance_history(
         })
 
     if not series:
-        return _performance_from_live_history(fallback_history or [])
+        return {"coverage_start": None, "status": "unavailable", "series": []}
 
     return {
         "coverage_start": coverage_start,
@@ -397,7 +377,7 @@ def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
     return {
         "period": period,
         "archive": {"series": archive_series},
-        "performance": _load_portfolio_performance_history(db, start_date, date.today(), history),
+        "performance": _load_portfolio_performance_history(db, start_date, date.today()),
     }
 
 @app.get("/api/portfolio/summary")
@@ -411,7 +391,7 @@ def get_macro_vitals():
 
 @app.get("/api/stress-test")
 def get_stress_test(db: Session = Depends(get_db)):
-    txs = db.query(Transaction).all()
+    txs = db.query(Transaction).filter(Transaction.type.in_(["BUY", "SELL"])).all()
     holdings = {}
     for t in txs: holdings[t.asset_id] = holdings.get(t.asset_id, 0) + (t.quantity if t.type == "BUY" else -t.quantity)
     active_holdings = {aid: qty for aid, qty in holdings.items() if qty > 0.0001}

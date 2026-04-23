@@ -11,19 +11,18 @@ from datetime import date, timedelta, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import models as app_models
 from ..models import (
     DecisionOutcome,
+    PortfolioPerformanceSnapshot,
     ScoringAttribution,
     WeeklyDecision,
     WeeklySnapshot,
 )
 
 logger = logging.getLogger(__name__)
-
-PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 # Horizon definitions in days
 HORIZON_DAYS: Dict[str, int] = {
@@ -285,7 +284,7 @@ class IntelligenceService:
 
         For each WeeklyDecision, checks whether any horizon has matured
         (enough time has passed) and creates/updates DecisionOutcome rows
-        using portfolio_snapshots for value data.
+        using cashflow-neutral performance snapshots for value data.
         """
         decisions = (
             db.query(WeeklyDecision, WeeklySnapshot)
@@ -302,10 +301,21 @@ class IntelligenceService:
             decision_date = snapshot.snapshot_date
             report = snapshot.frozen_report or {}
             score_section = report.get("score", {})
-            portfolio_section = report.get("portfolioSnapshot", {})
-
             score_at_decision = score_section.get("total")
-            value_at_decision = portfolio_section.get("totalValueKRW")
+            try:
+                decision_perf_snapshot = (
+                    db.query(PortfolioPerformanceSnapshot)
+                    .filter(PortfolioPerformanceSnapshot.date <= decision_date)
+                    .filter(PortfolioPerformanceSnapshot.coverage_status != "unavailable")
+                    .order_by(PortfolioPerformanceSnapshot.date.desc())
+                    .first()
+                )
+            except SQLAlchemyError:
+                db.rollback()
+                return created
+            if not decision_perf_snapshot:
+                continue
+            value_at_decision = decision_perf_snapshot.performance_value
 
             # Extract regime at decision time
             macro = report.get("macroSnapshot", {})
@@ -327,17 +337,18 @@ class IntelligenceService:
                 if existing and existing.evaluated_at is not None:
                     continue
 
-                # Find closest portfolio_snapshot to target_date
+                # Performance outcomes must use cashflow-neutral snapshots only.
                 horizon_snapshot = (
-                    db.query(PortfolioSnapshot)
-                    .filter(PortfolioSnapshot.date <= target_date)
-                    .order_by(PortfolioSnapshot.date.desc())
+                    db.query(PortfolioPerformanceSnapshot)
+                    .filter(PortfolioPerformanceSnapshot.date <= target_date)
+                    .filter(PortfolioPerformanceSnapshot.coverage_status != "unavailable")
+                    .order_by(PortfolioPerformanceSnapshot.date.desc())
                     .first()
                 )
                 if not horizon_snapshot:
                     continue
 
-                value_at_horizon = horizon_snapshot.total_value
+                value_at_horizon = horizon_snapshot.performance_value
 
                 # Find closest weekly_snapshot for score/regime at horizon
                 horizon_weekly = (

@@ -4,8 +4,9 @@ from datetime import date, datetime, time, timedelta
 
 import pandas as pd
 
-from app.models import AccountType, Asset, RawDailyPrice, Transaction
+from app.models import AccountType, Asset, PortfolioPerformanceSnapshot, RawDailyPrice, Transaction
 from app.services.exchange_service import ExchangeService
+from app.services.portfolio_service import PortfolioService
 
 
 def _seed_raw_price(db_session, when: date, ticker: str, close_price: float) -> None:
@@ -48,6 +49,44 @@ def _seed_transaction(
             account_type=account_type,
         )
     )
+
+
+def _persist_performance_from_live_history(db_session) -> None:
+    history = PortfolioService.get_equity_curve(db_session, period="all")
+    coverage_start = None
+    for day in history:
+        if day.get("performance_coverage_status") != "ready" or day.get("performance_value") is None:
+            continue
+        row_date = date.fromisoformat(day["date"])
+        coverage_start = coverage_start or row_date
+        db_session.add(
+            PortfolioPerformanceSnapshot(
+                date=row_date,
+                performance_value=float(day["performance_value"]),
+                benchmark_value=float(day.get("benchmark_value") or 0),
+                daily_return=float(day.get("performance_daily_return") or 0),
+                alpha=float(day.get("performance_alpha") or 0),
+                coverage_start_date=coverage_start,
+                coverage_status="ready",
+                source_version=PortfolioService.VALUATION_VERSION,
+            )
+        )
+    db_session.commit()
+
+
+def test_portfolio_performance_snapshot_model_exists():
+    assert PortfolioPerformanceSnapshot.__tablename__ == "portfolio_performance_snapshots"
+    columns = set(PortfolioPerformanceSnapshot.__table__.columns.keys())
+    assert {
+        "date",
+        "performance_value",
+        "benchmark_value",
+        "daily_return",
+        "alpha",
+        "coverage_start_date",
+        "coverage_status",
+        "source_version",
+    }.issubset(columns)
 
 
 def test_create_transaction_accepts_cashflow_union_contract(client):
@@ -114,6 +153,46 @@ def test_portfolio_history_returns_split_archive_and_performance_payload(client,
     assert payload["performance"]["status"] in {"ready", "partial", "unavailable"}
 
 
+def test_history_performance_does_not_use_live_fallback_when_disabled(client, db_session, monkeypatch):
+    today = date.today()
+    start = today - timedelta(days=1)
+    asset = _seed_asset(db_session, symbol="KRFALL", code="000779")
+    _seed_transaction(
+        db_session,
+        tx_type="DEPOSIT",
+        when=start,
+        total_amount=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="BUY",
+        when=start,
+        total_amount=100000,
+        asset=asset,
+        quantity=1,
+        price=100000,
+        account_type=AccountType.ISA,
+    )
+    for current_day in [start, today]:
+        _seed_raw_price(db_session, current_day, asset.code, 100000)
+        _seed_raw_price(db_session, current_day, "SPY", 500)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        ExchangeService,
+        "get_usd_krw_history",
+        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
+    )
+
+    response = client.get("/api/portfolio/history?period=all")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["archive"]["series"]
+    assert payload["performance"] == {"coverage_start": None, "status": "unavailable", "series": []}
+
+
 
 def test_deposit_only_day_increases_archive_without_improving_performance(client, db_session, monkeypatch):
     today = date.today()
@@ -153,6 +232,7 @@ def test_deposit_only_day_increases_archive_without_improving_performance(client
         "get_usd_krw_history",
         staticmethod(lambda _start, _end: pd.Series(dtype=float)),
     )
+    _persist_performance_from_live_history(db_session)
 
     response = client.get("/api/portfolio/history?period=all")
 
@@ -167,6 +247,41 @@ def test_deposit_only_day_increases_archive_without_improving_performance(client
     assert performance_series[-1]["performance_value"] == performance_series[-2]["performance_value"]
     assert performance_series[-1]["daily_return"] == 0
     assert performance_series[-1]["alpha"] == 0
+
+
+def test_summary_metrics_do_not_use_absolute_total_value_for_performance(client, db_session, monkeypatch):
+    today = date.today()
+    start = today - timedelta(days=2)
+    asset = _seed_asset(db_session, symbol="KRSUM", code="000780")
+    _seed_transaction(db_session, tx_type="DEPOSIT", when=start, total_amount=100000, account_type=AccountType.ISA)
+    _seed_transaction(
+        db_session,
+        tx_type="BUY",
+        when=start + timedelta(days=1),
+        total_amount=100000,
+        asset=asset,
+        quantity=1,
+        price=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(db_session, tx_type="DEPOSIT", when=today, total_amount=50000, account_type=AccountType.ISA)
+    for current_day in [start, start + timedelta(days=1), today]:
+        _seed_raw_price(db_session, current_day, asset.code, 100000)
+        _seed_raw_price(db_session, current_day, "SPY", 500)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        ExchangeService,
+        "get_usd_krw_history",
+        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
+    )
+
+    response = client.get("/api/portfolio/summary")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["performance_metrics_status"] == "unavailable"
+    assert payload["metrics"]["total_return"] == 0
 
 
 

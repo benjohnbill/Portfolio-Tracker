@@ -61,6 +61,21 @@ class PortfolioSnapshot(Base):
     invested_capital = Column(Float)
     cash_balance = Column(Float)
 
+
+class PortfolioPerformanceSnapshot(Base):
+    __tablename__ = "portfolio_performance_snapshots"
+
+    date = Column(Date, primary_key=True)
+    performance_value = Column(Float, nullable=False)
+    benchmark_value = Column(Float, nullable=True)
+    daily_return = Column(Float, nullable=True)
+    alpha = Column(Float, nullable=True)
+    coverage_start_date = Column(Date, nullable=False)
+    coverage_status = Column(String, nullable=False, default="ready")
+    source_version = Column(String, nullable=False, default="portfolio-performance-v1")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
 

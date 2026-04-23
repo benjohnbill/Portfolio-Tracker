@@ -13,15 +13,13 @@ from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .. import models as app_models
-from ..models import WeeklyDecision, WeeklySnapshot
+from ..models import PortfolioPerformanceSnapshot, WeeklyDecision, WeeklySnapshot
 from .benchmark_service import BenchmarkService, RiskMetrics
 
 logger = logging.getLogger(__name__)
-
-PortfolioPerformanceSnapshot = getattr(app_models, "PortfolioPerformanceSnapshot", None)
 
 TRAILING_1Y_DAYS = 365
 SCORECARD_MATURITY_WEEKS = 26
@@ -80,17 +78,17 @@ class RiskAdjustedService:
         present yet, or coverage rows are unavailable, return an empty series
         rather than falling back to absolute portfolio_snapshots.
         """
-        model = PortfolioPerformanceSnapshot
-        if model is None:
+        try:
+            rows = (
+                db.query(PortfolioPerformanceSnapshot)
+                .filter(PortfolioPerformanceSnapshot.date >= start)
+                .filter(PortfolioPerformanceSnapshot.date <= end)
+                .order_by(PortfolioPerformanceSnapshot.date.asc())
+                .all()
+            )
+        except SQLAlchemyError:
+            db.rollback()
             return pd.Series(dtype=float)
-
-        rows = (
-            db.query(model)
-            .filter(model.date >= start)
-            .filter(model.date <= end)
-            .order_by(model.date.asc())
-            .all()
-        )
         if not rows:
             return pd.Series(dtype=float)
         covered_rows = [

@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta, timezone
 import pandas as pd
+from sqlalchemy.exc import SQLAlchemyError
 from .price_service import PriceService
 from .exchange_service import ExchangeService
 from .kis_service import KISService
 from .cache_service import CacheService
-from ..models import Transaction, Asset, RawDailyPrice, AccountType, AccountSilo
+from ..models import Transaction, Asset, RawDailyPrice, AccountType, AccountSilo, PortfolioPerformanceSnapshot
 
 class PortfolioService:
     ISA_KR_CODES = {"379810", "463300", "476760", "453870"}
@@ -431,7 +432,7 @@ class PortfolioService:
         if cached_data is not None:
             return cached_data
 
-        txs = db.query(Transaction).all()
+        txs = db.query(Transaction).filter(Transaction.type.in_(["BUY", "SELL"])).all()
         holdings = {}
         for tx in txs:
             holdings[tx.asset_id] = holdings.get(tx.asset_id, 0.0) + (tx.quantity if tx.type == "BUY" else -tx.quantity)
@@ -524,12 +525,30 @@ class PortfolioService:
             return result
 
         latest = history[-1]
+        try:
+            performance_rows = (
+                db.query(PortfolioPerformanceSnapshot)
+                .filter(PortfolioPerformanceSnapshot.coverage_status != "unavailable")
+                .order_by(PortfolioPerformanceSnapshot.date.asc())
+                .all()
+            )
+        except SQLAlchemyError:
+            db.rollback()
+            performance_rows = []
+        performance_history = [
+            {
+                "date": row.date.isoformat(),
+                "total_value": row.performance_value,
+                "daily_return": row.daily_return or 0,
+            }
+            for row in performance_rows
+        ]
         result = {
             "total_value": latest["total_value"],
-            "invested_capital": PortfolioService.calculate_invested_capital(db),
-            "metrics": PortfolioService.calculate_metrics(history),
+            "invested_capital": latest.get("invested_capital") or PortfolioService.calculate_invested_capital(db),
+            "metrics": PortfolioService.calculate_metrics(performance_history),
+            "performance_metrics_status": "ready" if performance_history else "unavailable",
             "valuation": valuation,
         }
         PortfolioService._set_to_cache(db, cache_key, result)
         return result
-

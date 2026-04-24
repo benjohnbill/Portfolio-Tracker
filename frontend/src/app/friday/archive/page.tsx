@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SkeletonCard, SkeletonList } from '@/components/ui/skeleton-patterns';
+import { SkeletonCard } from '@/components/ui/skeleton-patterns';
 import { compareFridaySnapshots, getFridaySnapshots, type FridayComparison } from '@/lib/api';
 import { isReady } from '@/lib/envelope';
 import { CalendarDays, ChevronRight, GitCompareArrows } from 'lucide-react';
@@ -113,7 +113,7 @@ async function CompareSection({ a, b }: { a: string; b: string }) {
   if (!isReady(envelope) || !envelope.comparison) {
     return (
       <div className="rounded-lg border border-border/40 p-4 text-sm text-muted-foreground">
-        선택한 두 스냅샷 중 하나 이상이 없어서 비교할 수 없어요.
+        Can&apos;t compare — one or both snapshots are missing.
       </div>
     );
   }
@@ -192,7 +192,16 @@ function CompareCards({ comparison }: { comparison: FridayComparison }) {
 }
 
 function TimelineSkeleton() {
-  return <SkeletonList count={8} itemShape="card" />;
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="grid gap-4 lg:grid-cols-[80px_1fr]">
+          <div />
+          <SkeletonCard />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function CompareSkeleton() {

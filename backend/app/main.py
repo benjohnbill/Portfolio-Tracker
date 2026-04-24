@@ -696,6 +696,8 @@ def compare_friday_snapshots(a: str, b: str, db: Session = Depends(get_db)):
 
     try:
         comparison = FridayService.compare_snapshots(db, parsed_a, parsed_b)
+        # Defensive: current service raises on missing snapshots, but keep the
+        # unavailable path in case that contract loosens to return None.
         if not comparison:
             return wrap_response(status="unavailable", a=a, b=b, comparison=None)
         return wrap_response(status="ready", a=a, b=b, comparison=comparison)

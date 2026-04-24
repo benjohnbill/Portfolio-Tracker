@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { SkeletonRow, SkeletonCard, SkeletonList, SkeletonHero } from '../skeleton-patterns';
+import { SkeletonRow, SkeletonCard, SkeletonList, SkeletonHero, SkeletonForm } from '../skeleton-patterns';
 
 describe('skeleton-patterns', () => {
   test('SkeletonRow renders a single pulse div', () => {
@@ -26,10 +26,22 @@ describe('skeleton-patterns', () => {
     expect(skeletons.length).toBe(52);
   });
 
-  test('SkeletonHero renders hero-sized blocks', () => {
+  test('SkeletonHero renders score + 2 badges + button (4 blocks)', () => {
     const { container } = render(<SkeletonHero />);
     const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
-    // Hero shape: large number placeholder + small badge placeholders + button placeholder.
-    expect(skeletons.length).toBeGreaterThanOrEqual(1);
+    // Hero shape: large number placeholder + 2 badge placeholders + button placeholder.
+    expect(skeletons.length).toBe(4);
+  });
+
+  test('SkeletonForm renders 2 skeletons per field (label + input)', () => {
+    const { container } = render(<SkeletonForm fieldCount={3} />);
+    const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
+    expect(skeletons.length).toBe(6);
+  });
+
+  test('SkeletonForm defaults to 3 fields (6 skeletons)', () => {
+    const { container } = render(<SkeletonForm />);
+    const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
+    expect(skeletons.length).toBe(6);
   });
 });

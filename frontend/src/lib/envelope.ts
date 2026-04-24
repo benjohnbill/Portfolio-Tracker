@@ -13,14 +13,14 @@ export interface StatusEnvelope {
   status: EnvelopeStatus;
 }
 
-export function isReady<T extends StatusEnvelope>(envelope: T): boolean {
+export function isReady<T extends StatusEnvelope>(envelope: T): envelope is T & { status: 'ready' } {
   return envelope.status === 'ready';
 }
 
-export function isPartial<T extends StatusEnvelope>(envelope: T): boolean {
+export function isPartial<T extends StatusEnvelope>(envelope: T): envelope is T & { status: 'partial' } {
   return envelope.status === 'partial';
 }
 
-export function isUnavailable<T extends StatusEnvelope>(envelope: T): boolean {
+export function isUnavailable<T extends StatusEnvelope>(envelope: T): envelope is T & { status: 'unavailable' } {
   return envelope.status === 'unavailable';
 }

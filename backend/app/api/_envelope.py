@@ -10,11 +10,11 @@ Cross-reference: docs/superpowers/decisions/2026-04-23-phase-ux-1-scope-lock.md 
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 Status = Literal["ready", "partial", "unavailable"]
 
-_VALID_STATUSES = frozenset({"ready", "partial", "unavailable"})
+_VALID_STATUSES = frozenset(get_args(Status))
 
 
 def wrap_response(*, status: Status, **fields: Any) -> dict[str, Any]:

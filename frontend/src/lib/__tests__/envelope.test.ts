@@ -32,4 +32,14 @@ describe('envelope predicates', () => {
       expect(envelope.events).toEqual(['a']);
     }
   });
+
+  test('isReady narrows to ready status variant at compile time', () => {
+    const e: StatusEnvelope & { data?: string[] } = { status: 'ready', data: ['x'] };
+    if (isReady(e)) {
+      // The following line compiles ONLY if e.status has been narrowed to 'ready'.
+      const narrowed: 'ready' = e.status;
+      expect(narrowed).toBe('ready');
+      expect(e.data).toEqual(['x']);
+    }
+  });
 });

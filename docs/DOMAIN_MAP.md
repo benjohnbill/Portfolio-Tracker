@@ -52,6 +52,12 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 
 ---
 
+## Exceptions / migration debt
+
+- `/api/portfolio/history` predates the UX-1 envelope rule. Its `PortfolioHistoryData` (see `frontend/src/lib/api.ts`) carries `status` nested at `performance.status`, not at root, because the response deliberately splits archive and performance into two sub-envelopes. This exception is scheduled for alignment in Phase 1c (`/portfolio` alignment in the scope-lock plan). Do not introduce new endpoints with this nesting pattern; new surfaces follow the root-status rule in §"Envelope rule (root invariant)".
+
+---
+
 ## Naming conventions (established)
 
 - Plural field name = collection (`series`, `events`, `sleeves`, `snapshots`).
@@ -63,3 +69,4 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 ## Change log
 
 - 2026-04-23 — v1. UX-1 Phase 1a shared-infra commit introduced envelope rule + registry. Portfolio/performance entries already shipped in closeout `49f4c2b`.
+- 2026-04-23 — Added Exceptions / migration debt section documenting `/api/portfolio/history` nested-status pattern. Phase 1c will flatten when `/portfolio` alignment ships.

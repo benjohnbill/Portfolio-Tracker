@@ -514,6 +514,11 @@ export interface IntelligenceOutcomesEnvelope {
   outcomes: DecisionOutcomeData[];
 }
 
+export interface IntelligenceRegimeHistoryEnvelope {
+  status: EnvelopeStatus;
+  transitions: RegimeTransitionData[];
+}
+
 const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
   period,
   archive: { series: [] },
@@ -548,6 +553,11 @@ const emptyIntelligenceOutcomesEnvelope = (
   horizon: horizon ?? null,
   outcomes: [],
 });
+
+const emptyIntelligenceRegimeHistoryEnvelope: IntelligenceRegimeHistoryEnvelope = {
+  status: 'unavailable',
+  transitions: [],
+};
 
 type LegacyPortfolioHistoryPoint = {
   date: string;
@@ -1169,15 +1179,18 @@ export async function getIntelligenceRuleAccuracy(): Promise<IntelligenceRulesAc
   }
 }
 
-export async function getIntelligenceRegimeHistory(): Promise<RegimeTransitionData[]> {
+export async function getIntelligenceRegimeHistory(): Promise<IntelligenceRegimeHistoryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/intelligence/regime/history`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch regime history');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+    if (!res.ok) return emptyIntelligenceRegimeHistoryEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyIntelligenceRegimeHistoryEnvelope;
+    }
+    return data as IntelligenceRegimeHistoryEnvelope;
+  } catch {
+    return emptyIntelligenceRegimeHistoryEnvelope;
   }
 }
 

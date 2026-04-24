@@ -806,7 +806,12 @@ def get_intelligence_rule_accuracy(db: Session = Depends(get_db)):
 @app.get("/api/intelligence/regime/history")
 def get_intelligence_regime_history(db: Session = Depends(get_db)):
     """Regime transitions timeline with before/after portfolio state."""
-    return IntelligenceService.get_regime_history(db)
+    try:
+        transitions = IntelligenceService.get_regime_history(db)
+        return wrap_response(status="ready", transitions=transitions or [])
+    except Exception as e:
+        logger.warning("intelligence_regime_history_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", transitions=[])
 
 
 @app.get("/api/intelligence/reviews/summary")

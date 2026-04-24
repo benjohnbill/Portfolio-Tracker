@@ -797,3 +797,42 @@ def test_intelligence_outcomes_returns_ready_when_data_exists(client):
 def test_intelligence_outcomes_rejects_bad_horizon(client):
     response = client.get("/api/intelligence/outcomes?horizon=not-a-horizon")
     assert response.status_code == 400
+
+
+# --------------------------------------------------------------------------- #
+# /api/intelligence/regime/history                                            #
+# --------------------------------------------------------------------------- #
+
+
+def test_intelligence_regime_history_returns_envelope(client):
+    response = client.get("/api/intelligence/regime/history")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "transitions" in payload
+
+
+def test_intelligence_regime_history_absorbs_service_failure(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    with patch.object(
+        IntelligenceService,
+        "get_regime_history",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/intelligence/regime/history")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["transitions"] == []
+
+
+def test_intelligence_regime_history_returns_ready_when_data_exists(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    fake_transitions = [
+        {"date": "2026-04-01", "from": "Risk On", "to": "Neutral"},
+    ]
+    with patch.object(IntelligenceService, "get_regime_history", return_value=fake_transitions):
+        response = client.get("/api/intelligence/regime/history")
+        assert response.json()["status"] == "ready"
+        assert response.json()["transitions"] == fake_transitions

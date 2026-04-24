@@ -304,38 +304,6 @@ def _coerce_iso_date(value: Any) -> Optional[str]:
     return str(value)
 
 
-def _compute_snapshot_coverage(snapshot: Optional[Dict[str, Any]]) -> Dict[str, bool]:
-    """Derive per-section coverage flags from a FridayService.get_snapshot dict.
-
-    Field names mirror `FridayService._serialize_snapshot` output:
-    top-level `decisions`/`comment`, plus `frozenReport.portfolioSnapshot`,
-    `frozenReport.macroSnapshot`, `frozenReport.triggeredRules`. Slippage
-    is nested one level deeper as `decision.slippageEntries`.
-    """
-    if not snapshot:
-        return {
-            "portfolio": False,
-            "macro": False,
-            "rules": False,
-            "decisions": False,
-            "slippage": False,
-            "comment": False,
-        }
-    frozen = snapshot.get("frozenReport") or {}
-    decisions = snapshot.get("decisions") or []
-    slippage_present = any(
-        (d.get("slippageEntries") or []) for d in decisions
-    )
-    return {
-        "portfolio": bool(frozen.get("portfolioSnapshot")),
-        "macro": bool(frozen.get("macroSnapshot")),
-        "rules": bool(frozen.get("triggeredRules")),
-        "decisions": bool(decisions),
-        "slippage": slippage_present,
-        "comment": bool((snapshot.get("comment") or "").strip()),
-    }
-
-
 def _performance_value(row: Any) -> Optional[float]:
     for field in ("performance_value", "neutralized_value", "neutralized_performance_value"):
         value = getattr(row, field, None)
@@ -642,8 +610,11 @@ def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
 
     try:
         snapshot = FridayService.get_snapshot(db, parsed)
-        coverage = _compute_snapshot_coverage(snapshot)
-        status = "ready" if all(coverage.values()) else "partial"
+        coverage = FridayService.compute_snapshot_coverage(snapshot)
+        # Only 'portfolio' and 'macro' are required for ready. The other four
+        # flags are informational (optional sections that may legitimately be empty).
+        required_ok = coverage["portfolio"] and coverage["macro"]
+        status = "ready" if required_ok else "partial"
         return wrap_response(
             status=status,
             date=snapshot_date,
@@ -654,7 +625,7 @@ def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
         return wrap_response(
             status="unavailable",
             date=snapshot_date,
-            coverage=_compute_snapshot_coverage(None),
+            coverage=FridayService.compute_snapshot_coverage(None),
             snapshot=None,
         )
     except Exception as e:
@@ -662,7 +633,7 @@ def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
         return wrap_response(
             status="unavailable",
             date=snapshot_date,
-            coverage=_compute_snapshot_coverage(None),
+            coverage=FridayService.compute_snapshot_coverage(None),
             snapshot=None,
         )
 

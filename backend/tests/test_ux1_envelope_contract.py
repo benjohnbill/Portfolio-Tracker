@@ -376,8 +376,13 @@ def test_friday_snapshot_ready_envelope_when_fully_covered(client):
         assert payload["snapshot"]["snapshotDate"] == "2026-04-18"
 
 
-def test_friday_snapshot_partial_envelope_when_sections_missing(client):
-    """Partial snapshot (missing rules/decisions/slippage) → status='partial'."""
+def test_friday_snapshot_partial_envelope_when_required_section_missing(client):
+    """Partial snapshot when a required section (macro) is missing → status='partial'.
+
+    Only 'portfolio' and 'macro' are required for ready. Here macroSnapshot
+    is falsy, so the envelope must degrade to partial regardless of the
+    optional flags.
+    """
     from app.services.friday_service import FridayService
 
     fake_snapshot = {
@@ -385,13 +390,21 @@ def test_friday_snapshot_partial_envelope_when_sections_missing(client):
         "snapshotDate": "2026-04-18",
         "createdAt": "2026-04-18T12:00:00+00:00",
         "metadata": {},
-        "comment": None,
-        "decisions": [],
+        "comment": "Held the line.",
+        "decisions": [
+            {
+                "id": 1,
+                "snapshotId": 12,
+                "decisionType": "hold",
+                "note": "Stay.",
+                "slippageEntries": [],
+            }
+        ],
         "frozenReport": {
             "weekEnding": "2026-04-18",
             "portfolioSnapshot": {"totalValueKRW": 100_000_000},
-            "macroSnapshot": {"overallState": "neutral"},
-            "triggeredRules": [],
+            "macroSnapshot": None,  # required section absent → partial
+            "triggeredRules": [{"ruleId": "RULE_X"}],
         },
     }
     with patch.object(FridayService, "get_snapshot", return_value=fake_snapshot):
@@ -400,9 +413,81 @@ def test_friday_snapshot_partial_envelope_when_sections_missing(client):
         payload = response.json()
         assert payload["status"] == "partial"
         assert payload["coverage"]["portfolio"] is True
-        assert payload["coverage"]["macro"] is True
-        assert payload["coverage"]["rules"] is False
-        assert payload["coverage"]["decisions"] is False
-        assert payload["coverage"]["slippage"] is False
-        assert payload["coverage"]["comment"] is False
+        assert payload["coverage"]["macro"] is False
         assert payload["snapshot"]["snapshotDate"] == "2026-04-18"
+
+
+def test_friday_snapshot_ready_envelope_with_empty_optional_sections(client):
+    """A snapshot with portfolio + macro present but no triggered rules,
+    no decisions, no slippage, and no comment is still 'ready'. The four
+    optional sections' emptiness is a valid ready state, not a coverage failure."""
+    from app.services.friday_service import FridayService
+
+    minimal_ready = {
+        "id": 13,
+        "snapshotDate": "2026-01-09",
+        "createdAt": "2026-01-09T12:00:00+00:00",
+        "metadata": {},
+        "comment": "",
+        "decisions": [],
+        "frozenReport": {
+            "portfolioSnapshot": {"totalValueKRW": 10_000_000},
+            "macroSnapshot": {"overallState": "Neutral"},
+            "triggeredRules": [],  # valid empty
+        },
+    }
+    with patch.object(FridayService, "get_snapshot", return_value=minimal_ready):
+        response = client.get("/api/v1/friday/snapshot/2026-01-09")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["coverage"]["portfolio"] is True
+        assert payload["coverage"]["macro"] is True
+        assert payload["coverage"]["rules"] is True  # list present, even if empty
+        assert payload["coverage"]["decisions"] is True  # list present
+        assert payload["coverage"]["slippage"] is False  # no slippage entries
+        assert payload["coverage"]["comment"] is False  # empty string
+
+
+def test_friday_snapshot_ready_envelope_from_real_serializer(client, db_session):
+    """Integration test: seed a real snapshot row, let the endpoint go through
+    the actual _serialize_snapshot, and verify the envelope status agrees.
+    This catches silent drift if _serialize_snapshot ever renames a field."""
+    from app.models import WeeklySnapshot
+    from datetime import date, datetime, timezone
+
+    snapshot_date = date(2026, 1, 16)
+    row = WeeklySnapshot(
+        snapshot_date=snapshot_date,
+        created_at=datetime(2026, 1, 16, 20, 0, 0, tzinfo=timezone.utc),
+        frozen_report={
+            "portfolioSnapshot": {"totalValueKRW": 15_000_000},
+            "macroSnapshot": {"overallState": "Risk On"},
+            "triggeredRules": [],
+            "score": {"total": 72},
+            "weekEnding": "2026-01-16",
+        },
+        snapshot_metadata={
+            "coverage": {
+                "portfolio": True,
+                "macro": True,
+                "signals": True,
+                "annotations": True,
+                "score": True,
+                "recommendation": True,
+            }
+        },
+    )
+    db_session.add(row)
+    db_session.commit()
+
+    response = client.get(f"/api/v1/friday/snapshot/{snapshot_date.isoformat()}")
+    assert response.status_code == 200
+    payload = response.json()
+    # Serializer field names must produce a ready envelope for a
+    # portfolio + macro present snapshot. If this fails after a refactor,
+    # the serializer's field names drifted and compute_snapshot_coverage
+    # needs updating.
+    assert payload["status"] == "ready"
+    assert payload["coverage"]["portfolio"] is True
+    assert payload["coverage"]["macro"] is True

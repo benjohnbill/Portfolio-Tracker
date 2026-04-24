@@ -111,6 +111,51 @@ class FridayService:
         return payload
 
     @staticmethod
+    def compute_snapshot_coverage(snapshot: Optional[Dict[str, Any]]) -> Dict[str, bool]:
+        """Derive UX-1 envelope coverage flags from a serialized snapshot.
+
+        REQUIRED sections (their absence means the snapshot failed to build
+        that part — envelope status must be 'partial' or 'unavailable'):
+        - portfolio: frozenReport.portfolioSnapshot truthy
+        - macro: frozenReport.macroSnapshot truthy
+
+        OPTIONAL sections (always present in the serialized shape; their
+        emptiness is a valid ready state — these flags are informational
+        only and DO NOT affect envelope status):
+        - rules: frozenReport.triggeredRules is a list (may be empty)
+        - decisions: top-level decisions is a list (may be empty)
+        - slippage: any decision has slippageEntries (may be all empty)
+        - comment: top-level comment is a non-empty string
+
+        Coupled to the field names emitted by _serialize_snapshot. Changes
+        there require changes here.
+        """
+        if not snapshot:
+            return {
+                "portfolio": False,
+                "macro": False,
+                "rules": False,
+                "decisions": False,
+                "slippage": False,
+                "comment": False,
+            }
+        frozen = snapshot.get("frozenReport") or snapshot.get("frozen_report") or {}
+        decisions = snapshot.get("decisions") or []
+        has_slippage = any(
+            (d.get("slippageEntries") or d.get("slippage_entries"))
+            for d in decisions
+            if isinstance(d, dict)
+        )
+        return {
+            "portfolio": bool(frozen.get("portfolioSnapshot")),
+            "macro": bool(frozen.get("macroSnapshot")),
+            "rules": isinstance(frozen.get("triggeredRules"), list),
+            "decisions": isinstance(snapshot.get("decisions"), list),
+            "slippage": has_slippage,
+            "comment": bool((snapshot.get("comment") or "").strip()),
+        }
+
+    @staticmethod
     def _empty_report(snapshot_date: date) -> Dict[str, Any]:
         return {
             "weekEnding": snapshot_date.isoformat(),

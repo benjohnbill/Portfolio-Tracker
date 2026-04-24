@@ -71,7 +71,7 @@ class PortfolioPerformanceSnapshot(Base):
     daily_return = Column(Float, nullable=True)
     alpha = Column(Float, nullable=True)
     coverage_start_date = Column(Date, nullable=False)
-    coverage_status = Column(String, nullable=False, default="ready")
+    coverage_status = Column(String, nullable=False, default="ready", index=True)
     source_version = Column(String, nullable=False, default="portfolio-performance-v1")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

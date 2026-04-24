@@ -3,8 +3,15 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 import pandas as pd
+import pytest
 
-from app.models import AccountType, Asset, PortfolioPerformanceSnapshot, RawDailyPrice, Transaction
+from app.models import (
+    AccountType,
+    Asset,
+    PortfolioPerformanceSnapshot,
+    RawDailyPrice,
+    Transaction,
+)
 from app.services.exchange_service import ExchangeService
 from app.services.portfolio_service import PortfolioService
 
@@ -49,6 +56,27 @@ def _seed_transaction(
             account_type=account_type,
         )
     )
+
+
+def _stub_fx(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ExchangeService,
+        "get_usd_krw_history",
+        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
+    )
+
+
+def _seed_prices(
+    db_session,
+    asset: Asset,
+    price_by_date: dict[date, float],
+    spy_by_date: dict[date, float] | None = None,
+) -> None:
+    spy_by_date = spy_by_date or {current_day: 500 for current_day in price_by_date}
+    for current_day, price in price_by_date.items():
+        _seed_raw_price(db_session, current_day, asset.code, price)
+    for current_day, spy_price in spy_by_date.items():
+        _seed_raw_price(db_session, current_day, "SPY", spy_price)
 
 
 def _persist_performance_from_live_history(db_session) -> None:
@@ -135,11 +163,7 @@ def test_portfolio_history_returns_split_archive_and_performance_payload(client,
         _seed_raw_price(db_session, current_day, "SPY", 500)
     db_session.commit()
 
-    monkeypatch.setattr(
-        ExchangeService,
-        "get_usd_krw_history",
-        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
-    )
+    _stub_fx(monkeypatch)
 
     response = client.get("/api/portfolio/history?period=all")
 
@@ -179,11 +203,7 @@ def test_history_performance_does_not_use_live_fallback_when_disabled(client, db
         _seed_raw_price(db_session, current_day, "SPY", 500)
     db_session.commit()
 
-    monkeypatch.setattr(
-        ExchangeService,
-        "get_usd_krw_history",
-        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
-    )
+    _stub_fx(monkeypatch)
 
     response = client.get("/api/portfolio/history?period=all")
 
@@ -191,8 +211,6 @@ def test_history_performance_does_not_use_live_fallback_when_disabled(client, db
     payload = response.json()
     assert payload["archive"]["series"]
     assert payload["performance"] == {"coverage_start": None, "status": "unavailable", "series": []}
-
-
 
 def test_deposit_only_day_increases_archive_without_improving_performance(client, db_session, monkeypatch):
     today = date.today()
@@ -222,16 +240,14 @@ def test_deposit_only_day_increases_archive_without_improving_performance(client
         total_amount=50000,
         account_type=AccountType.ISA,
     )
-    for current_day in [start, start + timedelta(days=1), today]:
-        _seed_raw_price(db_session, current_day, asset.code, 100000)
-        _seed_raw_price(db_session, current_day, "SPY", 500)
+    _seed_prices(db_session, asset, {
+        start: 100000,
+        start + timedelta(days=1): 100000,
+        today: 100000,
+    })
     db_session.commit()
 
-    monkeypatch.setattr(
-        ExchangeService,
-        "get_usd_krw_history",
-        staticmethod(lambda _start, _end: pd.Series(dtype=float)),
-    )
+    _stub_fx(monkeypatch)
     _persist_performance_from_live_history(db_session)
 
     response = client.get("/api/portfolio/history?period=all")
@@ -247,6 +263,146 @@ def test_deposit_only_day_increases_archive_without_improving_performance(client
     assert performance_series[-1]["performance_value"] == performance_series[-2]["performance_value"]
     assert performance_series[-1]["daily_return"] == 0
     assert performance_series[-1]["alpha"] == 0
+
+
+def test_withdrawal_only_day_decreases_archive_without_hurting_performance(client, db_session, monkeypatch):
+    today = date.today()
+    start = today - timedelta(days=2)
+    asset = _seed_asset(db_session, symbol="KRWDR", code="000781")
+    _seed_transaction(
+        db_session,
+        tx_type="DEPOSIT",
+        when=start,
+        total_amount=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="BUY",
+        when=start + timedelta(days=1),
+        total_amount=100000,
+        asset=asset,
+        quantity=1,
+        price=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="WITHDRAW",
+        when=today,
+        total_amount=25000,
+        account_type=AccountType.ISA,
+    )
+    _seed_prices(db_session, asset, {
+        start: 100000,
+        start + timedelta(days=1): 100000,
+        today: 100000,
+    })
+    db_session.commit()
+
+    _stub_fx(monkeypatch)
+    _persist_performance_from_live_history(db_session)
+
+    response = client.get("/api/portfolio/history?period=all")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    archive_series = payload["archive"]["series"]
+    performance_series = payload["performance"]["series"]
+
+    assert archive_series[-1]["absolute_wealth"] - archive_series[-2]["absolute_wealth"] == -25000
+    assert performance_series[-1]["performance_value"] == performance_series[-2]["performance_value"]
+    assert performance_series[-1]["daily_return"] == 0
+    assert performance_series[-1]["alpha"] == 0
+
+
+def test_price_move_after_buy_changes_performance_without_cashflow(client, db_session, monkeypatch):
+    today = date.today()
+    start = today - timedelta(days=2)
+    asset = _seed_asset(db_session, symbol="KRMOV", code="000782")
+    _seed_transaction(
+        db_session,
+        tx_type="DEPOSIT",
+        when=start,
+        total_amount=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="BUY",
+        when=start,
+        total_amount=100000,
+        asset=asset,
+        quantity=1,
+        price=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_prices(db_session, asset, {
+        start: 100000,
+        start + timedelta(days=1): 100000,
+        today: 110000,
+    })
+    db_session.commit()
+
+    _stub_fx(monkeypatch)
+    _persist_performance_from_live_history(db_session)
+
+    response = client.get("/api/portfolio/history?period=all")
+
+    assert response.status_code == 200, response.text
+    performance_series = response.json()["performance"]["series"]
+    assert performance_series[-1]["performance_value"] == pytest.approx(110000)
+    assert performance_series[-1]["daily_return"] == pytest.approx(0.1)
+    assert performance_series[-1]["alpha"] == pytest.approx(0.1)
+
+
+def test_benchmark_alpha_uses_neutralized_performance_not_cashflow(client, db_session, monkeypatch):
+    today = date.today()
+    start = today - timedelta(days=2)
+    asset = _seed_asset(db_session, symbol="KRBEN", code="000783")
+    _seed_transaction(
+        db_session,
+        tx_type="DEPOSIT",
+        when=start,
+        total_amount=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="BUY",
+        when=start,
+        total_amount=100000,
+        asset=asset,
+        quantity=1,
+        price=100000,
+        account_type=AccountType.ISA,
+    )
+    _seed_transaction(
+        db_session,
+        tx_type="DEPOSIT",
+        when=today,
+        total_amount=50000,
+        account_type=AccountType.ISA,
+    )
+    _seed_prices(
+        db_session,
+        asset,
+        {start: 100000, start + timedelta(days=1): 100000, today: 100000},
+        {start: 500, start + timedelta(days=1): 500, today: 550},
+    )
+    db_session.commit()
+
+    _stub_fx(monkeypatch)
+    _persist_performance_from_live_history(db_session)
+
+    response = client.get("/api/portfolio/history?period=all")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["archive"]["series"][-1]["absolute_wealth"] == 150000
+    assert payload["performance"]["series"][-1]["performance_value"] == 100000
+    assert payload["performance"]["series"][-1]["benchmark_value"] == 110000
+    assert payload["performance"]["series"][-1]["alpha"] == pytest.approx(-0.1)
 
 
 def test_summary_metrics_do_not_use_absolute_total_value_for_performance(client, db_session, monkeypatch):

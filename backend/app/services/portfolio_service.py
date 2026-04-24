@@ -332,6 +332,16 @@ class PortfolioService:
                         spy_val = (current_spy_price / initial_spy_price) * initial_portfolio_value
 
                 alpha = ((absolute_value_krw / initial_portfolio_value) - 1) - ((spy_val / initial_portfolio_value) - 1) if initial_portfolio_value and initial_portfolio_value > 0 else 0
+                performance_alpha = 0.0
+                if (
+                    explicit_cashflows
+                    and performance_value is not None
+                    and initial_portfolio_value
+                    and initial_portfolio_value > 0
+                ):
+                    performance_alpha = ((performance_value / initial_portfolio_value) - 1) - (
+                        (spy_val / initial_portfolio_value) - 1
+                    )
                 item = {
                     "date": current_date.isoformat(),
                     "total_value": int(absolute_value_krw),
@@ -347,7 +357,7 @@ class PortfolioService:
                     item.update({
                         "performance_value": float(performance_value),
                         "performance_daily_return": float(performance_daily_return or 0.0),
-                        "performance_alpha": 0.0,
+                        "performance_alpha": round(performance_alpha, 6),
                         "performance_coverage_status": "ready",
                     })
                 history.append(item)

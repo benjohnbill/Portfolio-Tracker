@@ -2,8 +2,8 @@ name: Keep-Alive Portfolio Backend
 
 on:
   schedule:
-    # Run every 30 minutes
-    - cron: '*/30 * * * *'
+    # Run every 10 minutes to stay under Render free tier's 15-minute idle sleep.
+    - cron: '*/10 * * * *'
   workflow_dispatch: # Allow manual triggering
 
 jobs:

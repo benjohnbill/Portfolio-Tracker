@@ -7,6 +7,7 @@ import { RiskAdjustedScorecard } from "@/components/intelligence/RiskAdjustedSco
 function emptyPayload(): RiskAdjustedScorecardPayload {
   const nullMetric = { cagr: null, mdd: null, sd: null, sharpe: null, calmar: null, sortino: null };
   return {
+    status: 'unavailable',
     ready: false,
     based_on_freezes: 0,
     based_on_weeks: 0,

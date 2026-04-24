@@ -14,7 +14,14 @@ export function CalmarTrajectoryPlaceholder() {
       })
       .catch(() => {
         if (!cancelled) {
-          setPayload({ ready: false, based_on_freezes: 0, required_weeks: 52, points: [], decision_markers: [] });
+          setPayload({
+            status: 'unavailable',
+            ready: false,
+            based_on_freezes: 0,
+            required_weeks: 52,
+            points: [],
+            decision_markers: [],
+          });
         }
       });
     return () => {

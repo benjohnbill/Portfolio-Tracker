@@ -11,6 +11,7 @@ test("renders placeholder with freeze counter after fetch", async () => {
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
     json: async () => ({
+      status: 'unavailable',
       ready: false,
       based_on_freezes: 7,
       required_weeks: 52,

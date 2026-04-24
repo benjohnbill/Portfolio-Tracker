@@ -2,6 +2,7 @@ import type {
   RiskAdjustedScorecardPayload,
   RiskMetricValues,
 } from "@/lib/api";
+import { isReady } from "@/lib/envelope";
 
 interface Props {
   payload: RiskAdjustedScorecardPayload;
@@ -31,7 +32,8 @@ function fmt(value: number | null): string {
 }
 
 export function RiskAdjustedScorecard({ payload }: Props) {
-  const { based_on_freezes, maturity_gate, horizons, ready } = payload;
+  const { based_on_freezes, maturity_gate, horizons } = payload;
+  const ready = isReady(payload);
   return (
     <section className="rounded-lg border border-neutral-800 bg-neutral-950 p-6">
       <header className="mb-4 flex items-baseline justify-between">

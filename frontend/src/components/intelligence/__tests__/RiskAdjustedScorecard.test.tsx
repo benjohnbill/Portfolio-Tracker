@@ -8,6 +8,7 @@ function nullMetrics() {
 }
 
 const emptyPayload: RiskAdjustedScorecardPayload = {
+  status: "unavailable",
   ready: false,
   based_on_freezes: 4,
   based_on_weeks: 4,
@@ -33,6 +34,7 @@ test("renders empty-state with freeze counter", () => {
 test("renders ready-state with populated metrics", () => {
   const readyPayload: RiskAdjustedScorecardPayload = {
     ...emptyPayload,
+    status: "ready",
     ready: true,
     based_on_freezes: 30,
     based_on_weeks: 30,

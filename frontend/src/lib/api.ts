@@ -1292,6 +1292,10 @@ export type HorizonMetrics = {
 };
 
 export type RiskAdjustedScorecardPayload = {
+  status: EnvelopeStatus;
+  // Preserve the existing `ready` field for backward compat with the service's
+  // internal meaning ("gate passed"), but the envelope `status` is authoritative
+  // for UI branching. Consumers should prefer isReady(payload) over payload.ready.
   ready: boolean;
   based_on_freezes: number;
   based_on_weeks: number;
@@ -1313,6 +1317,8 @@ export type CalmarDecisionMarker = {
 };
 
 export type CalmarTrajectoryPayload = {
+  status: EnvelopeStatus;
+  // Backward-compat fields preserved from the service payload.
   ready: boolean;
   based_on_freezes: number;
   required_weeks: number;
@@ -1320,16 +1326,61 @@ export type CalmarTrajectoryPayload = {
   decision_markers: CalmarDecisionMarker[];
 };
 
+function emptyRiskAdjustedScorecard(): RiskAdjustedScorecardPayload {
+  const nullMetric: RiskMetricValues = {
+    cagr: null,
+    mdd: null,
+    sd: null,
+    sharpe: null,
+    calmar: null,
+    sortino: null,
+  };
+  return {
+    status: 'unavailable',
+    ready: false,
+    based_on_freezes: 0,
+    based_on_weeks: 0,
+    first_freeze_date: null,
+    maturity_gate: { required_weeks: 26, current_weeks: 0, ready: false },
+    horizons: {
+      "6M": { portfolio: { ...nullMetric }, spy_krw: { ...nullMetric } },
+      "1Y": { portfolio: { ...nullMetric }, spy_krw: { ...nullMetric } },
+      ITD: { portfolio: { ...nullMetric }, spy_krw: { ...nullMetric } },
+    },
+  };
+}
+
 export async function fetchRiskAdjustedScorecard(): Promise<RiskAdjustedScorecardPayload> {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/scorecard`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch risk-adjusted scorecard');
-  return res.json();
+  const empty = emptyRiskAdjustedScorecard();
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/scorecard`, { cache: 'no-store' });
+    if (!res.ok) return empty;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) return empty;
+    return data as RiskAdjustedScorecardPayload;
+  } catch {
+    return empty;
+  }
 }
 
 export async function fetchCalmarTrajectory(): Promise<CalmarTrajectoryPayload> {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/calmar-trajectory`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch calmar trajectory');
-  return res.json();
+  const empty: CalmarTrajectoryPayload = {
+    status: 'unavailable',
+    ready: false,
+    based_on_freezes: 0,
+    required_weeks: 52,
+    points: [],
+    decision_markers: [],
+  };
+  try {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/calmar-trajectory`, { cache: 'no-store' });
+    if (!res.ok) return empty;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) return empty;
+    return data as CalmarTrajectoryPayload;
+  } catch {
+    return empty;
+  }
 }

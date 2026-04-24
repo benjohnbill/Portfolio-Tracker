@@ -862,16 +862,55 @@ def get_intelligence_annual_review(year: str, db: Session = Depends(get_db)):
 
 @app.get("/api/v1/intelligence/risk-adjusted/scorecard")
 def get_risk_adjusted_scorecard(db: Session = Depends(get_db)):
-    """B5 — multi-horizon risk-adjusted scorecard."""
+    """B5 — multi-horizon risk-adjusted scorecard.
+
+    Envelope status derivation:
+    - 'ready' when maturity_gate.ready is True.
+    - 'unavailable' otherwise (including service error and not-enough-freezes).
+    """
     from .services.risk_adjusted_service import RiskAdjustedService
-    return RiskAdjustedService.scorecard(db)
+
+    try:
+        scorecard = RiskAdjustedService.scorecard(db)
+        gate_ready = bool(scorecard.get("maturity_gate", {}).get("ready"))
+        status = "ready" if gate_ready else "unavailable"
+        return wrap_response(status=status, **scorecard)
+    except Exception as e:
+        logger.warning("risk_adjusted_scorecard_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            ready=False,
+            based_on_freezes=0,
+            based_on_weeks=0,
+            first_freeze_date=None,
+            maturity_gate={"required_weeks": 26, "current_weeks": 0, "ready": False},
+            horizons={
+                "6M": {"portfolio": {}, "spy_krw": {}},
+                "1Y": {"portfolio": {}, "spy_krw": {}},
+                "ITD": {"portfolio": {}, "spy_krw": {}},
+            },
+        )
 
 
 @app.get("/api/v1/intelligence/risk-adjusted/calmar-trajectory")
 def get_calmar_trajectory(db: Session = Depends(get_db)):
     """B4 — Calmar ratio trajectory over accumulated freezes."""
     from .services.risk_adjusted_service import RiskAdjustedService
-    return RiskAdjustedService.calmar_trajectory(db)
+
+    try:
+        trajectory = RiskAdjustedService.calmar_trajectory(db)
+        if isinstance(trajectory, dict):
+            # Preserve all metadata (based_on_freezes, required_weeks,
+            # decision_markers, etc.). Envelope status override wins.
+            extras = {k: v for k, v in trajectory.items() if k != "status"}
+            extras.setdefault("points", [])
+            return wrap_response(status="ready", **extras)
+        if isinstance(trajectory, list):
+            return wrap_response(status="ready", points=trajectory)
+        return wrap_response(status="ready", points=[])
+    except Exception as e:
+        logger.warning("calmar_trajectory_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", points=[])
 
 
 @app.post("/api/admin/backfill-attributions")

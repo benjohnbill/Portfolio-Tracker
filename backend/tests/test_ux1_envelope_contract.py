@@ -883,3 +883,96 @@ def test_intelligence_reviews_summary_returns_ready_when_data_exists(client):
         response = client.get("/api/intelligence/reviews/summary")
         assert response.json()["status"] == "ready"
         assert response.json()["summary"] == fake_summary
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/intelligence/risk-adjusted/scorecard                                #
+# --------------------------------------------------------------------------- #
+
+
+def test_risk_adjusted_scorecard_returns_envelope(client):
+    response = client.get("/api/v1/intelligence/risk-adjusted/scorecard")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "based_on_freezes" in payload
+    assert "horizons" in payload
+    assert "maturity_gate" in payload
+
+
+def test_risk_adjusted_scorecard_absorbs_service_failure(client):
+    from app.services.risk_adjusted_service import RiskAdjustedService
+
+    with patch.object(
+        RiskAdjustedService,
+        "scorecard",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/intelligence/risk-adjusted/scorecard")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["based_on_freezes"] == 0
+
+
+def test_risk_adjusted_scorecard_returns_ready_when_gate_passed(client):
+    from app.services.risk_adjusted_service import RiskAdjustedService
+
+    fake_scorecard = {
+        "ready": True,
+        "based_on_freezes": 26,
+        "based_on_weeks": 26,
+        "first_freeze_date": "2025-10-31",
+        "maturity_gate": {"required_weeks": 26, "current_weeks": 26, "ready": True},
+        "horizons": {"6M": {}, "1Y": {}, "ITD": {}},
+    }
+    with patch.object(RiskAdjustedService, "scorecard", return_value=fake_scorecard):
+        response = client.get("/api/v1/intelligence/risk-adjusted/scorecard")
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["based_on_freezes"] == 26
+
+
+def test_risk_adjusted_scorecard_unavailable_when_gate_not_passed(client):
+    from app.services.risk_adjusted_service import RiskAdjustedService
+
+    fake_scorecard = {
+        "ready": False,
+        "based_on_freezes": 10,
+        "based_on_weeks": 10,
+        "first_freeze_date": "2026-02-21",
+        "maturity_gate": {"required_weeks": 26, "current_weeks": 10, "ready": False},
+        "horizons": {"6M": {}, "1Y": {}, "ITD": {}},
+    }
+    with patch.object(RiskAdjustedService, "scorecard", return_value=fake_scorecard):
+        response = client.get("/api/v1/intelligence/risk-adjusted/scorecard")
+        payload = response.json()
+        # Envelope-level status derived from maturity gate.
+        assert payload["status"] == "unavailable"
+        assert payload["maturity_gate"]["current_weeks"] == 10
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/intelligence/risk-adjusted/calmar-trajectory                        #
+# --------------------------------------------------------------------------- #
+
+
+def test_calmar_trajectory_returns_envelope(client):
+    response = client.get("/api/v1/intelligence/risk-adjusted/calmar-trajectory")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "points" in payload
+
+
+def test_calmar_trajectory_absorbs_service_failure(client):
+    from app.services.risk_adjusted_service import RiskAdjustedService
+
+    with patch.object(
+        RiskAdjustedService,
+        "calmar_trajectory",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/intelligence/risk-adjusted/calmar-trajectory")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["points"] == []

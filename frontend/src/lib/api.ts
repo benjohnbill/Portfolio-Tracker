@@ -1,3 +1,5 @@
+import type { EnvelopeStatus } from './envelope';
+
 export interface AbsoluteHistoryPoint {
   date: string;
   absolute_wealth: number;
@@ -24,6 +26,11 @@ export interface PortfolioHistoryData {
     status: 'ready' | 'partial' | 'unavailable';
     series: PerformanceHistoryPoint[];
   };
+}
+
+export interface WeeklyReportEnvelope {
+  status: EnvelopeStatus;
+  report: WeeklyReport | null;
 }
 
 export interface NDXHistoryPoint {
@@ -436,6 +443,11 @@ const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
   },
 });
 
+const emptyWeeklyReportEnvelope: WeeklyReportEnvelope = {
+  status: 'unavailable',
+  report: null,
+};
+
 type LegacyPortfolioHistoryPoint = {
   date: string;
   total_value: number;
@@ -681,17 +693,18 @@ export async function getActionReport(): Promise<ActionReport> {
   }
 }
 
-export async function getLatestWeeklyReport(): Promise<WeeklyReport | null> {
+export async function getLatestWeeklyReport(): Promise<WeeklyReportEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly/latest`, {
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error('Failed to fetch weekly report');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return null;
+    const res = await fetch(`${API_BASE}/api/reports/weekly/latest`, { cache: 'no-store' });
+    if (!res.ok) return emptyWeeklyReportEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyWeeklyReportEnvelope;
+    }
+    return data as WeeklyReportEnvelope;
+  } catch {
+    return emptyWeeklyReportEnvelope;
   }
 }
 

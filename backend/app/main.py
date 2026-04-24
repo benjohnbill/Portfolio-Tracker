@@ -1,3 +1,4 @@
+import logging
 import os
 from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ import time
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
+from .api._envelope import wrap_response
 from .database import SessionLocal, engine, Base, get_db
 from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot, PortfolioPerformanceSnapshot
 from .services.price_service import PriceService
@@ -29,6 +31,8 @@ from .services.discord_notifier import send_discord_message
 from .services.attribution_service import AttributionService
 from .services.intelligence_service import IntelligenceService
 from .services.outcome_evaluator import OutcomeEvaluatorService
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
 
@@ -465,16 +469,15 @@ def list_weekly_reports(limit: int = 12, db: Session = Depends(get_db)):
 
 @app.get("/api/reports/weekly/latest")
 def get_latest_weekly_report(db: Session = Depends(get_db)):
+    """UX-1 envelope: always HTTP 200; failures absorb into status='unavailable'."""
     try:
         report = ReportService.get_latest_report(db)
         if not report:
-            raise HTTPException(status_code=404, detail="Weekly report not found")
-        return report
-    except HTTPException:
-        raise
+            return wrap_response(status="unavailable", report=None)
+        return wrap_response(status="ready", report=report)
     except Exception as e:
-        print(f"Error in GET /api/reports/weekly/latest: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("weekly_latest_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", report=None)
 
 
 @app.get("/api/reports/weekly/{week_ending}")

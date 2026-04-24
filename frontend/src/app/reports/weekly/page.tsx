@@ -3,7 +3,8 @@ import { getLatestWeeklyReport } from '@/lib/api';
 
 
 export default async function WeeklyReportPage() {
-  const report = await getLatestWeeklyReport();
+  const envelope = await getLatestWeeklyReport();
+  const report = envelope.status === 'ready' ? envelope.report : null;
 
   if (!report) {
     return <div className="p-8 text-white">Unable to load weekly report.</div>;

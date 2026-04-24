@@ -817,7 +817,20 @@ def get_intelligence_regime_history(db: Session = Depends(get_db)):
 @app.get("/api/intelligence/reviews/summary")
 def get_intelligence_review_summary(db: Session = Depends(get_db)):
     """Available review periods with data counts."""
-    return IntelligenceService.get_review_summary(db)
+    try:
+        summary = IntelligenceService.get_review_summary(db)
+        return wrap_response(status="ready", summary=summary)
+    except Exception as e:
+        logger.warning("intelligence_reviews_summary_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            summary={
+                "totalWeeks": 0,
+                "months": [],
+                "quarters": [],
+                "years": [],
+            },
+        )
 
 
 @app.get("/api/intelligence/reviews/monthly")

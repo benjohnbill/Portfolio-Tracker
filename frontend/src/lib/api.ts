@@ -519,6 +519,11 @@ export interface IntelligenceRegimeHistoryEnvelope {
   transitions: RegimeTransitionData[];
 }
 
+export interface IntelligenceReviewSummaryEnvelope {
+  status: EnvelopeStatus;
+  summary: ReviewSummaryData;
+}
+
 const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
   period,
   archive: { series: [] },
@@ -557,6 +562,11 @@ const emptyIntelligenceOutcomesEnvelope = (
 const emptyIntelligenceRegimeHistoryEnvelope: IntelligenceRegimeHistoryEnvelope = {
   status: 'unavailable',
   transitions: [],
+};
+
+const emptyIntelligenceReviewSummaryEnvelope: IntelligenceReviewSummaryEnvelope = {
+  status: 'unavailable',
+  summary: { totalWeeks: 0, months: [], quarters: [], years: [] },
 };
 
 type LegacyPortfolioHistoryPoint = {
@@ -1216,15 +1226,18 @@ export interface ReviewAggregation {
   ruleStats?: Array<{ ruleId: string; fired: number; followed: number; ignored: number }>;
 }
 
-export async function getReviewSummary(): Promise<ReviewSummaryData> {
+export async function getReviewSummary(): Promise<IntelligenceReviewSummaryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/intelligence/reviews/summary`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch review summary');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return { totalWeeks: 0, months: [], quarters: [], years: [] };
+    if (!res.ok) return emptyIntelligenceReviewSummaryEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyIntelligenceReviewSummaryEnvelope;
+    }
+    return data as IntelligenceReviewSummaryEnvelope;
+  } catch {
+    return emptyIntelligenceReviewSummaryEnvelope;
   }
 }
 

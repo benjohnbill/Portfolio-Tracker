@@ -836,3 +836,50 @@ def test_intelligence_regime_history_returns_ready_when_data_exists(client):
         response = client.get("/api/intelligence/regime/history")
         assert response.json()["status"] == "ready"
         assert response.json()["transitions"] == fake_transitions
+
+
+# --------------------------------------------------------------------------- #
+# /api/intelligence/reviews/summary                                           #
+# --------------------------------------------------------------------------- #
+
+
+def test_intelligence_reviews_summary_returns_envelope(client):
+    response = client.get("/api/intelligence/reviews/summary")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "summary" in payload
+
+
+def test_intelligence_reviews_summary_absorbs_service_failure(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    with patch.object(
+        IntelligenceService,
+        "get_review_summary",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/intelligence/reviews/summary")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["summary"] == {
+            "totalWeeks": 0,
+            "months": [],
+            "quarters": [],
+            "years": [],
+        }
+
+
+def test_intelligence_reviews_summary_returns_ready_when_data_exists(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    fake_summary = {
+        "totalWeeks": 24,
+        "months": ["2026-04"],
+        "quarters": ["2026-Q1"],
+        "years": ["2026"],
+    }
+    with patch.object(IntelligenceService, "get_review_summary", return_value=fake_summary):
+        response = client.get("/api/intelligence/reviews/summary")
+        assert response.json()["status"] == "ready"
+        assert response.json()["summary"] == fake_summary

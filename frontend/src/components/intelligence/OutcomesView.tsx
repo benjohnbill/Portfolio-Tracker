@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { DecisionOutcomeData, getIntelligenceOutcomes } from '@/lib/api';
+import { isReady } from '@/lib/envelope';
 
 const HORIZONS = ['1w', '1m', '3m', '6m', '1y'] as const;
 
@@ -23,8 +24,8 @@ export function OutcomesView({ initialOutcomes }: { initialOutcomes: DecisionOut
   const handleHorizonChange = async (h: string | null) => {
     setHorizon(h);
     setLoading(true);
-    const data = await getIntelligenceOutcomes(h ?? undefined);
-    setOutcomes(data);
+    const envelope = await getIntelligenceOutcomes(h ?? undefined);
+    setOutcomes(isReady(envelope) ? envelope.outcomes : []);
     setLoading(false);
   };
 

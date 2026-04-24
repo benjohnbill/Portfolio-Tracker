@@ -733,9 +733,28 @@ def get_intelligence_attributions(
     db: Session = Depends(get_db),
 ):
     """Time series of score decompositions across date range."""
-    from_date = date.fromisoformat(date_from) if date_from else None
-    to_date = date.fromisoformat(date_to) if date_to else None
-    return IntelligenceService.get_attributions(db, date_from=from_date, date_to=to_date)
+    try:
+        from_date = date.fromisoformat(date_from) if date_from else None
+        to_date = date.fromisoformat(date_to) if date_to else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date_from/date_to must be YYYY-MM-DD")
+
+    try:
+        attributions = IntelligenceService.get_attributions(db, date_from=from_date, date_to=to_date)
+        return wrap_response(
+            status="ready",
+            date_from=date_from,
+            date_to=date_to,
+            attributions=attributions or [],
+        )
+    except Exception as e:
+        logger.warning("intelligence_attributions_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            date_from=date_from,
+            date_to=date_to,
+            attributions=[],
+        )
 
 
 @app.get("/api/intelligence/attributions/{snapshot_date}")
@@ -756,13 +775,32 @@ def get_intelligence_outcomes(
     """Decision outcomes evaluated at specified horizon."""
     if horizon and horizon not in ("1w", "1m", "3m", "6m", "1y"):
         raise HTTPException(status_code=400, detail="Invalid horizon. Use: 1w, 1m, 3m, 6m, 1y")
-    return IntelligenceService.get_outcomes(db, horizon=horizon)
+
+    try:
+        outcomes = IntelligenceService.get_outcomes(db, horizon=horizon)
+        return wrap_response(
+            status="ready",
+            horizon=horizon,
+            outcomes=outcomes or [],
+        )
+    except Exception as e:
+        logger.warning("intelligence_outcomes_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            horizon=horizon,
+            outcomes=[],
+        )
 
 
 @app.get("/api/intelligence/rules/accuracy")
 def get_intelligence_rule_accuracy(db: Session = Depends(get_db)):
     """Per-rule accuracy: times fired, times followed, follow rate."""
-    return IntelligenceService.get_rule_accuracy(db)
+    try:
+        rules = IntelligenceService.get_rule_accuracy(db)
+        return wrap_response(status="ready", rules=rules or [])
+    except Exception as e:
+        logger.warning("intelligence_rules_accuracy_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", rules=[])
 
 
 @app.get("/api/intelligence/regime/history")

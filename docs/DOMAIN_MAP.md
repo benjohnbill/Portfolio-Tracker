@@ -43,12 +43,13 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 - `coverage` — per-section availability flags on a snapshot `{portfolio, macro, rules, decisions, slippage, comment}`.
 - `deltas` — computed diff between two snapshots on `/friday/compare`.
 
-### Intelligence (Phase 1b will extend this section)
+### Intelligence
 
-- `attributions` — score decomposition over time.
-- `rules` — rule accuracy table entries.
-- `outcomes` — decision outcome evaluation.
-- `scorecard` — portfolio vs SPY-KRW risk-adjusted metrics.
+- `attributions` — score decomposition time series; each item is an `AttributionData` with `snapshotDate`, `totalScore`, and bucket breakdown. Envelope: `IntelligenceAttributionsEnvelope` (fields: `status`, `date_from`, `date_to`, `attributions`).
+- `rules` — rule accuracy table entries (per-rule `fired`/`followed`/`accuracy`). Envelope: `IntelligenceRulesAccuracyEnvelope` (fields: `status`, `rules`).
+- `outcomes` — decision outcome evaluations at a given horizon. Envelope: `IntelligenceOutcomesEnvelope` (fields: `status`, `horizon`, `outcomes`).
+- `transitions` — regime transition timeline entries (Task 3 will add the envelope).
+- `scorecard` — portfolio vs SPY-KRW risk-adjusted metrics (envelope landing in Task 6).
 
 ---
 
@@ -70,3 +71,4 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 
 - 2026-04-23 — v1. UX-1 Phase 1a shared-infra commit introduced envelope rule + registry. Portfolio/performance entries already shipped in closeout `49f4c2b`.
 - 2026-04-23 — Added Exceptions / migration debt section documenting `/api/portfolio/history` nested-status pattern. Phase 1c will flatten when `/portfolio` alignment ships.
+- 2026-04-24 — Phase 1b Task 1: Intelligence attributions / rules / outcomes envelopes added. Subroute pages (rules, attributions, outcomes) on legacy-compat unwrap until their full restructure (Tasks 2, 3, 4).

@@ -671,3 +671,129 @@ def test_friday_current_cache_invalidates_on_transaction_create(client):
         r3 = client.get("/api/v1/friday/current")
         assert r3.status_code == 200
         assert call_count["n"] == 2
+
+
+# --------------------------------------------------------------------------- #
+# /api/intelligence/attributions                                              #
+# --------------------------------------------------------------------------- #
+
+
+def test_intelligence_attributions_returns_envelope(client):
+    response = client.get("/api/intelligence/attributions")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "attributions" in payload
+
+
+def test_intelligence_attributions_absorbs_service_failure(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    with patch.object(
+        IntelligenceService,
+        "get_attributions",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/intelligence/attributions")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["attributions"] == []
+
+
+def test_intelligence_attributions_returns_ready_when_data_exists(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    fake_data = [
+        {"snapshotDate": "2026-04-18", "buckets": [], "scoreTotal": 72},
+    ]
+    with patch.object(IntelligenceService, "get_attributions", return_value=fake_data):
+        response = client.get("/api/intelligence/attributions")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["attributions"] == fake_data
+
+
+# --------------------------------------------------------------------------- #
+# /api/intelligence/rules/accuracy                                            #
+# --------------------------------------------------------------------------- #
+
+
+def test_intelligence_rules_accuracy_returns_envelope(client):
+    response = client.get("/api/intelligence/rules/accuracy")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "rules" in payload
+
+
+def test_intelligence_rules_accuracy_absorbs_service_failure(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    with patch.object(
+        IntelligenceService,
+        "get_rule_accuracy",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/intelligence/rules/accuracy")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["rules"] == []
+
+
+def test_intelligence_rules_accuracy_returns_ready_when_data_exists(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    fake_rules = [
+        {"ruleId": "R1", "fired": 5, "followed": 3, "accuracy": 0.6},
+    ]
+    with patch.object(IntelligenceService, "get_rule_accuracy", return_value=fake_rules):
+        response = client.get("/api/intelligence/rules/accuracy")
+        assert response.json()["status"] == "ready"
+        assert response.json()["rules"] == fake_rules
+
+
+# --------------------------------------------------------------------------- #
+# /api/intelligence/outcomes                                                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_intelligence_outcomes_returns_envelope(client):
+    response = client.get("/api/intelligence/outcomes")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "outcomes" in payload
+    assert "horizon" in payload
+
+
+def test_intelligence_outcomes_absorbs_service_failure(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    with patch.object(
+        IntelligenceService,
+        "get_outcomes",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/intelligence/outcomes")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["outcomes"] == []
+
+
+def test_intelligence_outcomes_returns_ready_when_data_exists(client):
+    from app.services.intelligence_service import IntelligenceService
+
+    fake_outcomes = [
+        {"decisionId": 1, "horizon": "3m", "outcomeDelta": 0.05},
+    ]
+    with patch.object(IntelligenceService, "get_outcomes", return_value=fake_outcomes):
+        response = client.get("/api/intelligence/outcomes?horizon=3m")
+        assert response.json()["status"] == "ready"
+        assert response.json()["horizon"] == "3m"
+        assert response.json()["outcomes"] == fake_outcomes
+
+
+def test_intelligence_outcomes_rejects_bad_horizon(client):
+    response = client.get("/api/intelligence/outcomes?horizon=not-a-horizon")
+    assert response.status_code == 400

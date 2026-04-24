@@ -492,6 +492,28 @@ export interface FridayCompareEnvelope {
   comparison: FridayComparison | null;
 }
 
+// Phase UX-1b Task 1 — Intelligence root-panel envelopes.
+// Shapes mirror the wrap_response() output from main.py for
+// /api/intelligence/{attributions,rules/accuracy,outcomes}. Each preserves
+// the collection shape across ready/unavailable so UI skeletons match.
+export interface IntelligenceAttributionsEnvelope {
+  status: EnvelopeStatus;
+  date_from: string | null;
+  date_to: string | null;
+  attributions: AttributionData[];
+}
+
+export interface IntelligenceRulesAccuracyEnvelope {
+  status: EnvelopeStatus;
+  rules: RuleAccuracyData[];
+}
+
+export interface IntelligenceOutcomesEnvelope {
+  status: EnvelopeStatus;
+  horizon: string | null;
+  outcomes: DecisionOutcomeData[];
+}
+
 const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
   period,
   archive: { series: [] },
@@ -506,6 +528,26 @@ const emptyWeeklyReportEnvelope: WeeklyReportEnvelope = {
   status: 'unavailable',
   report: null,
 };
+
+const emptyIntelligenceAttributionsEnvelope: IntelligenceAttributionsEnvelope = {
+  status: 'unavailable',
+  date_from: null,
+  date_to: null,
+  attributions: [],
+};
+
+const emptyIntelligenceRulesAccuracyEnvelope: IntelligenceRulesAccuracyEnvelope = {
+  status: 'unavailable',
+  rules: [],
+};
+
+const emptyIntelligenceOutcomesEnvelope = (
+  horizon?: string | null,
+): IntelligenceOutcomesEnvelope => ({
+  status: 'unavailable',
+  horizon: horizon ?? null,
+  outcomes: [],
+});
 
 type LegacyPortfolioHistoryPoint = {
   date: string;
@@ -1072,7 +1114,10 @@ export interface RegimeTransitionData {
   previousDate: string | null;
 }
 
-export async function getIntelligenceAttributions(dateFrom?: string, dateTo?: string): Promise<AttributionData[]> {
+export async function getIntelligenceAttributions(
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<IntelligenceAttributionsEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const params = new URLSearchParams();
@@ -1080,36 +1125,47 @@ export async function getIntelligenceAttributions(dateFrom?: string, dateTo?: st
     if (dateTo) params.set('date_to', dateTo);
     const qs = params.toString() ? `?${params.toString()}` : '';
     const res = await fetch(`${API_BASE}/api/intelligence/attributions${qs}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch attributions');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+    if (!res.ok) return emptyIntelligenceAttributionsEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyIntelligenceAttributionsEnvelope;
+    }
+    return data as IntelligenceAttributionsEnvelope;
+  } catch {
+    return emptyIntelligenceAttributionsEnvelope;
   }
 }
 
-export async function getIntelligenceOutcomes(horizon?: string): Promise<DecisionOutcomeData[]> {
+export async function getIntelligenceOutcomes(
+  horizon?: string,
+): Promise<IntelligenceOutcomesEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const qs = horizon ? `?horizon=${horizon}` : '';
     const res = await fetch(`${API_BASE}/api/intelligence/outcomes${qs}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch outcomes');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+    if (!res.ok) return emptyIntelligenceOutcomesEnvelope(horizon);
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyIntelligenceOutcomesEnvelope(horizon);
+    }
+    return data as IntelligenceOutcomesEnvelope;
+  } catch {
+    return emptyIntelligenceOutcomesEnvelope(horizon);
   }
 }
 
-export async function getIntelligenceRuleAccuracy(): Promise<RuleAccuracyData[]> {
+export async function getIntelligenceRuleAccuracy(): Promise<IntelligenceRulesAccuracyEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/intelligence/rules/accuracy`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch rule accuracy');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+    if (!res.ok) return emptyIntelligenceRulesAccuracyEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyIntelligenceRulesAccuracyEnvelope;
+    }
+    return data as IntelligenceRulesAccuracyEnvelope;
+  } catch {
+    return emptyIntelligenceRulesAccuracyEnvelope;
   }
 }
 

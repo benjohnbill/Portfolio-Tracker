@@ -1,10 +1,12 @@
 import { WeeklyReportView } from '@/components/reports/WeeklyReportView';
 import { getLatestWeeklyReport } from '@/lib/api';
+import { isReady } from '@/lib/envelope';
 
 
 export default async function WeeklyReportPage() {
+  // TODO(ux1-phase1c): remove once /reports/weekly is migrated or deleted (scope-lock §3).
   const envelope = await getLatestWeeklyReport();
-  const report = envelope.status === 'ready' ? envelope.report : null;
+  const report = isReady(envelope) ? envelope.report : null;
 
   if (!report) {
     return <div className="p-8 text-white">Unable to load weekly report.</div>;

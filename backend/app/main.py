@@ -304,6 +304,38 @@ def _coerce_iso_date(value: Any) -> Optional[str]:
     return str(value)
 
 
+def _compute_snapshot_coverage(snapshot: Optional[Dict[str, Any]]) -> Dict[str, bool]:
+    """Derive per-section coverage flags from a FridayService.get_snapshot dict.
+
+    Field names mirror `FridayService._serialize_snapshot` output:
+    top-level `decisions`/`comment`, plus `frozenReport.portfolioSnapshot`,
+    `frozenReport.macroSnapshot`, `frozenReport.triggeredRules`. Slippage
+    is nested one level deeper as `decision.slippageEntries`.
+    """
+    if not snapshot:
+        return {
+            "portfolio": False,
+            "macro": False,
+            "rules": False,
+            "decisions": False,
+            "slippage": False,
+            "comment": False,
+        }
+    frozen = snapshot.get("frozenReport") or {}
+    decisions = snapshot.get("decisions") or []
+    slippage_present = any(
+        (d.get("slippageEntries") or []) for d in decisions
+    )
+    return {
+        "portfolio": bool(frozen.get("portfolioSnapshot")),
+        "macro": bool(frozen.get("macroSnapshot")),
+        "rules": bool(frozen.get("triggeredRules")),
+        "decisions": bool(decisions),
+        "slippage": slippage_present,
+        "comment": bool((snapshot.get("comment") or "").strip()),
+    }
+
+
 def _performance_value(row: Any) -> Optional[float]:
     for field in ("performance_value", "neutralized_value", "neutralized_performance_value"):
         value = getattr(row, field, None)
@@ -605,14 +637,34 @@ def get_friday_sleeve_history(weeks: int = 4, db: Session = Depends(get_db)):
 def get_friday_snapshot(snapshot_date: str, db: Session = Depends(get_db)):
     try:
         parsed = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
-        return FridayService.get_snapshot(db, parsed)
-    except SnapshotNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=400, detail="snapshot_date must be YYYY-MM-DD")
+
+    try:
+        snapshot = FridayService.get_snapshot(db, parsed)
+        coverage = _compute_snapshot_coverage(snapshot)
+        status = "ready" if all(coverage.values()) else "partial"
+        return wrap_response(
+            status=status,
+            date=snapshot_date,
+            coverage=coverage,
+            snapshot=snapshot,
+        )
+    except SnapshotNotFoundError:
+        return wrap_response(
+            status="unavailable",
+            date=snapshot_date,
+            coverage=_compute_snapshot_coverage(None),
+            snapshot=None,
+        )
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/snapshot/{{snapshot_date}}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_snapshot_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            date=snapshot_date,
+            coverage=_compute_snapshot_coverage(None),
+            snapshot=None,
+        )
 
 
 @app.post("/api/v1/friday/decisions")

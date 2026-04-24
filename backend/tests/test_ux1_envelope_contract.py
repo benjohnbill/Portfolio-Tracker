@@ -286,3 +286,123 @@ def test_friday_snapshots_returns_ready_envelope_when_snapshots_exist(client):
         assert payload["status"] == "ready"
         assert payload["count"] == 1
         assert payload["snapshots"][0]["snapshotDate"] == "2026-04-11"
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/snapshot/{date}                                              #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_snapshot_envelope_on_missing_date(client):
+    response = client.get("/api/v1/friday/snapshot/2020-01-03")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "unavailable"
+    assert payload["snapshot"] is None
+
+
+def test_friday_snapshot_envelope_shape(client):
+    response = client.get("/api/v1/friday/snapshot/2020-01-03")
+    payload = response.json()
+    for key in {"status", "date", "coverage", "snapshot"}:
+        assert key in payload
+    for section in {"portfolio", "macro", "rules", "decisions", "slippage", "comment"}:
+        assert section in payload["coverage"]
+
+
+def test_friday_snapshot_rejects_bad_date(client):
+    response = client.get("/api/v1/friday/snapshot/not-a-date")
+    assert response.status_code == 400  # input validation stays 4xx
+
+
+def test_friday_snapshot_absorbs_service_failure(client):
+    from app.services.friday_service import FridayService
+
+    with patch.object(
+        FridayService,
+        "get_snapshot",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/snapshot/2026-04-18")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["snapshot"] is None
+        assert payload["date"] == "2026-04-18"
+
+
+def test_friday_snapshot_ready_envelope_when_fully_covered(client):
+    """Fully-covered snapshot → status='ready' with all coverage flags True."""
+    from app.services.friday_service import FridayService
+
+    fake_snapshot = {
+        "id": 11,
+        "snapshotDate": "2026-04-18",
+        "createdAt": "2026-04-18T12:00:00+00:00",
+        "metadata": {},
+        "comment": "Held the line.",
+        "decisions": [
+            {
+                "id": 1,
+                "snapshotId": 11,
+                "decisionType": "hold",
+                "note": "Stay.",
+                "slippageEntries": [
+                    {"id": 9, "decisionId": 1, "executedAt": "2026-04-18T13:00:00+00:00"}
+                ],
+            }
+        ],
+        "frozenReport": {
+            "weekEnding": "2026-04-18",
+            "portfolioSnapshot": {"totalValueKRW": 100_000_000},
+            "macroSnapshot": {"overallState": "neutral"},
+            "triggeredRules": [{"ruleId": "RULE_X", "severity": "info"}],
+        },
+    }
+    with patch.object(FridayService, "get_snapshot", return_value=fake_snapshot):
+        response = client.get("/api/v1/friday/snapshot/2026-04-18")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["date"] == "2026-04-18"
+        assert payload["coverage"] == {
+            "portfolio": True,
+            "macro": True,
+            "rules": True,
+            "decisions": True,
+            "slippage": True,
+            "comment": True,
+        }
+        assert payload["snapshot"]["snapshotDate"] == "2026-04-18"
+
+
+def test_friday_snapshot_partial_envelope_when_sections_missing(client):
+    """Partial snapshot (missing rules/decisions/slippage) → status='partial'."""
+    from app.services.friday_service import FridayService
+
+    fake_snapshot = {
+        "id": 12,
+        "snapshotDate": "2026-04-18",
+        "createdAt": "2026-04-18T12:00:00+00:00",
+        "metadata": {},
+        "comment": None,
+        "decisions": [],
+        "frozenReport": {
+            "weekEnding": "2026-04-18",
+            "portfolioSnapshot": {"totalValueKRW": 100_000_000},
+            "macroSnapshot": {"overallState": "neutral"},
+            "triggeredRules": [],
+        },
+    }
+    with patch.object(FridayService, "get_snapshot", return_value=fake_snapshot):
+        response = client.get("/api/v1/friday/snapshot/2026-04-18")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "partial"
+        assert payload["coverage"]["portfolio"] is True
+        assert payload["coverage"]["macro"] is True
+        assert payload["coverage"]["rules"] is False
+        assert payload["coverage"]["decisions"] is False
+        assert payload["coverage"]["slippage"] is False
+        assert payload["coverage"]["comment"] is False
+        assert payload["snapshot"]["snapshotDate"] == "2026-04-18"

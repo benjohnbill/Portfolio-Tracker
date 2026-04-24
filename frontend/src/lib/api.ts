@@ -69,6 +69,22 @@ export interface FridaySnapshotsEnvelope {
   snapshots: FridaySnapshotSummary[];
 }
 
+export interface FridaySnapshotCoverage {
+  portfolio: boolean;
+  macro: boolean;
+  rules: boolean;
+  decisions: boolean;
+  slippage: boolean;
+  comment: boolean;
+}
+
+export interface FridaySnapshotEnvelope {
+  status: EnvelopeStatus;
+  date: string;
+  coverage: FridaySnapshotCoverage;
+  snapshot: FridaySnapshot | null;
+}
+
 export interface NDXHistoryPoint {
   date: string;
   price: number;
@@ -816,17 +832,35 @@ export async function getFridaySnapshots(): Promise<FridaySnapshotsEnvelope> {
   }
 }
 
-export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySnapshot | null> {
+const emptyFridaySnapshotEnvelope = (date: string): FridaySnapshotEnvelope => ({
+  status: 'unavailable',
+  date,
+  coverage: {
+    portfolio: false,
+    macro: false,
+    rules: false,
+    decisions: false,
+    slippage: false,
+    comment: false,
+  },
+  snapshot: null,
+});
+
+export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySnapshotEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/v1/friday/snapshot/${snapshotDate}`, {
-      cache: 'no-store'
+      cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Failed to fetch Friday snapshot');
-    return res.json();
+    if (!res.ok) return emptyFridaySnapshotEnvelope(snapshotDate);
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridaySnapshotEnvelope(snapshotDate);
+    }
+    return data as FridaySnapshotEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return null;
+    return emptyFridaySnapshotEnvelope(snapshotDate);
   }
 }
 

@@ -29,8 +29,14 @@ export async function FridayReportSection() {
 
   const snapshots = isReady(snapshotsEnvelope) ? snapshotsEnvelope.snapshots : [];
   const report = reportEnvelope.report;
-  const currentSnapshot = snapshots.some((item) => item.snapshotDate === report.weekEnding)
+  // TODO(ux1-phase1a-d4): D4 migrated getFridaySnapshot to the UX-1 envelope.
+  // FridayDashboard still expects the raw FridaySnapshot; unwrap here until
+  // the dashboard surface is itself lifted into envelope-awareness.
+  const currentSnapshotEnvelope = snapshots.some((item) => item.snapshotDate === report.weekEnding)
     ? await getFridaySnapshot(report.weekEnding)
+    : null;
+  const currentSnapshot = currentSnapshotEnvelope && isReady(currentSnapshotEnvelope)
+    ? currentSnapshotEnvelope.snapshot
     : null;
 
   return <FridayDashboard report={report} snapshots={snapshots} currentSnapshot={currentSnapshot} />;

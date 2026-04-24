@@ -38,7 +38,7 @@ export async function FridaySleeveSection() {
   // When sleeve-history is unavailable we still render the panel using drift /
   // active-rules from the report — recency strip just shows zeros.
   const sleeveHistory = isReady(sleeveEnvelope)
-    ? (sleeveEnvelope.sleeves as SleeveHistoryData)
+    ? sleeveEnvelope.sleeves
     : EMPTY_SLEEVE_HISTORY;
 
   return <SleeveHealthPanel report={reportEnvelope.report} sleeveHistory={sleeveHistory} />;

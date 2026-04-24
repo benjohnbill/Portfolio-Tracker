@@ -38,19 +38,30 @@ export interface WeeklyReportEnvelope {
 // are the same keys the underlying services produce (see briefing_service /
 // friday_service). The envelope adds `status` at the root and preserves shape
 // across ready/unavailable so UI skeletons match loaded views.
+/**
+ * Envelope spreads the briefing service's inner fields at the root
+ * (since, sinceDate, regimeTransitions, maturedOutcomes, alertHistory,
+ * lastSnapshotComment). Other envelope types in this file NEST data
+ * under a named key (e.g., `report`, `snapshots`) — briefing is the
+ * exception because its service already returns a flat dict and the
+ * envelope wraps via `**` spread on the backend. Do not add a field
+ * named `status` to the inner briefing dict — it would collide with
+ * the envelope's reserved key.
+ */
 export interface FridayBriefingEnvelope extends FridayBriefingData {
   status: EnvelopeStatus;
 }
 
 export interface FridaySleeveHistoryEnvelope {
   status: EnvelopeStatus;
-  sleeves: SleeveHistoryData | Record<string, number[]>;
+  sleeves: SleeveHistoryData;
 }
 
-export interface FridayCurrentEnvelope {
-  status: EnvelopeStatus;
-  report: WeeklyReport | null;
-}
+// Structurally identical to WeeklyReportEnvelope. Shared contract: one
+// backend endpoint serves the "latest weekly report" envelope shape for
+// both /api/reports/weekly/latest and /api/v1/friday/current. Aliased to
+// prevent silent drift if the envelope gains new fields.
+export type FridayCurrentEnvelope = WeeklyReportEnvelope;
 
 export interface FridaySnapshotsEnvelope {
   status: EnvelopeStatus;
@@ -761,10 +772,7 @@ export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReport 
   }
 }
 
-const emptyFridayCurrentEnvelope: FridayCurrentEnvelope = {
-  status: 'unavailable',
-  report: null,
-};
+const emptyFridayCurrentEnvelope: FridayCurrentEnvelope = emptyWeeklyReportEnvelope;
 
 export async function getFridayCurrent(): Promise<FridayCurrentEnvelope> {
   try {
@@ -850,7 +858,14 @@ export async function getFridayBriefing(since?: string): Promise<FridayBriefingE
 
 const emptyFridaySleeveHistoryEnvelope: FridaySleeveHistoryEnvelope = {
   status: 'unavailable',
-  sleeves: {},
+  sleeves: {
+    NDX: [],
+    DBMF: [],
+    BRAZIL: [],
+    MSTR: [],
+    GLDM: [],
+    'BONDS-CASH': [],
+  },
 };
 
 export async function getFridaySleeveHistory(weeks: number = 4): Promise<FridaySleeveHistoryEnvelope> {

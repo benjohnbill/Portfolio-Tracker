@@ -183,7 +183,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+    <div className="space-y-8 pb-12">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-primary mb-1 text-xs font-bold uppercase tracking-wider">

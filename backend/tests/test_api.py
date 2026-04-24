@@ -228,8 +228,11 @@ def test_get_friday_sleeve_history_returns_zeros_when_no_reports():
     response = client.get("/api/v1/friday/sleeve-history?weeks=4")
     assert response.status_code == 200
     body = response.json()
+    # Phase UX-1a: sleeve-history now returns an envelope with sleeves nested under `sleeves`.
+    assert body["status"] == "ready"
+    sleeves = body["sleeves"]
     for sleeve in ["NDX", "DBMF", "BRAZIL", "MSTR", "GLDM", "BONDS-CASH"]:
-        assert body[sleeve] == [0, 0, 0, 0]
+        assert sleeves[sleeve] == [0, 0, 0, 0]
 
 
 def test_get_friday_sleeve_history_rejects_out_of_range_weeks():

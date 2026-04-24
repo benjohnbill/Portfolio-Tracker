@@ -549,10 +549,15 @@ def create_friday_snapshot(payload: FridaySnapshotCreateRequest, db: Session = D
 @app.get("/api/v1/friday/snapshots")
 def list_friday_snapshots(db: Session = Depends(get_db)):
     try:
-        return FridayService.list_snapshots(db)
+        snapshots = FridayService.list_snapshots(db)
+        return wrap_response(
+            status="ready",
+            count=len(snapshots),
+            snapshots=snapshots,
+        )
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/snapshots: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_snapshots_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", count=0, snapshots=[])
 
 
 @app.get("/api/v1/friday/briefing")
@@ -564,22 +569,36 @@ def get_friday_briefing(since: Optional[str] = None, db: Session = Depends(get_d
 
     try:
         from .services.briefing_service import BriefingService
-        return BriefingService.get_briefing(db, since=since_date)
+        briefing = BriefingService.get_briefing(db, since=since_date)
+        return wrap_response(status="ready", **briefing)
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/briefing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_briefing_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            sinceDate=None,
+            regimeTransitions=[],
+            maturedOutcomes=[],
+            alertHistory={
+                "success": 0,
+                "failed": 0,
+                "lastFailureAt": None,
+                "lastFailureMessage": None,
+            },
+            lastSnapshotComment=None,
+        )
 
 
 @app.get("/api/v1/friday/sleeve-history")
 def get_friday_sleeve_history(weeks: int = 4, db: Session = Depends(get_db)):
     try:
         from .services.briefing_service import BriefingService
-        return BriefingService.get_sleeve_history(db, weeks=weeks)
+        sleeves = BriefingService.get_sleeve_history(db, weeks=weeks)
+        return wrap_response(status="ready", sleeves=sleeves)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/sleeve-history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_sleeve_history_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", sleeves={})
 
 
 @app.get("/api/v1/friday/snapshot/{snapshot_date}")
@@ -662,10 +681,13 @@ def compare_friday_snapshots(a: str, b: str, db: Session = Depends(get_db)):
 @app.get("/api/v1/friday/current")
 def get_friday_current(db: Session = Depends(get_db)):
     try:
-        return FridayService.get_current_report(db)
+        report = FridayService.get_current_report(db)
+        if not report:
+            return wrap_response(status="unavailable", report=None)
+        return wrap_response(status="ready", report=report)
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/current: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_current_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", report=None)
 
 # ---------------------------------------------------------------------------
 # Intelligence API

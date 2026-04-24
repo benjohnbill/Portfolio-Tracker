@@ -73,3 +73,216 @@ def test_weekly_latest_returns_ready_envelope_when_report_persisted(client, db_s
     assert payload["status"] == "ready"
     assert payload["report"] is not None
     assert payload["report"]["score"]["total"] == 80
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/briefing                                                     #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_briefing_returns_envelope(client):
+    response = client.get("/api/v1/friday/briefing")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "sinceDate" in payload
+    assert "regimeTransitions" in payload
+    assert "maturedOutcomes" in payload
+    assert "alertHistory" in payload
+    assert "lastSnapshotComment" in payload
+
+
+def test_friday_briefing_absorbs_service_failure(client):
+    from app.services import briefing_service
+
+    with patch.object(
+        briefing_service.BriefingService,
+        "get_briefing",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/briefing")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["sinceDate"] is None
+        assert payload["regimeTransitions"] == []
+        assert payload["maturedOutcomes"] == []
+
+
+def test_friday_briefing_rejects_invalid_date(client):
+    response = client.get("/api/v1/friday/briefing?since=not-a-date")
+    assert response.status_code == 400  # input validation still 4xx
+
+
+def test_friday_briefing_returns_ready_envelope_when_service_returns_data(client):
+    from app.services.briefing_service import BriefingService
+
+    fake_briefing = {
+        "sinceDate": "2026-04-11",
+        "regimeTransitions": [{"bucket": "liquidity", "from": "neutral", "to": "adverse"}],
+        "maturedOutcomes": [],
+        "alertHistory": {"success": 3, "failed": 0, "lastFailureAt": None, "lastFailureMessage": None},
+        "lastSnapshotComment": None,
+    }
+    with patch.object(BriefingService, "get_briefing", return_value=fake_briefing):
+        response = client.get("/api/v1/friday/briefing")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["sinceDate"] == "2026-04-11"
+        assert len(payload["regimeTransitions"]) == 1
+        assert payload["regimeTransitions"][0]["bucket"] == "liquidity"
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/sleeve-history                                               #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_sleeve_history_returns_envelope(client):
+    response = client.get("/api/v1/friday/sleeve-history?weeks=4")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "sleeves" in payload
+
+
+def test_friday_sleeve_history_absorbs_service_failure(client):
+    from app.services import briefing_service
+
+    with patch.object(
+        briefing_service.BriefingService,
+        "get_sleeve_history",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/sleeve-history")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["sleeves"] == {}
+
+
+def test_friday_sleeve_history_rejects_out_of_range_weeks(client):
+    """ValueError from service still surfaces as 400 (input validation)."""
+    response = client.get("/api/v1/friday/sleeve-history?weeks=0")
+    assert response.status_code == 400
+
+
+def test_friday_sleeve_history_returns_ready_envelope_when_service_returns_data(client):
+    from app.services.briefing_service import BriefingService
+
+    fake_history = {
+        "NDX": [0, 1, 0, 2],
+        "DBMF": [0, 0, 0, 0],
+        "BRAZIL": [0, 0, 0, 0],
+        "MSTR": [0, 0, 1, 0],
+        "GLDM": [0, 0, 0, 0],
+        "BONDS-CASH": [0, 0, 0, 0],
+    }
+    with patch.object(BriefingService, "get_sleeve_history", return_value=fake_history):
+        response = client.get("/api/v1/friday/sleeve-history?weeks=4")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["sleeves"]["NDX"] == [0, 1, 0, 2]
+        assert payload["sleeves"]["MSTR"] == [0, 0, 1, 0]
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/current                                                      #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_current_returns_envelope(client):
+    response = client.get("/api/v1/friday/current")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "report" in payload
+
+
+def test_friday_current_absorbs_service_failure(client):
+    from app.services.friday_service import FridayService
+
+    with patch.object(
+        FridayService,
+        "get_current_report",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/current")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["report"] is None
+
+
+def test_friday_current_returns_ready_envelope_when_report_exists(client):
+    from app.services.friday_service import FridayService
+
+    fake_report = {
+        "weekEnding": "2026-04-18",
+        "score": {"total": 72},
+        "portfolioSnapshot": {},
+        "macroSnapshot": {},
+    }
+    with patch.object(FridayService, "get_current_report", return_value=fake_report):
+        response = client.get("/api/v1/friday/current")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["report"]["weekEnding"] == "2026-04-18"
+        assert payload["report"]["score"]["total"] == 72
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/snapshots                                                    #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_snapshots_returns_envelope(client):
+    response = client.get("/api/v1/friday/snapshots")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "snapshots" in payload
+    assert "count" in payload
+
+
+def test_friday_snapshots_absorbs_service_failure(client):
+    from app.services.friday_service import FridayService
+
+    with patch.object(
+        FridayService,
+        "list_snapshots",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/snapshots")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["snapshots"] == []
+        assert payload["count"] == 0
+
+
+def test_friday_snapshots_returns_ready_envelope_when_snapshots_exist(client):
+    from app.services.friday_service import FridayService
+
+    fake_snapshots = [
+        {
+            "id": 1,
+            "snapshotDate": "2026-04-11",
+            "createdAt": "2026-04-11T12:00:00+00:00",
+            "metadata": {},
+            "comment": None,
+            "decisions": [],
+            "score": 70,
+            "status": "final",
+        }
+    ]
+    with patch.object(FridayService, "list_snapshots", return_value=fake_snapshots):
+        response = client.get("/api/v1/friday/snapshots")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["count"] == 1
+        assert payload["snapshots"][0]["snapshotDate"] == "2026-04-11"

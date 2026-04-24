@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { compareFridaySnapshots, getFridaySnapshots } from '@/lib/api';
+import { isReady } from '@/lib/envelope';
 import { CalendarDays, ChevronRight, GitCompareArrows } from 'lucide-react';
 
 
@@ -35,10 +36,14 @@ export default async function FridayArchivePage({
   const snapshotA = typeof params.a === 'string' ? params.a : null;
   const snapshotB = typeof params.b === 'string' ? params.b : null;
 
-  const [snapshots, comparison] = await Promise.all([
+  // TODO(ux1-phase1c-d5): D3 changed getFridaySnapshots to return an envelope.
+  // This page is the target of D5 and will get a full Suspense restructure there.
+  // Until then, unwrap minimally to preserve existing behavior.
+  const [snapshotsEnvelope, comparison] = await Promise.all([
     getFridaySnapshots(),
     snapshotA && snapshotB ? compareFridaySnapshots(snapshotA, snapshotB) : Promise.resolve(null),
   ]);
+  const snapshots = isReady(snapshotsEnvelope) ? snapshotsEnvelope.snapshots : [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">

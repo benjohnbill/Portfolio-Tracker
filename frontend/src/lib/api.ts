@@ -33,6 +33,31 @@ export interface WeeklyReportEnvelope {
   report: WeeklyReport | null;
 }
 
+// Phase UX-1a D3 — per-panel envelopes for /friday page streaming.
+// Shapes mirror what the backend returns after envelope wrapping; inner fields
+// are the same keys the underlying services produce (see briefing_service /
+// friday_service). The envelope adds `status` at the root and preserves shape
+// across ready/unavailable so UI skeletons match loaded views.
+export interface FridayBriefingEnvelope extends FridayBriefingData {
+  status: EnvelopeStatus;
+}
+
+export interface FridaySleeveHistoryEnvelope {
+  status: EnvelopeStatus;
+  sleeves: SleeveHistoryData | Record<string, number[]>;
+}
+
+export interface FridayCurrentEnvelope {
+  status: EnvelopeStatus;
+  report: WeeklyReport | null;
+}
+
+export interface FridaySnapshotsEnvelope {
+  status: EnvelopeStatus;
+  count: number;
+  snapshots: FridaySnapshotSummary[];
+}
+
 export interface NDXHistoryPoint {
   date: string;
   price: number;
@@ -736,31 +761,50 @@ export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReport 
   }
 }
 
-export async function getFridayCurrent(): Promise<WeeklyReport | null> {
+const emptyFridayCurrentEnvelope: FridayCurrentEnvelope = {
+  status: 'unavailable',
+  report: null,
+};
+
+export async function getFridayCurrent(): Promise<FridayCurrentEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/v1/friday/current`, {
       cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch Friday current report');
-    return res.json();
+    if (!res.ok) return emptyFridayCurrentEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridayCurrentEnvelope;
+    }
+    return data as FridayCurrentEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return null;
+    return emptyFridayCurrentEnvelope;
   }
 }
 
-export async function getFridaySnapshots(): Promise<FridaySnapshotSummary[]> {
+const emptyFridaySnapshotsEnvelope: FridaySnapshotsEnvelope = {
+  status: 'unavailable',
+  count: 0,
+  snapshots: [],
+};
+
+export async function getFridaySnapshots(): Promise<FridaySnapshotsEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/v1/friday/snapshots`, {
       cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch Friday snapshots');
-    return res.json();
+    if (!res.ok) return emptyFridaySnapshotsEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridaySnapshotsEnvelope;
+    }
+    return data as FridaySnapshotsEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return [];
+    return emptyFridaySnapshotsEnvelope;
   }
 }
 
@@ -778,28 +822,50 @@ export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySna
   }
 }
 
-export async function getFridayBriefing(since?: string): Promise<FridayBriefingData | null> {
+const emptyFridayBriefingEnvelope: FridayBriefingEnvelope = {
+  status: 'unavailable',
+  sinceDate: null,
+  regimeTransitions: [],
+  maturedOutcomes: [],
+  alertHistory: { success: 0, failed: 0, lastFailureAt: null, lastFailureMessage: null },
+  lastSnapshotComment: null,
+};
+
+export async function getFridayBriefing(since?: string): Promise<FridayBriefingEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const qs = since ? `?since=${encodeURIComponent(since)}` : '';
     const res = await fetch(`${API_BASE}/api/v1/friday/briefing${qs}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch Friday briefing');
-    return res.json();
+    if (!res.ok) return emptyFridayBriefingEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridayBriefingEnvelope;
+    }
+    return data as FridayBriefingEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return null;
+    return emptyFridayBriefingEnvelope;
   }
 }
 
-export async function getFridaySleeveHistory(weeks: number = 4): Promise<SleeveHistoryData | null> {
+const emptyFridaySleeveHistoryEnvelope: FridaySleeveHistoryEnvelope = {
+  status: 'unavailable',
+  sleeves: {},
+};
+
+export async function getFridaySleeveHistory(weeks: number = 4): Promise<FridaySleeveHistoryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/v1/friday/sleeve-history?weeks=${weeks}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch Friday sleeve history');
-    return res.json();
+    if (!res.ok) return emptyFridaySleeveHistoryEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridaySleeveHistoryEnvelope;
+    }
+    return data as FridaySleeveHistoryEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return null;
+    return emptyFridaySleeveHistoryEnvelope;
   }
 }
 

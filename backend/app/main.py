@@ -691,14 +691,19 @@ def compare_friday_snapshots(a: str, b: str, db: Session = Depends(get_db)):
     try:
         parsed_a = datetime.strptime(a, "%Y-%m-%d").date()
         parsed_b = datetime.strptime(b, "%Y-%m-%d").date()
-        return FridayService.compare_snapshots(db, parsed_a, parsed_b)
-    except SnapshotNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+
+    try:
+        comparison = FridayService.compare_snapshots(db, parsed_a, parsed_b)
+        if not comparison:
+            return wrap_response(status="unavailable", a=a, b=b, comparison=None)
+        return wrap_response(status="ready", a=a, b=b, comparison=comparison)
+    except SnapshotNotFoundError:
+        return wrap_response(status="unavailable", a=a, b=b, comparison=None)
     except Exception as e:
-        print(f"Error in GET /api/v1/friday/compare: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning("friday_compare_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", a=a, b=b, comparison=None)
 
 
 @app.get("/api/v1/friday/current")

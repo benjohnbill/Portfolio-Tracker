@@ -491,3 +491,70 @@ def test_friday_snapshot_ready_envelope_from_real_serializer(client, db_session)
     assert payload["status"] == "ready"
     assert payload["coverage"]["portfolio"] is True
     assert payload["coverage"]["macro"] is True
+
+
+# --------------------------------------------------------------------------- #
+# /api/v1/friday/compare                                                      #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_compare_envelope_shape_when_snapshots_missing(client):
+    response = client.get("/api/v1/friday/compare?a=2020-01-01&b=2020-01-08")
+    assert response.status_code == 200
+    payload = response.json()
+    for key in {"status", "a", "b", "comparison"}:
+        assert key in payload
+    assert payload["status"] == "unavailable"
+    assert payload["comparison"] is None
+
+
+def test_friday_compare_absorbs_service_failure(client):
+    from app.services.friday_service import FridayService
+
+    with patch.object(
+        FridayService,
+        "compare_snapshots",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/v1/friday/compare?a=2020-01-01&b=2020-01-08")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unavailable"
+        assert response.json()["comparison"] is None
+
+
+def test_friday_compare_rejects_bad_date(client):
+    response = client.get("/api/v1/friday/compare?a=not-a-date&b=2020-01-08")
+    assert response.status_code == 400
+
+
+def test_friday_compare_ready_envelope_when_service_returns_comparison(client):
+    from app.services.friday_service import FridayService
+
+    fake_comparison = {
+        "snapshotA": {
+            "snapshotDate": "2020-01-01",
+            "frozenReport": {"score": {"total": 70}},
+        },
+        "snapshotB": {
+            "snapshotDate": "2020-01-08",
+            "frozenReport": {"score": {"total": 75}},
+        },
+        "deltas": {
+            "score_total": 5,
+            "total_value": 0,
+            "regime_change": {"from": "neutral", "to": "neutral"},
+            "rules_added": [],
+            "rules_removed": [],
+            "holdings_changed": [],
+        },
+    }
+    with patch.object(FridayService, "compare_snapshots", return_value=fake_comparison):
+        response = client.get("/api/v1/friday/compare?a=2020-01-01&b=2020-01-08")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["a"] == "2020-01-01"
+        assert payload["b"] == "2020-01-08"
+        assert payload["comparison"] is not None
+        assert payload["comparison"]["snapshotA"]["snapshotDate"] == "2020-01-01"
+        assert payload["comparison"]["deltas"]["score_total"] == 5

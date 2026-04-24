@@ -485,6 +485,13 @@ export interface FridayComparison {
   };
 }
 
+export interface FridayCompareEnvelope {
+  status: EnvelopeStatus;
+  a: string;
+  b: string;
+  comparison: FridayComparison | null;
+}
+
 const emptyPortfolioHistory = (period: string): PortfolioHistoryData => ({
   period,
   archive: { series: [] },
@@ -918,17 +925,28 @@ export async function getFridaySleeveHistory(weeks: number = 4): Promise<FridayS
   }
 }
 
-export async function compareFridaySnapshots(a: string, b: string): Promise<FridayComparison | null> {
+const emptyFridayCompareEnvelope = (a: string, b: string): FridayCompareEnvelope => ({
+  status: 'unavailable',
+  a,
+  b,
+  comparison: null,
+});
+
+export async function compareFridaySnapshots(a: string, b: string): Promise<FridayCompareEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const res = await fetch(`${API_BASE}/api/v1/friday/compare?a=${a}&b=${b}`, {
-      cache: 'no-store'
+      cache: 'no-store',
     });
-    if (!res.ok) throw new Error('Failed to compare Friday snapshots');
-    return res.json();
+    if (!res.ok) return emptyFridayCompareEnvelope(a, b);
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyFridayCompareEnvelope(a, b);
+    }
+    return data as FridayCompareEnvelope;
   } catch (error) {
     console.error('API Error:', error);
-    return null;
+    return emptyFridayCompareEnvelope(a, b);
   }
 }
 

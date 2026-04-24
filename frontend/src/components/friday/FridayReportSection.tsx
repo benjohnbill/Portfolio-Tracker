@@ -8,14 +8,15 @@
  */
 
 import { FridayDashboard } from '@/components/friday/FridayDashboard';
-import { getFridayCurrent, getFridaySnapshot, getFridaySnapshots } from '@/lib/api';
+import { getFridaySnapshot } from '@/lib/api';
+import { getFridayCurrentCached, getFridaySnapshotsCached } from '@/lib/friday-fetchers-rsc';
 import { isReady } from '@/lib/envelope';
 
 
 export async function FridayReportSection() {
   const [reportEnvelope, snapshotsEnvelope] = await Promise.all([
-    getFridayCurrent(),
-    getFridaySnapshots(),
+    getFridayCurrentCached(),
+    getFridaySnapshotsCached(),
   ]);
 
   if (!isReady(reportEnvelope) || !reportEnvelope.report) {

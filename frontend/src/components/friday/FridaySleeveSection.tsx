@@ -7,7 +7,8 @@
  */
 
 import { SleeveHealthPanel } from '@/components/friday/SleeveHealthPanel';
-import { getFridayCurrent, getFridaySleeveHistory, type SleeveHistoryData } from '@/lib/api';
+import { type SleeveHistoryData } from '@/lib/api';
+import { getFridayCurrentCached, getFridaySleeveHistoryCached } from '@/lib/friday-fetchers-rsc';
 import { isReady } from '@/lib/envelope';
 
 
@@ -22,8 +23,8 @@ const EMPTY_SLEEVE_HISTORY: SleeveHistoryData = {
 
 export async function FridaySleeveSection() {
   const [sleeveEnvelope, reportEnvelope] = await Promise.all([
-    getFridaySleeveHistory(4),
-    getFridayCurrent(),
+    getFridaySleeveHistoryCached(4),
+    getFridayCurrentCached(),
   ]);
 
   if (!isReady(reportEnvelope) || !reportEnvelope.report) {

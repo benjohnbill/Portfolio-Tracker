@@ -33,6 +33,15 @@ export interface WeeklyReportEnvelope {
   report: WeeklyReport | null;
 }
 
+// Envelope for the per-week detail endpoint. Structurally similar to
+// WeeklyReportEnvelope but carries the URL path parameter as coverage
+// metadata so consumers don't need to re-parse the request path.
+export interface WeeklyReportDetailEnvelope {
+  status: EnvelopeStatus;
+  week_ending: string;
+  report: WeeklyReport | null;
+}
+
 // Shape returned by ReportService.list_reports — a summary row, not the full
 // WeeklyReport. Matches the keys the backend emits for each row in the list
 // endpoint (see backend/app/services/report_service.py::list_reports).
@@ -556,6 +565,12 @@ const emptyWeeklyReportEnvelope: WeeklyReportEnvelope = {
   report: null,
 };
 
+const emptyWeeklyReportDetailEnvelope = (weekEnding: string): WeeklyReportDetailEnvelope => ({
+  status: 'unavailable',
+  week_ending: weekEnding,
+  report: null,
+});
+
 const emptyWeeklyReportSummariesEnvelope: WeeklyReportSummariesEnvelope = {
   status: 'unavailable',
   count: 0,
@@ -867,17 +882,18 @@ export async function getWeeklyReports(limit: number = 24): Promise<WeeklyReport
   }
 }
 
-export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReport | null> {
+export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReportDetailEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly/${weekEnding}`, {
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error('Failed to fetch weekly report by week');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return null;
+    const res = await fetch(`${API_BASE}/api/reports/weekly/${weekEnding}`, { cache: 'no-store' });
+    if (!res.ok) return emptyWeeklyReportDetailEnvelope(weekEnding);
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyWeeklyReportDetailEnvelope(weekEnding);
+    }
+    return data as WeeklyReportDetailEnvelope;
+  } catch {
+    return emptyWeeklyReportDetailEnvelope(weekEnding);
   }
 }
 

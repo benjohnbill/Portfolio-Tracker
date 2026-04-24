@@ -1072,3 +1072,84 @@ def test_weekly_list_respects_limit_query(client, db_session):
     assert payload["status"] == "ready"
     assert payload["count"] == 3
     assert len(payload["reports"]) == 3
+
+
+# --------------------------------------------------------------------------- #
+# /api/reports/weekly/{week_ending} (detail)                                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_weekly_detail_returns_envelope_shape(client, db_session):
+    """Happy-path shape check: envelope root has status/week_ending/report."""
+    from app.models import WeeklyReport
+
+    db_session.add(
+        WeeklyReport(
+            week_ending=date(2026, 4, 18),
+            generated_at=datetime(2026, 4, 18, 12, 0, 0, tzinfo=timezone.utc),
+            logic_version="weekly-report-v0",
+            status="final",
+            report_json={"score": {"total": 80}},
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/reports/weekly/2026-04-18")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert payload["week_ending"] == "2026-04-18"
+    assert "report" in payload
+
+
+def test_weekly_detail_unavailable_when_not_found(client):
+    """Missing week_ending → status=unavailable with report=None, HTTP 200 (not 404)."""
+    response = client.get("/api/reports/weekly/2026-04-18")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "unavailable"
+    assert payload["week_ending"] == "2026-04-18"
+    assert payload["report"] is None
+
+
+def test_weekly_detail_rejects_bad_date(client):
+    """Malformed week_ending stays 400 — input validation only."""
+    response = client.get("/api/reports/weekly/not-a-date")
+    assert response.status_code == 400
+
+
+def test_weekly_detail_absorbs_service_failure_as_unavailable(client):
+    from app.services.report_service import ReportService
+
+    with patch.object(
+        ReportService,
+        "get_report_by_week",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/reports/weekly/2026-04-18")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["report"] is None
+        assert payload["week_ending"] == "2026-04-18"
+
+
+def test_weekly_detail_returns_ready_when_persisted(client, db_session):
+    from app.models import WeeklyReport
+
+    db_session.add(
+        WeeklyReport(
+            week_ending=date(2026, 4, 18),
+            generated_at=datetime(2026, 4, 18, 12, 0, 0, tzinfo=timezone.utc),
+            logic_version="weekly-report-v0",
+            status="final",
+            report_json={"score": {"total": 82}, "portfolioSnapshot": {}, "macroSnapshot": {}},
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/reports/weekly/2026-04-18")
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["report"] is not None
+    assert payload["report"]["score"]["total"] == 82

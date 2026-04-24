@@ -56,6 +56,7 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 - `reports` — collection of `WeeklyReportSummary` rows (keys: `weekEnding`, `generatedAt`, `logicVersion`, `status`, `score`). Envelope: `WeeklyReportSummariesEnvelope` (fields: `status`, `count`, `reports`).
 - `count` — length of `reports` array, duplicated in metadata for cheap UI summaries (avoid recomputing on the client).
 - `report` — full `WeeklyReport` object (distinct from the summary rows in `reports`). Envelope: `WeeklyReportEnvelope` (fields: `status`, `report`).
+- `week_ending` — ISO date; coverage metadata for per-week detail responses. Echoes the URL path parameter.
 
 ---
 
@@ -79,3 +80,4 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 - 2026-04-23 — Added Exceptions / migration debt section documenting `/api/portfolio/history` nested-status pattern. Phase 1c will flatten when `/portfolio` alignment ships.
 - 2026-04-24 — Phase 1b Task 1: Intelligence attributions / rules / outcomes envelopes added. Subroute pages (rules, attributions, outcomes) on legacy-compat unwrap until their full restructure (Tasks 2, 3, 4).
 - 2026-04-24 — Phase 1c Task 1: Weekly-reports list endpoint envelope added (`reports` registry entry + `count` metadata).
+- 2026-04-24 — Phase 1c Task 2: Weekly-reports detail endpoint envelope added (`week_ending` coverage metadata + reuses `report` domain key).

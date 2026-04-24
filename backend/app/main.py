@@ -493,14 +493,21 @@ def get_latest_weekly_report(db: Session = Depends(get_db)):
 
 @app.get("/api/reports/weekly/{week_ending}")
 def get_weekly_report(week_ending: str, db: Session = Depends(get_db)):
+    """UX-1 envelope: always HTTP 200 for known-shape responses;
+    malformed date stays 4xx (input validation)."""
     try:
         parsed = datetime.strptime(week_ending, "%Y-%m-%d").date()
-        report = ReportService.get_report_by_week(db, parsed)
-        if not report:
-            raise HTTPException(status_code=404, detail="Weekly report not found")
-        return report
     except ValueError:
         raise HTTPException(status_code=400, detail="week_ending must be YYYY-MM-DD")
+
+    try:
+        report = ReportService.get_report_by_week(db, parsed)
+        if not report:
+            return wrap_response(status="unavailable", week_ending=week_ending, report=None)
+        return wrap_response(status="ready", week_ending=week_ending, report=report)
+    except Exception as e:
+        logger.warning("weekly_detail_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", week_ending=week_ending, report=None)
 
 
 @app.post("/api/reports/weekly/generate")

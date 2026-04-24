@@ -5,15 +5,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SkeletonList } from '@/components/ui/skeleton-patterns';
 
 export default function RulesPage() {
+  // Page-level hero intentionally omitted: RulesView owns the "Rule Accuracy"
+  // h1 internally (same applies to other intelligence subroute pages —
+  // Tasks 3/4/5 follow the same convention to avoid duplicate h1s).
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-      <div>
-        <div className="text-xs font-bold uppercase tracking-wider text-primary mb-1">
-          Intelligence · Rules
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight italic">Rule Accuracy</h1>
-      </div>
-
       <Suspense fallback={<RulesPageSkeleton />}>
         <IntelligenceRulesSection />
       </Suspense>

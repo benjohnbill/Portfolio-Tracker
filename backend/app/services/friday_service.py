@@ -10,6 +10,7 @@ from sqlalchemy.orm.exc import DetachedInstanceError
 
 from ..models import EventAnnotation, ExecutionSlippage, WeeklyDecision, WeeklySnapshot
 from .algo_service import AlgoService
+from .cache_service import CacheService
 from .macro_service import MacroService
 from .portfolio_service import PortfolioService
 from .report_service import ReportService
@@ -36,6 +37,8 @@ class DecisionNotFoundError(LookupError):
 
 
 class FridayService:
+    UX1_FRIDAY_CURRENT_KEY = "ux1_friday_current_v1"
+
     @staticmethod
     def _find_snapshot_by_date(db: Session, snapshot_date: date) -> Optional[WeeklySnapshot]:
         return db.query(WeeklySnapshot).filter(WeeklySnapshot.snapshot_date == snapshot_date).first()
@@ -350,6 +353,10 @@ class FridayService:
             getattr(db, "rollback", lambda: None)()
             raise SnapshotConflictError(f"Snapshot already exists for {target_date.isoformat()}")
 
+        # Invalidate the cached /api/v1/friday/current payload — freezing a new
+        # snapshot changes what "current week" means.
+        CacheService.invalidate_cache(db, FridayService.UX1_FRIDAY_CURRENT_KEY)
+
         # B4 — precompute risk_metrics JSONB. Failure does NOT fail the freeze.
         try:
             snapshot.risk_metrics = RiskAdjustedService.compute_snapshot_metrics(db, snapshot)
@@ -544,3 +551,25 @@ class FridayService:
     def get_current_report(db: Session) -> Dict[str, Any]:
         current_week = ReportService.get_week_ending()
         return ReportService.build_weekly_report(db, current_week)
+
+    @staticmethod
+    def get_current_report_cached(db: Session) -> Dict[str, Any]:
+        """Cached wrapper around get_current_report.
+
+        Invalidation triggers (wired externally):
+        - FridayService.create_snapshot: freezing a new snapshot changes
+          what "current week" means.
+        - POST /api/transactions: cashflow writes change portfolio summary
+          metrics embedded in the current report.
+
+        Cache survives process restarts (SystemCache is DB-backed) — critical
+        on Render free tier where the backend restarts on idle sleep.
+        """
+        cached = CacheService.get_cache(db, FridayService.UX1_FRIDAY_CURRENT_KEY)
+        if cached is not None:
+            return cached
+
+        report = FridayService.get_current_report(db)
+        if report is not None:
+            CacheService.set_cache(db, FridayService.UX1_FRIDAY_CURRENT_KEY, report)
+        return report

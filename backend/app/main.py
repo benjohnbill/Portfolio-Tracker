@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from .api._envelope import wrap_response
 from .database import SessionLocal, engine, Base, get_db
 from .models import Asset, Transaction, RawDailyPrice, AccountType, AccountSilo, CronRunLog, WeeklySnapshot, PortfolioPerformanceSnapshot
+from .services.cache_service import CacheService
 from .services.price_service import PriceService
 from .services.portfolio_service import PortfolioService
 from .services.macro_service import MacroService
@@ -211,6 +212,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_tx)
         PortfolioService.clear_cache(db)
+        CacheService.invalidate_cache(db, FridayService.UX1_FRIDAY_CURRENT_KEY)
         return _serialize_transaction(new_tx)
 
     if tx_type not in {"BUY", "SELL"}:
@@ -287,7 +289,8 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     
     # Invalidate cache so new transactions are reflected immediately
     PortfolioService.clear_cache(db)
-    
+    CacheService.invalidate_cache(db, FridayService.UX1_FRIDAY_CURRENT_KEY)
+
     return _serialize_transaction(new_tx)
 
 @app.get("/api/portfolio/allocation")
@@ -711,7 +714,7 @@ def compare_friday_snapshots(a: str, b: str, db: Session = Depends(get_db)):
 @app.get("/api/v1/friday/current")
 def get_friday_current(db: Session = Depends(get_db)):
     try:
-        report = FridayService.get_current_report(db)
+        report = FridayService.get_current_report_cached(db)
         if not report:
             return wrap_response(status="unavailable", report=None)
         return wrap_response(status="ready", report=report)

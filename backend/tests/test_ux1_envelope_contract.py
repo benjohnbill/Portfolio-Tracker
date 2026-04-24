@@ -558,3 +558,116 @@ def test_friday_compare_ready_envelope_when_service_returns_comparison(client):
         assert payload["comparison"] is not None
         assert payload["comparison"]["snapshotA"]["snapshotDate"] == "2020-01-01"
         assert payload["comparison"]["deltas"]["score_total"] == 5
+
+
+# --------------------------------------------------------------------------- #
+# D6 — SystemCache for /api/v1/friday/current                                 #
+# --------------------------------------------------------------------------- #
+
+
+def test_friday_current_cache_hits_on_second_call(client):
+    """First call warms the cache; second call returns the cached payload
+    without re-invoking get_current_report."""
+    from app.services.friday_service import FridayService
+
+    fake_report = {
+        "weekEnding": "2026-04-18",
+        "score": {"total": 72},
+        "portfolioSnapshot": {},
+        "macroSnapshot": {},
+    }
+    call_count = {"n": 0}
+
+    def stub(db):
+        call_count["n"] += 1
+        return fake_report
+
+    with patch.object(FridayService, "get_current_report", side_effect=stub):
+        r1 = client.get("/api/v1/friday/current")
+        r2 = client.get("/api/v1/friday/current")
+        assert r1.status_code == r2.status_code == 200
+        assert r1.json() == r2.json()
+        assert r1.json()["status"] == "ready"
+        # get_current_report called once (first request); second served from cache.
+        assert call_count["n"] == 1
+
+
+def test_friday_current_cache_invalidates_on_snapshot_create(db_session):
+    """Creating a new snapshot invalidates the cached current-report so a
+    subsequent GET re-hits get_current_report."""
+    from app.services.cache_service import CacheService
+    from app.services.friday_service import FridayService
+    from app.services.report_service import ReportService
+
+    # Prime the cache directly.
+    CacheService.set_cache(
+        db_session, FridayService.UX1_FRIDAY_CURRENT_KEY, {"stale": "payload"}
+    )
+    assert (
+        CacheService.get_cache(db_session, FridayService.UX1_FRIDAY_CURRENT_KEY)
+        is not None
+    )
+
+    minimal_report = {
+        "weekEnding": "2026-04-18",
+        "portfolioSnapshot": {},
+        "macroSnapshot": {},
+    }
+    with patch.object(ReportService, "build_weekly_report", return_value=minimal_report):
+        FridayService.create_snapshot(db_session)
+
+    assert (
+        CacheService.get_cache(db_session, FridayService.UX1_FRIDAY_CURRENT_KEY)
+        is None
+    )
+
+
+def test_friday_current_cache_invalidates_on_transaction_create(client):
+    """POST /api/transactions invalidates the cached current-report
+    alongside the existing portfolio_* invalidation, so cashflow changes
+    don't leave stale performance metrics in the cache.
+
+    Verified via re-invocation counting: after priming the cache with a first
+    GET, a subsequent GET-after-POST must re-invoke get_current_report
+    (proving the cache was invalidated)."""
+    from app.services.friday_service import FridayService
+
+    fake_report = {
+        "weekEnding": "2026-04-18",
+        "score": {"total": 72},
+        "portfolioSnapshot": {},
+        "macroSnapshot": {},
+    }
+    call_count = {"n": 0}
+
+    def stub(db):
+        call_count["n"] += 1
+        return fake_report
+
+    with patch.object(FridayService, "get_current_report", side_effect=stub):
+        # Warm cache
+        r1 = client.get("/api/v1/friday/current")
+        assert r1.status_code == 200
+        assert call_count["n"] == 1
+
+        # Second GET served from cache
+        r2 = client.get("/api/v1/friday/current")
+        assert r2.status_code == 200
+        assert call_count["n"] == 1
+
+        # Transaction write invalidates the cache
+        response = client.post(
+            "/api/transactions",
+            json={
+                "type": "DEPOSIT",
+                "total_amount": 100000,
+                "date": "2026-04-10",
+                "account_type": "OVERSEAS",
+            },
+        )
+        assert response.status_code == 200
+
+        # Third GET re-invokes get_current_report — proving invalidation fired.
+        r3 = client.get("/api/v1/friday/current")
+        assert r3.status_code == 200
+        assert call_count["n"] == 2

@@ -55,6 +55,11 @@ class _FakeQuery:
     def order_by(self, *_args):
         return self
 
+    def delete(self, synchronize_session=None):
+        kept = [row for row in self._rows if not self._matches(row)]
+        self._rows[:] = kept
+        return 0
+
     def all(self):
         return [row for row in self._rows if self._matches(row)]
 

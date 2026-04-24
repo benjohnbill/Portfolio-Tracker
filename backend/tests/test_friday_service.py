@@ -34,6 +34,11 @@ class _FakeQuery:
         self._orderings.extend(orderings)
         return self
 
+    def delete(self, synchronize_session=None):
+        kept = [row for row in self._rows if not self._matches(row)]
+        self._rows[:] = kept
+        return 0
+
     def _matches(self, row):
         for condition in self._filters:
             left = getattr(condition, "left", None)

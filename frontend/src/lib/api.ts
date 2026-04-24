@@ -33,6 +33,23 @@ export interface WeeklyReportEnvelope {
   report: WeeklyReport | null;
 }
 
+// Shape returned by ReportService.list_reports — a summary row, not the full
+// WeeklyReport. Matches the keys the backend emits for each row in the list
+// endpoint (see backend/app/services/report_service.py::list_reports).
+export interface WeeklyReportSummary {
+  weekEnding: string;
+  generatedAt: string | null;
+  logicVersion: string;
+  status: string;
+  score: number | null;
+}
+
+export interface WeeklyReportSummariesEnvelope {
+  status: EnvelopeStatus;
+  count: number;
+  reports: WeeklyReportSummary[];
+}
+
 // Phase UX-1a D3 — per-panel envelopes for /friday page streaming.
 // Shapes mirror what the backend returns after envelope wrapping; inner fields
 // are the same keys the underlying services produce (see briefing_service /
@@ -539,6 +556,12 @@ const emptyWeeklyReportEnvelope: WeeklyReportEnvelope = {
   report: null,
 };
 
+const emptyWeeklyReportSummariesEnvelope: WeeklyReportSummariesEnvelope = {
+  status: 'unavailable',
+  count: 0,
+  reports: [],
+};
+
 const emptyIntelligenceAttributionsEnvelope: IntelligenceAttributionsEnvelope = {
   status: 'unavailable',
   date_from: null,
@@ -829,17 +852,18 @@ export async function getLatestWeeklyReport(): Promise<WeeklyReportEnvelope> {
   }
 }
 
-export async function getWeeklyReports(limit: number = 24): Promise<Array<{ weekEnding: string; generatedAt: string | null; logicVersion: string; status: string; score: number | null }>> {
+export async function getWeeklyReports(limit: number = 24): Promise<WeeklyReportSummariesEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly?limit=${limit}`, {
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error('Failed to fetch weekly reports');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return [];
+    const res = await fetch(`${API_BASE}/api/reports/weekly?limit=${limit}`, { cache: 'no-store' });
+    if (!res.ok) return emptyWeeklyReportSummariesEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyWeeklyReportSummariesEnvelope;
+    }
+    return data as WeeklyReportSummariesEnvelope;
+  } catch {
+    return emptyWeeklyReportSummariesEnvelope;
   }
 }
 

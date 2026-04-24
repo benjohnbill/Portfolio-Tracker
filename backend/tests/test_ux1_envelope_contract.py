@@ -12,7 +12,7 @@ Each endpoint wrapped in Phase UX-1 gets a bundle of tests here:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
 
@@ -976,3 +976,99 @@ def test_calmar_trajectory_absorbs_service_failure(client):
         assert response.status_code == 200
         assert response.json()["status"] == "unavailable"
         assert response.json()["points"] == []
+
+
+# --------------------------------------------------------------------------- #
+# /api/reports/weekly (list)                                                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_weekly_list_returns_envelope(client):
+    response = client.get("/api/reports/weekly")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "count" in payload
+    assert "reports" in payload
+
+
+def test_weekly_list_unavailable_when_no_rows(client):
+    """Empty DB → status=unavailable with reports=[] (not 404, not raw [])."""
+    response = client.get("/api/reports/weekly")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "unavailable"
+    assert payload["reports"] == []
+    assert payload["count"] == 0
+
+
+def test_weekly_list_absorbs_service_failure_as_unavailable(client):
+    from app.services.report_service import ReportService
+
+    with patch.object(
+        ReportService,
+        "list_reports",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/reports/weekly")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["reports"] == []
+        assert payload["count"] == 0
+
+
+def test_weekly_list_returns_ready_envelope_when_rows_exist(client, db_session):
+    from app.models import WeeklyReport
+
+    db_session.add_all(
+        [
+            WeeklyReport(
+                week_ending=date(2026, 4, 18),
+                generated_at=datetime(2026, 4, 18, 12, 0, 0, tzinfo=timezone.utc),
+                logic_version="weekly-report-v0",
+                status="final",
+                report_json={"score": {"total": 80}},
+            ),
+            WeeklyReport(
+                week_ending=date(2026, 4, 11),
+                generated_at=datetime(2026, 4, 11, 12, 0, 0, tzinfo=timezone.utc),
+                logic_version="weekly-report-v0",
+                status="final",
+                report_json={"score": {"total": 72}},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/reports/weekly")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["count"] == 2
+    assert len(payload["reports"]) == 2
+    # Ordered newest-first (matches ReportService.list_reports).
+    assert payload["reports"][0]["weekEnding"] == "2026-04-18"
+    assert payload["reports"][0]["score"] == 80
+
+
+def test_weekly_list_respects_limit_query(client, db_session):
+    from app.models import WeeklyReport
+
+    for i in range(5):
+        db_session.add(
+            WeeklyReport(
+                week_ending=date(2026, 3, 7) + timedelta(days=7 * i),
+                generated_at=datetime(2026, 3, 7, 12, 0, 0, tzinfo=timezone.utc),
+                logic_version="weekly-report-v0",
+                status="final",
+                report_json={"score": {"total": 70 + i}},
+            )
+        )
+    db_session.commit()
+
+    response = client.get("/api/reports/weekly?limit=3")
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["count"] == 3
+    assert len(payload["reports"]) == 3

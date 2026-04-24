@@ -467,7 +467,15 @@ def get_action_report(db: Session = Depends(get_db)):
 
 @app.get("/api/reports/weekly")
 def list_weekly_reports(limit: int = 12, db: Session = Depends(get_db)):
-    return ReportService.list_reports(db, limit=limit)
+    """UX-1 envelope: always HTTP 200; failures absorb into status='unavailable'."""
+    try:
+        reports = ReportService.list_reports(db, limit=limit)
+        if not reports:
+            return wrap_response(status="unavailable", count=0, reports=[])
+        return wrap_response(status="ready", count=len(reports), reports=reports)
+    except Exception as e:
+        logger.warning("weekly_list_upstream_unavailable", exc_info=e)
+        return wrap_response(status="unavailable", count=0, reports=[])
 
 
 @app.get("/api/reports/weekly/latest")

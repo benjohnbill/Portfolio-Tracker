@@ -32,3 +32,9 @@ Shared utilities and the centralized backend API client. `api.ts` is the single 
 | Friday | `getFridayCurrent()`, `getFridaySnapshots()`, `getFridaySnapshot()`, `compareFridaySnapshots()`, `createFridaySnapshot()`, `createFridayDecision()` | Snapshot lifecycle |
 
 <!-- MANUAL: -->
+
+### Drift corrections (post-Generated)
+
+The Portfolio domain row in the table above lists `getPortfolioPageData()` as a live API surface. As of Phase UX-1c (2026-04-24), that function is **unreferenced dead code** — zero callers in `frontend/src/app` or `frontend/src/components`. Treat the live Portfolio surface as `getPortfolioHistory()`, `getPortfolioAllocation()`, `getPortfolioSummary()` only.
+
+`getPortfolioSummary()` now returns `PortfolioSummaryEnvelope` (status + summary fields spread at envelope root); see `docs/DOMAIN_MAP.md` "Portfolio / performance" section. The Reports row's `getWeeklyReports()` / `getWeeklyReport()` likewise return envelopes (`WeeklyReportSummariesEnvelope` / `WeeklyReportDetailEnvelope`) since Phase UX-1c.

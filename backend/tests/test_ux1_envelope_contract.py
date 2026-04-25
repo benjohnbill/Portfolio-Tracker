@@ -1153,3 +1153,63 @@ def test_weekly_detail_returns_ready_when_persisted(client, db_session):
     assert payload["status"] == "ready"
     assert payload["report"] is not None
     assert payload["report"]["score"]["total"] == 82
+
+
+# --------------------------------------------------------------------------- #
+# /api/portfolio/summary                                                      #
+# --------------------------------------------------------------------------- #
+
+
+def test_portfolio_summary_returns_envelope(client):
+    response = client.get("/api/portfolio/summary")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ready", "partial", "unavailable"}
+    assert "total_value" in payload
+    assert "invested_capital" in payload
+    assert "metrics" in payload
+
+
+def test_portfolio_summary_absorbs_service_failure(client):
+    from app.services.portfolio_service import PortfolioService
+
+    with patch.object(
+        PortfolioService,
+        "get_portfolio_summary",
+        side_effect=RuntimeError("simulated upstream failure"),
+    ):
+        response = client.get("/api/portfolio/summary")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "unavailable"
+        assert payload["total_value"] == 0
+        assert payload["invested_capital"] == 0
+        assert payload["metrics"] == {
+            "total_return": 0,
+            "cagr": 0,
+            "mdd": 0,
+            "volatility": 0,
+            "sharpe_ratio": 0,
+        }
+
+
+def test_portfolio_summary_returns_ready_when_service_succeeds(client):
+    from app.services.portfolio_service import PortfolioService
+
+    fake_summary = {
+        "total_value": 100_000_000,
+        "invested_capital": 80_000_000,
+        "metrics": {
+            "total_return": 0.25,
+            "cagr": 0.12,
+            "mdd": -0.08,
+            "volatility": 0.18,
+            "sharpe_ratio": 0.67,
+        },
+    }
+    with patch.object(PortfolioService, "get_portfolio_summary", return_value=fake_summary):
+        response = client.get("/api/portfolio/summary")
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["total_value"] == 100_000_000
+        assert payload["metrics"]["cagr"] == 0.12

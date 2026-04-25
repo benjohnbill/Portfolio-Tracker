@@ -389,8 +389,26 @@ def get_portfolio_history(period: str = "1y", db: Session = Depends(get_db)):
 
 @app.get("/api/portfolio/summary")
 def get_portfolio_summary(db: Session = Depends(get_db)):
-    """Returns high-level performance metrics (CAGR, MDD, Sharpe)."""
-    return PortfolioService.get_portfolio_summary(db)
+    """UX-1 envelope: always HTTP 200. Summary fields spread at the envelope
+    root (no nesting under `summary`) so existing consumers can read
+    total_value / invested_capital / metrics directly."""
+    try:
+        summary = PortfolioService.get_portfolio_summary(db)
+        return wrap_response(status="ready", **summary)
+    except Exception as e:
+        logger.warning("portfolio_summary_upstream_unavailable", exc_info=e)
+        return wrap_response(
+            status="unavailable",
+            total_value=0,
+            invested_capital=0,
+            metrics={
+                "total_return": 0,
+                "cagr": 0,
+                "mdd": 0,
+                "volatility": 0,
+                "sharpe_ratio": 0,
+            },
+        )
 
 @app.get("/api/macro-vitals")
 def get_macro_vitals():

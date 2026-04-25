@@ -1,15 +1,25 @@
 import { getPortfolioSummary } from '@/lib/api';
+import { isReady } from '@/lib/envelope';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export async function PortfolioSummaryCard() {
-  const summary = await getPortfolioSummary();
-  const metrics = summary.metrics || {
-    total_return: 0,
-    cagr: 0,
-    mdd: 0,
-    volatility: 0,
-    sharpe_ratio: 0,
-  };
+  const envelope = await getPortfolioSummary();
+
+  if (!isReady(envelope)) {
+    return (
+      <Card className="bg-[#11161d] border-border/40">
+        <CardHeader>
+          <CardTitle className="text-white">Performance Summary</CardTitle>
+          <CardDescription>Structural portfolio metrics, not just this week</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Summary unavailable. Live valuation may be refreshing — try again in a moment.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { total_value, invested_capital, metrics } = envelope;
 
   return (
     <Card className="bg-[#11161d] border-border/40">
@@ -20,11 +30,11 @@ export async function PortfolioSummaryCard() {
       <CardContent className="grid gap-3 text-sm">
         <div className="rounded-lg border border-border/40 p-3">
           <p className="text-xs text-muted-foreground uppercase">Total Value</p>
-          <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.total_value)}</p>
+          <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(total_value)}</p>
         </div>
         <div className="rounded-lg border border-border/40 p-3">
           <p className="text-xs text-muted-foreground uppercase">Invested Capital</p>
-          <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(summary.invested_capital)}</p>
+          <p className="text-white font-semibold">{new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(invested_capital)}</p>
         </div>
         <div className="rounded-lg border border-border/40 p-3">
           <p className="text-xs text-muted-foreground uppercase">CAGR</p>

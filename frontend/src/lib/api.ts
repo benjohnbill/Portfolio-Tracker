@@ -223,6 +223,13 @@ export interface PortfolioSummary {
   };
 }
 
+// Phase 1c: backend spreads summary fields at the envelope root so
+// callers keep reading `total_value` / `invested_capital` / `metrics`
+// unchanged. The envelope only adds `status` alongside.
+export interface PortfolioSummaryEnvelope extends PortfolioSummary {
+  status: EnvelopeStatus;
+}
+
 export interface ApiResult<T> {
   data: T | null;
   error: string | null;
@@ -577,6 +584,19 @@ const emptyWeeklyReportSummariesEnvelope: WeeklyReportSummariesEnvelope = {
   reports: [],
 };
 
+const emptyPortfolioSummaryEnvelope: PortfolioSummaryEnvelope = {
+  status: 'unavailable',
+  total_value: 0,
+  invested_capital: 0,
+  metrics: {
+    total_return: 0,
+    cagr: 0,
+    mdd: 0,
+    volatility: 0,
+    sharpe_ratio: 0,
+  },
+};
+
 const emptyIntelligenceAttributionsEnvelope: IntelligenceAttributionsEnvelope = {
   status: 'unavailable',
   date_from: null,
@@ -732,27 +752,18 @@ export async function createTransaction(data: TransactionCreate): Promise<Transa
 /**
  * Fetches portfolio summary metrics.
  */
-export async function getPortfolioSummary(): Promise<PortfolioSummary> {
+export async function getPortfolioSummary(): Promise<PortfolioSummaryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/portfolio/summary`, {
-      cache: 'no-store' 
-    });
-    if (!res.ok) throw new Error('Failed to fetch summary');
-    return res.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return {
-      total_value: 0,
-      invested_capital: 0,
-      metrics: {
-        total_return: 0,
-        cagr: 0,
-        mdd: 0,
-        volatility: 0,
-        sharpe_ratio: 0,
-      }
-    };
+    const res = await fetch(`${API_BASE}/api/portfolio/summary`, { cache: 'no-store' });
+    if (!res.ok) return emptyPortfolioSummaryEnvelope;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || !('status' in data)) {
+      return emptyPortfolioSummaryEnvelope;
+    }
+    return data as PortfolioSummaryEnvelope;
+  } catch {
+    return emptyPortfolioSummaryEnvelope;
   }
 }
 

@@ -30,6 +30,9 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 - `archive.series` — absolute wealth history, includes external cashflows. `AbsoluteHistoryPoint[]`.
 - `performance.series` — cashflow-neutral performance history. `PerformanceHistoryPoint[]`.
 - `coverage_start` — ISO date or null. Earliest date for which persisted performance snapshots exist.
+- `total_value` — structural KRW value across all accounts (envelope root field on `/api/portfolio/summary`).
+- `invested_capital` — lifetime deposits minus withdrawals (envelope root field on `/api/portfolio/summary`).
+- `metrics` — nested object with `total_return`, `cagr`, `mdd`, `volatility`, `sharpe_ratio`. Envelope: `PortfolioSummaryEnvelope` (status at root + summary fields spread alongside).
 
 ### Friday ritual
 
@@ -62,7 +65,7 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 
 ## Exceptions / migration debt
 
-- `/api/portfolio/history` predates the UX-1 envelope rule. Its `PortfolioHistoryData` (see `frontend/src/lib/api.ts`) carries `status` nested at `performance.status`, not at root, because the response deliberately splits archive and performance into two sub-envelopes. This exception is scheduled for alignment in Phase 1c (`/portfolio` alignment in the scope-lock plan). Do not introduce new endpoints with this nesting pattern; new surfaces follow the root-status rule in §"Envelope rule (root invariant)".
+- `/api/portfolio/history` predates the UX-1 envelope rule. Its `PortfolioHistoryData` (see `frontend/src/lib/api.ts`) carries `status` nested at `performance.status`, not at root, because the response deliberately splits archive and performance into two sub-envelopes. Phase 1c's `/portfolio` alignment Task 3 limited itself to the `/api/portfolio/summary` envelope + fallback-skeleton normalization (per scope-lock §3 "Structural behavior unchanged"); flattening `/api/portfolio/history`'s nested performance status is deferred as a standalone follow-up. Do not introduce new endpoints with this nesting pattern; new surfaces follow the root-status rule in §"Envelope rule (root invariant)".
 
 ---
 
@@ -81,3 +84,4 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 - 2026-04-24 — Phase 1b Task 1: Intelligence attributions / rules / outcomes envelopes added. Subroute pages (rules, attributions, outcomes) on legacy-compat unwrap until their full restructure (Tasks 2, 3, 4).
 - 2026-04-24 — Phase 1c Task 1: Weekly-reports list endpoint envelope added (`reports` registry entry + `count` metadata).
 - 2026-04-24 — Phase 1c Task 2: Weekly-reports detail endpoint envelope added (`week_ending` coverage metadata + reuses `report` domain key).
+- 2026-04-24 — Phase 1c Task 3: Portfolio summary endpoint envelope added. `/api/portfolio/history` nested-status exception remains unchanged (flatten deferred, see Exceptions section).

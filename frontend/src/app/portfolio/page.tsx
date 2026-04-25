@@ -13,6 +13,7 @@ import { PortfolioSummaryCard } from '@/components/features/portfolio/PortfolioS
 import { AssetAllocationSection } from '@/components/features/portfolio/AssetAllocationSection';
 import { AssetSignalSection } from '@/components/features/portfolio/AssetSignalSection';
 import { MSTRSignalSection } from '@/components/features/portfolio/MSTRSignalSection';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default async function PortfolioPage({
   searchParams,
@@ -70,14 +71,14 @@ export default async function PortfolioPage({
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8">
-          <Suspense fallback={<div className="h-[600px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+          <Suspense fallback={<Skeleton className="h-[600px] w-full rounded-xl" />}>
             <EquityCurveSection period={period} />
           </Suspense>
 
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-white">Signal Pulse Grid</h2>
             <div className="grid gap-6 md:grid-cols-2">
-              <Suspense fallback={<div className="h-[300px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
                 <AssetSignalSection 
                   ticker="QQQ" 
                   title="NDX vs 250MA" 
@@ -85,10 +86,10 @@ export default async function PortfolioPage({
                   period={period} 
                 />
               </Suspense>
-              <Suspense fallback={<div className="h-[300px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
                 <MSTRZScoreSectionWrapper period={period} />
               </Suspense>
-              <Suspense fallback={<div className="h-[300px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
                 <AssetSignalSection 
                   ticker="GLDM" 
                   title="Gold vs 250MA" 
@@ -96,7 +97,7 @@ export default async function PortfolioPage({
                   period={period} 
                 />
               </Suspense>
-              <Suspense fallback={<div className="h-[300px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
                 <AssetSignalSection 
                   ticker="TLT" 
                   title="Bonds vs 250MA" 
@@ -109,11 +110,11 @@ export default async function PortfolioPage({
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-          <Suspense fallback={<div className="h-[400px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+          <Suspense fallback={<Skeleton className="h-[400px] w-full rounded-xl" />}>
             <PortfolioSummaryCard />
           </Suspense>
 
-          <Suspense fallback={<div className="h-[600px] bg-accent/10 rounded-xl animate-pulse border border-border/20" />}>
+          <Suspense fallback={<Skeleton className="h-[600px] w-full rounded-xl" />}>
             <AssetAllocationSection />
           </Suspense>
         </div>

@@ -134,6 +134,31 @@ Same TDD-per-task discipline as Track A. Use `superpowers:subagent-driven-develo
 
 ---
 
+## Timing & deploy sequencing
+
+**Track B work can start immediately** (today or tomorrow). The dependency on Track A is purely about *production deploy timing*, not about when Track B code can be written / tested / committed.
+
+| Track B group | Code + test (C-track sqlite) | Production deploy timing |
+|---|---|---|
+| B1 — KR ETF naming hygiene (id=3 ACE_TLT, id=14 BRAZIL_BOND name) | ✅ Start anytime | After Track A production migrations (`8e08d095c59e`, `393b0d9c9ffd`) are applied — needs the alembic chain in place |
+| B2 — Archive backfill (2026-03-20 + QQQ −2 share) | ✅ Start anytime | After 2026-05-04 verification passes — backfill triggers cron archive recompute, and Track A's cron-protection invariants must be production-stable first |
+| B3 — Frontend display switch (`asset.symbol` → `asset.name`) | ✅ Start anytime | ✅ Deploy anytime (independent of Track A) |
+| B4 — Service code residue (score_service `"QQQ"` token, quant_service comment) | ✅ Start anytime | ✅ Deploy anytime (independent of Track A) |
+
+### Recommended timeline
+
+```
+2026-04-26 ~ 04-30   Track A production deploy + Track B brainstorm/spec/plan/code in parallel
+2026-05-01 (Fri)     User executes NDX rotation buy (BUY TIGER_2X / SELL KODEX_1X)
+2026-05-04 (Mon) 18:00 KT   Run docs/superpowers/handoff/2026-05-04-track-a-verification.md
+2026-05-04 verification passes   Track B B1+B2 deploy unlocked
+2026-05-05 onwards   Track B production deploy (B1+B2 first, then sweep B3+B4)
+```
+
+### Critical sequencing constraint
+
+Track A production deploy MUST happen **before 2026-05-01** so that the rotation-buy transactions enter the system through the anchor-aware path. If Track A is still on `main` only (not deployed) at 5/1, the buy will be processed by the legacy `explicit_cashflows` branch, which lacks the manual-anchor base — performance series initialisation will be wrong. See `docs/superpowers/handoff/2026-04-25-track-a-deployment.md` for the deploy steps.
+
 ## Cross-track dependencies and gotchas
 
 **Track B should NOT redo:**

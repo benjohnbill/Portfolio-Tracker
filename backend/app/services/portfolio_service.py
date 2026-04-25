@@ -235,10 +235,21 @@ class PortfolioService:
         previous_absolute_value = None
         performance_value = None
         tx_index = 0
-        
+
         # For benchmark normalization (start SPY at the same value as portfolio)
         initial_portfolio_value = None
         initial_spy_price = None
+
+        # === Track A: anchor-aware behavior ===
+        manual_anchor = (
+            db.query(PortfolioPerformanceSnapshot)
+            .filter(PortfolioPerformanceSnapshot.source_version == "manual-anchor-v1")
+            .order_by(PortfolioPerformanceSnapshot.date.asc())
+            .first()
+        )
+        manual_anchor_date = manual_anchor.date if manual_anchor else None
+        anchor_performance_base = float(manual_anchor.performance_value) if manual_anchor else None
+        # === end Track A ===
 
         current_date = start_date
         while current_date <= today:
@@ -308,16 +319,49 @@ class PortfolioService:
                 if initial_portfolio_value is None:
                     initial_portfolio_value = absolute_value_krw
 
+                # === Track A: anchor-aware performance computation ===
+                # On the anchor day, force performance_value to the anchor base
+                # regardless of cashflow presence. From the day after the anchor,
+                # treat explicit_cashflows as effectively True (the anchor row
+                # provides the missing context).
+                is_at_or_after_anchor = (
+                    manual_anchor_date is not None and current_date >= manual_anchor_date
+                )
+
                 performance_daily_return = None
-                if explicit_cashflows:
+                if is_at_or_after_anchor:
+                    if current_date == manual_anchor_date:
+                        # Anchor day: pin to base (e.g., 100.0).
+                        performance_value = anchor_performance_base
+                        performance_daily_return = 0.0
+                    elif previous_absolute_value is None or performance_value is None:
+                        # Defensive: shouldn't happen if anchor day was processed,
+                        # but if so, re-base from anchor base.
+                        performance_daily_return = 0.0
+                        performance_value = anchor_performance_base
+                    elif previous_absolute_value > 0:
+                        # Forward TWR: subtract net cashflow from delta to isolate
+                        # price-driven return.
+                        performance_daily_return = (
+                            absolute_value_krw - previous_absolute_value - net_cashflow
+                        ) / previous_absolute_value
+                        performance_value = performance_value * (1 + performance_daily_return)
+                    else:
+                        performance_daily_return = 0.0
+                elif explicit_cashflows:
+                    # Pre-anchor legacy path (preserved for any historical period
+                    # that already had explicit cashflows recorded).
                     if previous_absolute_value is None or performance_value is None:
                         performance_daily_return = 0.0
                         performance_value = absolute_value_krw
                     elif previous_absolute_value > 0:
-                        performance_daily_return = (absolute_value_krw - previous_absolute_value - net_cashflow) / previous_absolute_value
+                        performance_daily_return = (
+                            absolute_value_krw - previous_absolute_value - net_cashflow
+                        ) / previous_absolute_value
                         performance_value = performance_value * (1 + performance_daily_return)
                     else:
                         performance_daily_return = 0.0
+                # === end Track A ===
                 
                 # Calculate Benchmark (Normalized SPY)
                 spy_val = 0
@@ -333,7 +377,7 @@ class PortfolioService:
                 alpha = ((absolute_value_krw / initial_portfolio_value) - 1) - ((spy_val / initial_portfolio_value) - 1) if initial_portfolio_value and initial_portfolio_value > 0 else 0
                 performance_alpha = 0.0
                 if (
-                    explicit_cashflows
+                    (is_at_or_after_anchor or explicit_cashflows)
                     and performance_value is not None
                     and initial_portfolio_value
                     and initial_portfolio_value > 0
@@ -352,7 +396,7 @@ class PortfolioService:
                     "cash_balance": float(cash_balance) if explicit_cashflows else None,
                     "net_cashflow": float(net_cashflow) if explicit_cashflows else None,
                 }
-                if explicit_cashflows and performance_value is not None:
+                if (is_at_or_after_anchor or explicit_cashflows) and performance_value is not None:
                     item.update({
                         "performance_value": float(performance_value),
                         "performance_daily_return": float(performance_daily_return or 0.0),

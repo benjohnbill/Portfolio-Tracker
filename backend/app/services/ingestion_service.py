@@ -145,6 +145,16 @@ class PriceIngestionService:
 
         perf_count = 0
         for record in performance_records:
+            # === Track A: do not overwrite manual-anchor rows ===
+            existing = db.query(PortfolioPerformanceSnapshot).filter(
+                PortfolioPerformanceSnapshot.date == record["date"]
+            ).first()
+            if existing is not None and existing.source_version == "manual-anchor-v1":
+                # Skip this record entirely — the manual anchor is the
+                # authoritative value for this date.
+                continue
+            # === end Track A ===
+
             stmt = insert(PortfolioPerformanceSnapshot).values(**record)
             stmt = stmt.on_conflict_do_update(
                 index_elements=['date'],

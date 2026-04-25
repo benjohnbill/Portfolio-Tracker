@@ -66,12 +66,12 @@ Target weights are defined in `CATEGORY_TARGETS`:
 
 | Sleeve | Target Weight | Constituent Assets |
 |---|---|---|
-| NDX | 30% | QQQ, TIGER_2X (379810), KODEX_1X |
+| NDX | 30% | KODEX_1X (379810), TIGER_2X (418660) |
 | DBMF | 30% | DBMF |
 | BRAZIL | 10% | BRAZIL_BOND |
 | MSTR | 10% | MSTR |
 | GLDM | 10% | GLDM, GLD |
-| BONDS/CASH | 10% | TLT, BIL, VBIL, IEF |
+| BONDS/CASH | 10% | ACE_TLT (476760), BIL, VBIL, IEF |
 
 Asset-to-category mapping is handled by `asset_to_category` in ScoreService.
 
@@ -79,7 +79,7 @@ Asset-to-category mapping is handled by `asset_to_category` in ScoreService.
 
 | Account Silo | Description | Examples |
 |---|---|---|
-| ISA (ISA_ETF) | Korean-listed ETFs held in an Individual Savings Account | TIGER_2X (379810), KODEX_1X (463300), TLT proxy (476760) |
+| ISA (ISA_ETF) | Korean-listed ETFs held in an Individual Savings Account | KODEX_1X (379810), TIGER_2X (418660), ACE_TLT (476760) |
 | OVERSEAS (OVERSEAS_ETF) | US-listed ETFs held in an overseas brokerage account | QQQ, DBMF, MSTR, GLDM, BIL, VBIL |
 | BRAZIL_BOND | Brazilian government bonds accessed via KIS Open API | BRAZIL_BOND |
 

@@ -9,7 +9,7 @@ from .cache_service import CacheService
 from ..models import Transaction, Asset, RawDailyPrice, AccountType, AccountSilo, PortfolioPerformanceSnapshot
 
 class PortfolioService:
-    ISA_KR_CODES = {"379810", "463300", "476760", "453870"}
+    ISA_KR_CODES = {"379810", "418660", "463300", "476760", "453870"}
     VALUATION_SOURCE = "live_equity_curve"
     VALUATION_VERSION = "portfolio-valuation-v1"
 
@@ -34,20 +34,19 @@ class PortfolioService:
 
     @staticmethod
     def infer_account_type(asset: Asset) -> AccountType:
-
         if asset.symbol == "BRAZIL_BOND":
             return AccountType.OVERSEAS
-        if asset.source == "KR" and (asset.code in PortfolioService.ISA_KR_CODES or asset.symbol in {"QQQ", "CSI300", "TLT", "NIFTY"}):
+        if asset.source == "KR" and asset.code in PortfolioService.ISA_KR_CODES:
             return AccountType.ISA
-        return asset.account_type or AccountType.OVERSEAS
+        return AccountType.OVERSEAS
 
     @staticmethod
     def infer_account_silo(asset: Asset) -> AccountSilo:
         if asset.symbol == "BRAZIL_BOND":
             return AccountSilo.BRAZIL_BOND
-        if asset.source == "KR" and (asset.code in PortfolioService.ISA_KR_CODES or asset.symbol in {"QQQ", "CSI300", "TLT", "NIFTY"}):
+        if asset.source == "KR" and asset.code in PortfolioService.ISA_KR_CODES:
             return AccountSilo.ISA_ETF
-        return asset.account_silo or AccountSilo.OVERSEAS_ETF
+        return AccountSilo.OVERSEAS_ETF
 
     @staticmethod
     def sync_asset_classification(asset: Asset) -> bool:

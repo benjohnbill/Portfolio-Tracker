@@ -14,6 +14,7 @@
 - Plan: `docs/superpowers/plans/2026-04-25-portfolio-anchor-track-a.md`
 - Service-split deferred: `docs/superpowers/decisions/2026-04-25-service-layer-split-deferred.md`
 - Deployment checklist: `docs/superpowers/handoff/2026-04-25-track-a-deployment.md`
+- Post-deploy verification (run 2026-05-04 18:00 KT after rotation buy): `docs/superpowers/handoff/2026-05-04-track-a-verification.md`
 
 **Track A commit chain (`d74a97a..8f193bc` on `main`):**
 ```

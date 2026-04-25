@@ -21,18 +21,19 @@ class StressService:
     }
 
     # Proxy mapping for assets that didn't exist back then
-    PROXY_MAP = {
-        'QQQ': 'QQQ',
-        'SPY': 'SPY',
-        'TLT': 'TLT',
-        'GLDM': 'GLD',     # Proxy: GLD
-        'CSI300': 'ASHR',  # Proxy: Harvest CSI 300
-        'MSTR': 'MSTR',
-        'DBMF': 'DBMF',    # Since 2019
-        'NIFTY': 'INDA',   # Proxy: iShares MSCI India
-        'BIL': 'BIL',
-        'PFIX': 'PFIX',    # Since 2021
-        'VBIL': 'BND'      # Proxy: Vanguard Total Bond Market
+    TICKER_PROXY = {
+        'KODEX_1X':    'QQQ',     # was 'QQQ': 'QQQ'
+        'TIGER_2X':    'QLD',     # NEW (US 2x NDX historical proxy)
+        'ACE_TLT':     'TLT',     # was 'TLT': 'TLT'
+        'CSI300':      'ASHR',
+        'NIFTY':       'INDA',
+        'MSTR':        'MSTR',
+        'DBMF':        'DBMF',
+        'GLDM':        'GLD',
+        'BIL':         'BIL',
+        'PFIX':        'PFIX',
+        'VBIL':        'BND',
+        'SPY':         'SPY',
     }
     
     # 2020 Override for assets too new even for standard proxy
@@ -44,7 +45,7 @@ class StressService:
     def get_proxy_ticker(symbol: str, scenario_key: str) -> str:
         if scenario_key == '2020_COVID' and symbol in StressService.PROXY_2020:
             return StressService.PROXY_2020[symbol]
-        return StressService.PROXY_MAP.get(symbol, symbol)
+        return StressService.TICKER_PROXY.get(symbol, symbol)
 
     @staticmethod
     def run_simulation(current_holdings: Dict[str, float]):

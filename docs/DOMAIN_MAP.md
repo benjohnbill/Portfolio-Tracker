@@ -57,7 +57,7 @@ Frontend: use `lib/envelope.ts` predicates to branch presentation.
 ### Reports / archive
 
 - `reports` — collection of `WeeklyReportSummary` rows (keys: `weekEnding`, `generatedAt`, `logicVersion`, `status`, `score`). Envelope: `WeeklyReportSummariesEnvelope` (fields: `status`, `count`, `reports`).
-- `count` — length of `reports` array, duplicated in metadata for cheap UI summaries (avoid recomputing on the client).
+- `count` — length of `reports` array, exposed at the envelope root for cheap UI summaries (avoid recomputing on the client).
 - `report` — full `WeeklyReport` object (distinct from the summary rows in `reports`). Envelope: `WeeklyReportEnvelope` (fields: `status`, `report`).
 - `week_ending` — ISO date; coverage metadata for per-week detail responses. Echoes the URL path parameter.
 

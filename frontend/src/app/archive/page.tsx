@@ -27,6 +27,8 @@ export default function ArchivePage() {
 }
 
 function ArchiveTimelineSkeleton() {
+  // 12 = above-the-fold tranche on a 52-card grid (3-col xl). The fallback
+  // does not need to mirror the full list length — just the visible shell.
   return (
     <>
       {Array.from({ length: 12 }).map((_, i) => (

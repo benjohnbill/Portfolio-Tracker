@@ -68,7 +68,7 @@ def _seed_transactions_for_backfill(session: Session) -> None:
         "(date, asset_id, type, quantity, price, total_amount, account_type) "
         "VALUES ('2026-03-20', 2, 'BUY', 24, 0, 0, 'OVERSEAS')"
     ))
-    # Row 9: DBMF — 16.95 shares, price=0 → should become 42503.54 / 720630.0
+    # Row 9: DBMF — 16.95 shares, price=0 → should become 42515.04 / 720630.0
     session.execute(text(
         "INSERT INTO transactions "
         "(date, asset_id, type, quantity, price, total_amount, account_type) "

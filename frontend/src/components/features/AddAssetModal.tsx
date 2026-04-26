@@ -165,12 +165,14 @@ export function AddAssetModal() {
                 <label className="text-sm font-medium">Asset Symbol (Ticker)</label>
                 <Input
                   type="text"
-                  placeholder="e.g. QQQ or 409820"
+                  placeholder="e.g. KODEX_1X, MSTR"
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
                   required
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">Enter US ticker or 6-digit KR code.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  기존 KR ETF: 심볼 그대로 (NDX_1X, ACE_TLT)　신규 KR ETF: 6자리 KRX 코드 (e.g. 476760)　해외 자산: 티커 그대로 (MSTR, DBMF)
+                </p>
               </div>
 
               <div className="space-y-2">

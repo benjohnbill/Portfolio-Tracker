@@ -301,7 +301,7 @@ class QuantService:
         Returns current NDX price and its 250MA from cached DB data.
         """
         try:
-            ticker = "QQQ" # Proxy for NDX to avoid caching index ticker separately if not needed, or use ^NDX if cached
+            ticker = "QQQ"  # Yahoo Finance ticker for NDX index price feed — distinct from the renamed NDX_1X asset symbol
             from ..models import RawDailyPrice
             query = db.query(RawDailyPrice).filter(RawDailyPrice.ticker == ticker).order_by(RawDailyPrice.date.asc())
             data = pd.read_sql(query.statement, db.bind)
@@ -361,4 +361,5 @@ class QuantService:
     @staticmethod
     def get_ndx_history(db: Session, period: str = "1y"):
         """Returns historical NDX price and 250MA series (proxied via QQQ)."""
+        # QQQ = Yahoo Finance ticker for NDX price feed — distinct from the renamed NDX_1X asset symbol
         return QuantService.get_asset_history(db, "QQQ", period)

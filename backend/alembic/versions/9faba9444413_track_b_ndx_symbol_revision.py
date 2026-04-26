@@ -18,8 +18,10 @@ def upgrade() -> None:
     op.execute(
         "UPDATE assets SET symbol = 'NDX_1X' WHERE id = 1 AND symbol = 'KODEX_1X'"
     )
+    # Use code (stable KRX identifier) rather than id — TIGER_2X is inserted by
+    # Track A with auto-increment id which differs between environments.
     op.execute(
-        "UPDATE assets SET symbol = 'NDX_2X' WHERE id = 5 AND symbol = 'TIGER_2X'"
+        "UPDATE assets SET symbol = 'NDX_2X' WHERE code = '418660' AND symbol = 'TIGER_2X'"
     )
 
 
@@ -28,5 +30,5 @@ def downgrade() -> None:
         "UPDATE assets SET symbol = 'KODEX_1X' WHERE id = 1 AND symbol = 'NDX_1X'"
     )
     op.execute(
-        "UPDATE assets SET symbol = 'TIGER_2X' WHERE id = 5 AND symbol = 'NDX_2X'"
+        "UPDATE assets SET symbol = 'TIGER_2X' WHERE code = '418660' AND symbol = 'NDX_2X'"
     )

@@ -40,9 +40,10 @@ def upgrade() -> None:
     """)
 
     # id=9: DBMF BUY, 16.95 shares — price derived from total/qty (source: Toss)
+    # price = 720630.0 / 16.95 = 42515.04 (rounded to 2dp; price*qty ≈ total)
     op.execute("""
         UPDATE transactions
-        SET price = 42503.54,
+        SET price = 42515.04,
             total_amount = 720630.0
         WHERE id = 9
           AND price = 0

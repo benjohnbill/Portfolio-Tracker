@@ -93,7 +93,7 @@ def _seed_transactions_for_backfill(session: Session) -> None:
 _BACKFILL_SQL = [
     ("UPDATE transactions SET price = 24315.0, total_amount = 826710.0 WHERE id = 7 AND price = 0", 7, 24315.0, 826710.0),
     ("UPDATE transactions SET price = 10225.0, total_amount = 245400.0 WHERE id = 8 AND price = 0", 8, 10225.0, 245400.0),
-    ("UPDATE transactions SET price = 42503.54, total_amount = 720630.0 WHERE id = 9 AND price = 0", 9, 42503.54, 720630.0),
+    ("UPDATE transactions SET price = 42515.04, total_amount = 720630.0 WHERE id = 9 AND price = 0", 9, 42515.04, 720630.0),
     ("UPDATE transactions SET price = 149686.81, total_amount = 431098.0 WHERE id = 10 AND price = 0", 10, 149686.81, 431098.0),
 ]
 

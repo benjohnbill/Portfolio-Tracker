@@ -35,13 +35,14 @@ Switch the primary visible asset identifier from `asset.symbol` (internal naming
 ### Changes
 
 **1. `AssetAllocationSection.tsx`**
-- Current: `{asset.asset}` (symbol) bold, `{asset.name}` muted
-- Target: `{asset.name}` bold, `{asset.symbol}` muted (secondary, smaller)
+- Current: `{asset.asset}` bold, `{asset.name}` muted (`PortfolioAllocationData` exposes `asset` field, not `symbol`)
+- Target: `{asset.name}` bold, `{asset.asset}` muted (secondary, smaller)
 - No API change required — both fields already in the response payload.
 
 **2. `friday/archive/page.tsx:181-182`**
 - Current: raw `{item.symbol}` in sleeve-shift descriptions
 - Target: `{item.name ?? item.symbol}` — name as primary, symbol as fallback
+- **Note:** `HoldingsChanged` type in `friday_service.py` and `api.ts` currently exposes only `symbol`, not `name`. This requires a small backend + type change: add `name` field to the holdings-changed serialization in `friday_service._holdings_map` / `compare_snapshots` output, and update the `FridayComparison` TypeScript type accordingly.
 
 **3. `AddAssetModal.tsx` — helper text update**
 - Input field is free text, unchanged in structure.
@@ -75,13 +76,17 @@ Three small opportunistic fixes. No migration required.
 ### B4-1: `score_service.asset_to_category` dead token
 
 **File:** `backend/app/services/score_service.py` ~line 23
-**Change:** Remove `"QQQ"` from the NDX substring match list. `"KODEX_1X"` and `"TIGER_2X"` already cover NDX after Track A T2 migration.
-**Verify:** `"KODEX_1X"` and `"TIGER_2X"` still classified as `NDX` sleeve; `"QQQ"` no longer needed.
+**Change:** Remove `"QQQ"` from the NDX substring match list. `"KODEX_1X"` and `"TIGER"` (substring, covers `TIGER_2X`) already cover NDX after Track A T2 migration.
+**Verify:** `"KODEX_1X"` classified as `NDX` via exact match; `TIGER_2X` classified via `"TIGER"` substring; `"QQQ"` no longer needed.
 
 ### B4-2: `quant_service.py` undocumented ticker
 
-**File:** `backend/app/services/quant_service.py` lines 304 and 364
-**Change:** Add single-line comment at each `"QQQ"` reference:
+**File:** `backend/app/services/quant_service.py`
+**Occurrences (Codex-verified):**
+- Line 304: `ticker = "QQQ"` — may already have an inline proxy comment; check and update/add if absent.
+- Lines 363-364: docstring reference + `get_asset_history(db, "QQQ", period)` call.
+
+**Change:** Ensure each occurrence has a clear single-line comment:
 ```python
 # Yahoo Finance ticker for NDX index price feed — distinct from the renamed KODEX_1X asset symbol
 ```
@@ -189,7 +194,7 @@ WHERE id = <n> AND price = 0;
 
 Run once per transaction (or batch). `WHERE price = 0` is the idempotency guard.
 
-**Data to be gathered before B2 session:** actual prices for ids 7–11 from the 2026-03-20 Toss transaction history.
+**Data to be gathered before B2 session:** actual prices for ids 7–11 from the 2026-03-20 Toss transaction history. The zero-price anomaly is documented in the Track A brainstorm (production DB audit) — not in any migration file; it exists only in the live Supabase DB.
 
 ### Anomaly 2 — QQQ −2 share over-sell
 

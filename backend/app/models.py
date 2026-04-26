@@ -87,6 +87,7 @@ class Transaction(Base):
     price = Column(Float)     # Unit Price
     total_amount = Column(Float) # quantity * price
     account_type = Column(Enum(AccountType), default=AccountType.OVERSEAS)
+    note = Column(String, nullable=True)
 
     asset = relationship("Asset", back_populates="transactions")
 

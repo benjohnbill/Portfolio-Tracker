@@ -19,22 +19,14 @@ from app.database import Base
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_engine(add_note_column: bool = False):
-    """Create a fresh in-memory SQLite engine with all base tables.
-
-    If add_note_column is True, also adds the `note` column to transactions
-    (simulating the Migration 2 DDL step before running its DML).
-    """
+def _make_engine():
+    """Create a fresh in-memory SQLite engine with all base tables."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    if add_note_column:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE transactions ADD COLUMN note VARCHAR"))
-            conn.commit()
     return engine
 
 
@@ -190,8 +182,8 @@ def test_backfill_is_idempotent(db_session):
 
 @pytest.fixture
 def db_with_note():
-    """Session on an in-memory DB that has the note column on transactions."""
-    engine = _make_engine(add_note_column=True)
+    """Session on an in-memory DB with all transaction columns including note."""
+    engine = _make_engine()
     with Session(engine) as session:
         # Seed one asset so FK on asset_id=1 resolves
         session.execute(text(

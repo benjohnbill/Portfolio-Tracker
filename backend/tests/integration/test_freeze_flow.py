@@ -46,7 +46,7 @@ def test_freeze_flow_plan_c_fields_present_legacy_absent(pg_client, pg_session):
         json={
             "snapshot_id": snapshot_id,
             "decision_type": "hold",
-            "asset_ticker": "QQQ",
+            "asset_ticker": "KODEX_1X",
             "note": "E2E test decision",
             "confidence_vs_spy_riskadj": 7,
             "confidence_vs_cash": 9,
@@ -84,7 +84,7 @@ def test_decision_requires_confidence_vs_spy_riskadj(pg_client, pg_session):
         json={
             "snapshot_id": snapshot_id,
             "decision_type": "hold",
-            "asset_ticker": "QQQ",
+            "asset_ticker": "KODEX_1X",
             "note": "missing required confidence_vs_spy_riskadj",
             # confidence_vs_spy_riskadj intentionally omitted
         },
@@ -108,7 +108,7 @@ def test_decision_rejects_legacy_confidence_field(pg_client, pg_session):
         json={
             "snapshot_id": snapshot_id,
             "decision_type": "hold",
-            "asset_ticker": "QQQ",
+            "asset_ticker": "KODEX_1X",
             "note": "client sending legacy field",
             "confidence_vs_spy_riskadj": 6,
             "confidence": 6,  # legacy — Pydantic ignores unknown fields; must not echo

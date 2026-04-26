@@ -112,7 +112,7 @@ def test_intelligence_outcomes_skip_when_performance_coverage_missing(db_session
         WeeklyDecision(
             snapshot_id=snapshot.id,
             decision_type="hold",
-            asset_ticker="QQQ",
+            asset_ticker="KODEX_1X",
             note="hold",
             confidence_vs_spy_riskadj=7,
         )
@@ -135,7 +135,7 @@ def test_intelligence_outcomes_use_performance_values_not_archive_totals(db_sess
         WeeklyDecision(
             snapshot_id=snapshot.id,
             decision_type="hold",
-            asset_ticker="QQQ",
+            asset_ticker="KODEX_1X",
             note="hold",
             confidence_vs_spy_riskadj=7,
         )

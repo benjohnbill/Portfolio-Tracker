@@ -147,7 +147,7 @@ def test_post_friday_decision_accepts_three_confidence_scalars(seeded_snapshot):
         json={
             "snapshot_id": seeded_snapshot["id"],
             "decision_type": "rebalance",
-            "asset_ticker": "QQQ",
+            "asset_ticker": "KODEX_1X",
             "note": "Trim",
             "confidence_vs_spy_riskadj": 8,
             "confidence_vs_cash": 7,

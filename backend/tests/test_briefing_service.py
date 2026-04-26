@@ -109,7 +109,7 @@ def test_get_briefing_collects_matured_outcomes_since_baseline():
     s1 = _snapshot(1, date(2026, 4, 19))
     decision = WeeklyDecision(
         id=42, snapshot_id=1, created_at=datetime.now(timezone.utc),
-        decision_type="rebalance", asset_ticker="QQQ", note="n",
+        decision_type="rebalance", asset_ticker="KODEX_1X", note="n",
         confidence_vs_spy_riskadj=7,
     )
     outcome_recent = DecisionOutcome(
@@ -131,7 +131,7 @@ def test_get_briefing_collects_matured_outcomes_since_baseline():
     assert row["decisionId"] == 42
     assert row["horizon"] == "3m"
     assert row["decisionType"] == "rebalance"
-    assert row["assetTicker"] == "QQQ"
+    assert row["assetTicker"] == "KODEX_1X"
 
 
 def test_get_briefing_counts_cron_success_and_failure_since_baseline():

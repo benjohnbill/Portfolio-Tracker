@@ -104,7 +104,7 @@ def seed_decision(
     *,
     snapshot: WeeklySnapshot,
     decision_type: str = "hold",
-    asset_ticker: str = "QQQ",
+    asset_ticker: str = "KODEX_1X",
     note: str = "seeded test decision",
     confidence_vs_spy_riskadj: int = 5,
     confidence_vs_cash: int | None = 5,

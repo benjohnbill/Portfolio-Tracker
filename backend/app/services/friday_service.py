@@ -490,6 +490,21 @@ class FridayService:
         return result
 
     @staticmethod
+    def _names_map(payload: Dict[str, Any]) -> Dict[str, str]:
+        allocation = FridayService._get_nested(payload, ["portfolioSnapshot", "allocation"], default=[])
+        if not isinstance(allocation, list):
+            return {}
+        result: Dict[str, str] = {}
+        for item in allocation:
+            if not isinstance(item, dict):
+                continue
+            symbol = item.get("asset") or item.get("symbol")
+            name = item.get("name")
+            if symbol and name:
+                result[str(symbol)] = str(name)
+        return result
+
+    @staticmethod
     def compare_snapshots(db: Session, date_a: date, date_b: date) -> Dict[str, Any]:
         snapshot_a = FridayService._find_snapshot_by_date(db, date_a)
         snapshot_b = FridayService._find_snapshot_by_date(db, date_b)
@@ -514,10 +529,13 @@ class FridayService:
 
         holdings_a = FridayService._holdings_map(report_a)
         holdings_b = FridayService._holdings_map(report_b)
+        names_a = FridayService._names_map(report_a)
+        names_b = FridayService._names_map(report_b)
         symbols = sorted(set(holdings_a) | set(holdings_b))
         holdings_changed = [
             {
                 "symbol": symbol,
+                "name": names_a.get(symbol) or names_b.get(symbol),
                 "weight_a": holdings_a.get(symbol, 0.0),
                 "weight_b": holdings_b.get(symbol, 0.0),
                 "delta": holdings_b.get(symbol, 0.0) - holdings_a.get(symbol, 0.0),

@@ -511,6 +511,7 @@ export interface FridayComparison {
     rules_removed: string[];
     holdings_changed: Array<{
       symbol: string;
+      name: string | null;
       weight_a: number;
       weight_b: number;
       delta: number;

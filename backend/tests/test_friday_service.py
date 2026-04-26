@@ -550,3 +550,46 @@ def test_create_snapshot_tolerates_risk_metrics_failure():
     stored = db.snapshots[-1]
     assert stored.risk_metrics is None  # freeze still succeeded; metrics left NULL
     assert result is not None
+
+
+def test_compare_snapshots_holdings_changed_includes_name(db_session):
+    """compare_snapshots must include name in each holdings_changed entry."""
+    frozen_a = {
+        "portfolioSnapshot": {
+            "totalValueKRW": 1_000_000,
+            "allocation": [
+                {"asset": "NDX_1X", "name": "KODEX 미국나스닥100", "weight": 0.5, "value": 500_000},
+            ],
+        }
+    }
+    frozen_b = {
+        "portfolioSnapshot": {
+            "totalValueKRW": 1_200_000,
+            "allocation": [
+                {"asset": "NDX_1X", "name": "KODEX 미국나스닥100", "weight": 0.6, "value": 720_000},
+            ],
+        }
+    }
+    snap_a = WeeklySnapshot(
+        snapshot_date=date(2026, 4, 17),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=frozen_a,
+        snapshot_metadata={},
+    )
+    snap_b = WeeklySnapshot(
+        snapshot_date=date(2026, 4, 24),
+        created_at=datetime.now(timezone.utc),
+        frozen_report=frozen_b,
+        snapshot_metadata={},
+    )
+    db_session.add_all([snap_a, snap_b])
+    db_session.commit()
+
+    result = FridayService.compare_snapshots(db_session, date(2026, 4, 17), date(2026, 4, 24))
+    changed = result["deltas"]["holdings_changed"]
+
+    assert len(changed) == 1
+    assert changed[0]["symbol"] == "NDX_1X"
+    assert changed[0]["name"] == "KODEX 미국나스닥100"
+    assert "weight_a" in changed[0]
+    assert "weight_b" in changed[0]

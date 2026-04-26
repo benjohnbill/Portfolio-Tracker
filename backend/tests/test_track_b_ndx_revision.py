@@ -1,6 +1,6 @@
 """
 Verifies B1 Migration 0 (track_b_ndx_symbol_revision):
-- score_service classifies NDX_1X and NDX_2X as NDX
+- score_service classifies NDX_1X and NDX_2X as NDX (algo_service covered by test_track_a_algo_rotation.py)
 - stress_service TICKER_PROXY has NDX_1X and NDX_2X keys (not KODEX_1X / TIGER_2X)
 - Migration SQL correctly renames id=1 and id=5, with idempotency guard
 """

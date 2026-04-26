@@ -16,10 +16,12 @@ The `assets` table uses three fields with disjoint roles:
 
 Symbols follow the pattern `{INDEX}_{MULTIPLIER}`, where:
 
-- `INDEX` is the underlying index or asset class (e.g., `NDX` for NASDAQ-100, `ACE` for Korean ETF brand prefix)
+- `INDEX` is the underlying index or asset class (e.g., `NDX` for NASDAQ-100)
 - `MULTIPLIER` is the leverage factor (e.g., `1X`, `2X`)
 
 This replaces the earlier `{ISSUER}_{LEVERAGE}` convention (e.g., `KODEX_1X`, `TIGER_2X`) which was revised in Track B. Issuer brand (KODEX, TIGER) is replaced by underlying index (NDX) — portfolio management semantics, not issuer identity.
+
+**Exception:** `ACE_TLT` uses the `{ISSUER}_{PROXY}` form — a legacy pattern for bond ETFs where no leverage is involved. `ACE` is the issuer brand; `TLT` is the US proxy ticker for duration matching.
 
 ## Rationale
 

@@ -59,10 +59,10 @@ export async function AssetAllocationSection() {
                   <div key={`${type}-${asset.asset}`} className="p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-white">{asset.asset}</span>
+                        <span className="text-sm font-bold text-white">{asset.name}</span>
                         <span className="text-[10px] text-muted-foreground">{asset.quantity} shares</span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{asset.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{asset.asset}</p>
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-bold text-white">

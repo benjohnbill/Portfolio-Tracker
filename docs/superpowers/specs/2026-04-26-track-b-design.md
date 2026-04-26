@@ -108,12 +108,36 @@ All existing tests must pass without modification (B4-3 updates the seeds themse
 
 ### Goal
 
-Complete the KR ETF symbol/name migration that Track A started with id=1. Two assets need updates.
+Complete the KR ETF naming migrations. This includes:
+- Revising the NDX convention (Track A decision revised): `KODEX_1X` → `NDX_1X`, `TIGER_2X` → `NDX_2X`
+- Completing the TLT rename: `TLT` → `ACE_TLT`
+- Localising the BRAZIL_BOND display name
 
 ### Prerequisites
 
 - Track A production migrations applied: `8e08d095c59e` (track_a_asset_naming) and `393b0d9c9ffd` (track_a_anchor_rows)
 - `TICKER_PROXY` already has `ACE_TLT` → `TLT` key (Track A T4)
+
+### Migration 0 — `track_b_ndx_symbol_revision` (new — naming convention update)
+
+```sql
+UPDATE assets SET symbol = 'NDX_1X' WHERE id = 1 AND symbol = 'KODEX_1X';
+UPDATE assets SET symbol = 'NDX_2X' WHERE id = 5 AND symbol = 'TIGER_2X';
+```
+
+**Idempotency guard:** `WHERE symbol = 'KODEX_1X'` / `'TIGER_2X'`.
+
+**Code changes required alongside migration:**
+- `stress_service.TICKER_PROXY`: rename keys `KODEX_1X` → `NDX_1X`, `TIGER_2X` → `NDX_2X`
+- `score_service.asset_to_category`: update NDX match tokens to `"NDX_1X"`, `"NDX_2X"` (or use `"NDX_"` substring)
+- `algo_service`: update any explicit `KODEX_1X` / `TIGER_2X` symbol references
+- `docs/architecture/asset-naming-convention.md`: document revised convention
+- All test seeds referencing `"KODEX_1X"` or `"TIGER_2X"` as asset symbol: update to `"NDX_1X"` / `"NDX_2X"`
+
+**Post-apply verifications:**
+- `score_service` classifies `NDX_1X` and `NDX_2X` as `NDX` sleeve ✅
+- `stress_service.TICKER_PROXY["NDX_1X"]` → `"QQQ"` (proxy for stress) ✅
+- `stress_service.TICKER_PROXY["NDX_2X"]` → `"QQQ"` (same proxy, 2× handled at portfolio level) ✅
 
 ### Migration 1 — `track_b_ace_tlt_rename`
 
@@ -227,10 +251,19 @@ After both migrations:
 
 ## Cross-cutting Concerns
 
-### Naming convention reference
+### Naming convention revision (decided during Track B brainstorm)
 
-Full convention documented at `docs/architecture/asset-naming-convention.md`.
-- `symbol`: semantic label (`KODEX_1X`, `ACE_TLT`, `MSTR`)
+Track A established `{ISSUER}_{LEVERAGE}` (e.g. `KODEX_1X`, `TIGER_2X`). During Track B brainstorm, this was revised: issuer brand names are not meaningful for portfolio management — what matters is the underlying index and leverage multiplier.
+
+**Revised convention for same-index ETF pairs:** `{INDEX}_{MULTIPLIER}`
+- `KODEX_1X` → `NDX_1X` (NDX 1× unleveraged)
+- `TIGER_2X` → `NDX_2X` (NDX 2× leveraged)
+- `ACE_TLT` — unchanged (TLT already identifies the underlying; no leverage ambiguity)
+
+This rename is part of Group B1 (Phase 2, after Track A production deploy). Full convention documented at `docs/architecture/asset-naming-convention.md` — update that file as part of B1.
+
+Full field semantics:
+- `symbol`: semantic label (`NDX_1X`, `NDX_2X`, `ACE_TLT`, `MSTR`)
 - `code`: entity ID for price lookup (KRX numeric for KR, ticker for US)
 - `name`: human display string (Korean full name or English)
 

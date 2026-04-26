@@ -49,7 +49,7 @@ def _seed_portfolio(db_session: Session) -> None:
     Prices are seeded on ANCHOR_DATE so absolute_value_krw > 0 on that day.
     """
     asset = Asset(
-        symbol="KODEX_1X",
+        symbol="NDX_1X",
         code="379810",
         name="KODEX 미국나스닥100",
         source="KR",

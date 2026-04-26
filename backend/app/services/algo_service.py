@@ -159,12 +159,12 @@ class AlgoService:
                     "logic_version": LOGIC_VERSION,
                 })
 
-        # NDX: If NDX < 250MA AND holding TIGER_2X -> ACTION: "SELL TIGER_2X -> BUY KODEX_1X" (Safety Mode)
+        # NDX: If NDX < 250MA AND holding NDX_2X -> ACTION: "SELL NDX_2X -> BUY NDX_1X" (Safety Mode)
         if ndx_status and not ndx_status["is_above_ma"]:
-            if "TIGER_2X" in holdings:
+            if "NDX_2X" in holdings:
                 actions.append({
-                    "asset": "NDX", 
-                    "action": "SELL TIGER_2X -> BUY KODEX_1X", 
+                    "asset": "NDX",
+                    "action": "SELL NDX_2X -> BUY NDX_1X",
                     "reason": f"Safety Mode: NDX({ndx_status['current_price']:.0f}) < 250MA({ndx_status['ma_250']:.0f})",
                     "rule_id": "NDX_SAFETY_MODE",
                     "inputs": {
@@ -246,13 +246,13 @@ class AlgoService:
                         "logic_version": LOGIC_VERSION,
                     })
 
-        # NDX: If NDX > 250MA AND holding KODEX_1X -> ACTION: "SELL KODEX_1X -> BUY TIGER_2X" (Growth Mode)
+        # NDX: If NDX > 250MA AND holding NDX_1X -> ACTION: "SELL NDX_1X -> BUY NDX_2X" (Growth Mode)
         ndx_has_sell = any(a["asset"] == "NDX" for a in actions)
         if not ndx_has_sell and ndx_status and ndx_status["is_above_ma"]:
-            if "KODEX_1X" in holdings:
+            if "NDX_1X" in holdings:
                 actions.append({
-                    "asset": "NDX", 
-                    "action": "SELL KODEX_1X -> BUY TIGER_2X", 
+                    "asset": "NDX",
+                    "action": "SELL NDX_1X -> BUY NDX_2X",
                     "reason": f"Growth Mode: NDX({ndx_status['current_price']:.0f}) > 250MA({ndx_status['ma_250']:.0f})",
                     "rule_id": "NDX_GROWTH_MODE",
                     "inputs": {

@@ -1,13 +1,13 @@
 """Track A — algo_service NDX rotation signals fire after asset migration.
 
 Before the T2 migration, Asset id=1 had symbol="QQQ", so the check
-`"KODEX_1X" in holdings` at algo_service.py:252 always evaluated False
-and the Growth Mode signal was silently suppressed.  After migration the
-symbol is "KODEX_1X" and the check matches.
+`"NDX_1X" in holdings` at algo_service.py:252 always evaluated False
+and the Growth Mode signal was silently suppressed.  After Track A migration
+the symbol became "KODEX_1X"; after B1 migration it is "NDX_1X".
 
 These tests verify that:
-- Growth Mode fires when holdings contain KODEX_1X and NDX > 250MA.
-- Safety Mode fires when holdings contain TIGER_2X and NDX < 250MA.
+- Growth Mode fires when holdings contain NDX_1X and NDX > 250MA.
+- Safety Mode fires when holdings contain NDX_2X and NDX < 250MA.
 
 Holdings are seeded via Asset + Transaction rows (the path that
 get_holdings(db) actually traverses).  QuantService calls and
@@ -80,14 +80,14 @@ _NEUTRAL_VXN = {"vxn": 20.0}
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_growth_mode_fires_when_holding_kodex_1x_and_ndx_above_250ma(
+def test_growth_mode_fires_when_holding_ndx_1x_and_ndx_above_250ma(
     db_session: Session,
 ):
-    """Growth Mode signal (SELL KODEX_1X -> BUY TIGER_2X) fires when:
-    - holdings contain KODEX_1X  (the post-migration symbol)
+    """Growth Mode signal (SELL NDX_1X -> BUY NDX_2X) fires when:
+    - holdings contain NDX_1X  (the post-B1-migration symbol)
     - NDX is above its 250-day MA
     """
-    _seed_holding(db_session, "KODEX_1X")
+    _seed_holding(db_session, "NDX_1X")
 
     with (
         patch(
@@ -112,22 +112,22 @@ def test_growth_mode_fires_when_holding_kodex_1x_and_ndx_above_250ma(
 
     actions = result["actions"]
     assert any(
-        "KODEX_1X" in a["action"] and "TIGER_2X" in a["action"]
+        "NDX_1X" in a["action"] and "NDX_2X" in a["action"]
         for a in actions
     ), (
-        "Expected a Growth Mode action containing both 'KODEX_1X' and 'TIGER_2X'. "
+        "Expected a Growth Mode action containing both 'NDX_1X' and 'NDX_2X'. "
         f"Actual actions: {[a['action'] for a in actions]}"
     )
 
 
-def test_safety_mode_fires_when_holding_tiger_2x_and_ndx_below_250ma(
+def test_safety_mode_fires_when_holding_ndx_2x_and_ndx_below_250ma(
     db_session: Session,
 ):
-    """Safety Mode signal (SELL TIGER_2X -> BUY KODEX_1X) fires when:
-    - holdings contain TIGER_2X
+    """Safety Mode signal (SELL NDX_2X -> BUY NDX_1X) fires when:
+    - holdings contain NDX_2X  (the post-B1-migration symbol)
     - NDX is below its 250-day MA
     """
-    _seed_holding(db_session, "TIGER_2X")
+    _seed_holding(db_session, "NDX_2X")
 
     with (
         patch(
@@ -152,9 +152,9 @@ def test_safety_mode_fires_when_holding_tiger_2x_and_ndx_below_250ma(
 
     actions = result["actions"]
     assert any(
-        "TIGER_2X" in a["action"] and "KODEX_1X" in a["action"]
+        "NDX_2X" in a["action"] and "NDX_1X" in a["action"]
         for a in actions
     ), (
-        "Expected a Safety Mode action containing both 'TIGER_2X' and 'KODEX_1X'. "
+        "Expected a Safety Mode action containing both 'NDX_2X' and 'NDX_1X'. "
         f"Actual actions: {[a['action'] for a in actions]}"
     )

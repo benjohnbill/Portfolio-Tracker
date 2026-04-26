@@ -1,7 +1,7 @@
 """Track A — infer_account_silo simplification.
 
 After Track A, infer_account_silo must use only `asset.code in ISA_KR_CODES`
-for KR ETF detection (no symbol fallback). The TIGER_2X code 418660 must
+for KR ETF detection (no symbol fallback). The NDX_2X code 418660 must
 be recognised as ISA_ETF.
 """
 import pytest
@@ -21,20 +21,20 @@ def make_asset(symbol, code, source="KR"):
 
 def test_isa_kr_codes_includes_418660():
     assert "418660" in PortfolioService.ISA_KR_CODES, (
-        "TIGER_2X code 418660 must be in ISA_KR_CODES for inference"
+        "NDX_2X code 418660 must be in ISA_KR_CODES for inference"
     )
 
 
-def test_kodex_1x_inferred_isa_etf_by_code():
-    """Even with new symbol KODEX_1X (not in legacy fallback set), code-based
+def test_ndx_1x_inferred_isa_etf_by_code():
+    """Even with new symbol NDX_1X (not in legacy fallback set), code-based
     matching must still infer ISA_ETF."""
-    asset = make_asset(symbol="KODEX_1X", code="379810", source="KR")
+    asset = make_asset(symbol="NDX_1X", code="379810", source="KR")
     assert PortfolioService.infer_account_silo(asset) == AccountSilo.ISA_ETF
     assert PortfolioService.infer_account_type(asset) == AccountType.ISA
 
 
-def test_tiger_2x_inferred_isa_etf_by_code():
-    asset = make_asset(symbol="TIGER_2X", code="418660", source="KR")
+def test_ndx_2x_inferred_isa_etf_by_code():
+    asset = make_asset(symbol="NDX_2X", code="418660", source="KR")
     assert PortfolioService.infer_account_silo(asset) == AccountSilo.ISA_ETF
     assert PortfolioService.infer_account_type(asset) == AccountType.ISA
 

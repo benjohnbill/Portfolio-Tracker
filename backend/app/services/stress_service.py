@@ -22,8 +22,8 @@ class StressService:
 
     # Proxy mapping for assets that didn't exist back then
     TICKER_PROXY = {
-        'KODEX_1X':    'QQQ',     # was 'QQQ': 'QQQ'
-        'TIGER_2X':    'QLD',     # NEW (US 2x NDX historical proxy)
+        'NDX_1X':      'QQQ',     # NDX 1× unleveraged — Yahoo Finance proxy for stress simulation
+        'NDX_2X':      'QLD',     # NDX 2× leveraged — QLD is US 2× NDX historical proxy
         'ACE_TLT':     'TLT',     # was 'TLT': 'TLT'
         'CSI300':      'ASHR',
         'NIFTY':       'INDA',

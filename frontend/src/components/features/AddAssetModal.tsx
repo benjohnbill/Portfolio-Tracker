@@ -165,7 +165,7 @@ export function AddAssetModal() {
                 <label className="text-sm font-medium">Asset Symbol (Ticker)</label>
                 <Input
                   type="text"
-                  placeholder="e.g. KODEX_1X, MSTR"
+                  placeholder="e.g. NDX_1X, MSTR"
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
                   required

@@ -179,7 +179,7 @@ function CompareCards({ comparison }: { comparison: FridayComparison }) {
               <div className="mt-2 space-y-1 text-white">
                 {comparison.deltas.holdings_changed.map((item) => (
                   <p key={item.symbol}>
-                    {item.symbol}: {(item.weight_a * 100).toFixed(1)}% → {(item.weight_b * 100).toFixed(1)}% ({item.delta >= 0 ? '+' : ''}{(item.delta * 100).toFixed(1)}%)
+                    {item.name ?? item.symbol}: {(item.weight_a * 100).toFixed(1)}% → {(item.weight_b * 100).toFixed(1)}% ({item.delta >= 0 ? '+' : ''}{(item.delta * 100).toFixed(1)}%)
                   </p>
                 ))}
               </div>

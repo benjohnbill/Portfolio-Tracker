@@ -32,10 +32,12 @@ from .services.discord_notifier import send_discord_message
 from .services.attribution_service import AttributionService
 from .services.intelligence_service import IntelligenceService
 from .services.outcome_evaluator import OutcomeEvaluatorService
+from .api._discord_interactions import router as discord_interactions_router
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Portfolio Tracker API", version="0.1.0")
+app.include_router(discord_interactions_router)
 
 @app.on_event("startup")
 def on_startup():

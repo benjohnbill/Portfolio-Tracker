@@ -60,13 +60,16 @@ def _html_to_discord_markdown(html: str) -> str:
     return text
 
 
-def send_discord_message(message: str) -> bool:
+import time
+
+def send_discord_message(message: str, snapshot_id: Optional[int] = None) -> bool:
     """
-    Send a message via Discord webhook.
+    Send a message via Discord webhook with retry logic.
 
     Args:
         message: Telegram-HTML formatted message; will be converted to
                  Discord-compatible markdown and truncated to 1800 chars.
+        snapshot_id: Optional ID of the weekly snapshot to attach a comment button to.
 
     Returns:
         True if Discord returned 204 No Content, False otherwise.
@@ -82,16 +85,33 @@ def send_discord_message(message: str) -> bool:
         content = content[:DISCORD_MAX_CONTENT]
 
     payload = {"content": content}
+    
+    if snapshot_id is not None:
+        payload["components"] = [{
+            "type": 1,  # Action Row
+            "components": [{
+                "type": 2,  # Button
+                "style": 1,  # Primary
+                "label": "📝 이번 주 코멘트 남기기",
+                "custom_id": f"comment_modal_snap_{snapshot_id}"
+            }]
+        }]
 
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(webhook_url, json=payload)
-            if response.status_code == 204:
-                print("Discord notification sent successfully")
-                return True
-            else:
-                print(f"Discord webhook error: {response.status_code} - {response.text}")
-                return False
-    except Exception as e:
-        print(f"Failed to send Discord notification: {e}")
-        return False
+    for attempt in range(1, 4):
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(webhook_url, json=payload)
+                if response.status_code == 204:
+                    print("Discord notification sent successfully")
+                    return True
+                else:
+                    print(f"Discord webhook error on attempt {attempt}: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"Failed to send Discord notification on attempt {attempt}: {e}")
+            
+        if attempt < 3:
+            print(f"Retrying in 5 seconds... ({attempt}/3)")
+            time.sleep(5)
+
+    print("All 3 Discord notification attempts failed.")
+    return False

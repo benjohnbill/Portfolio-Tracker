@@ -272,3 +272,25 @@ To convert this report:
 | **Intelligence integration** (future) | Intelligence tab surfaces Confidence calibration stats; deviation from historical pattern flagged automatically | New backend endpoint |
 
 The skill file is versioned in git. New capability is added by updating the skill markdown — accumulated DB data and report files remain intact across all versions.
+
+---
+
+## 10. Implementation Decision Notes (post-build, 2026-04-27)
+
+### Calibration storage: file-based, not corpus-based
+
+The original spec (§7, §8) assumed a `weekly-reports` claude-mem corpus would index `docs/weekly-reports/*.md` and serve calibration queries at Week 12+. During implementation, this turned out to be an architecture mismatch:
+
+**claude-mem corpora are observation-based, not file-based.** A corpus is a saved filter over claude-mem's observation store — structured JSON records emitted during sessions by the claude-mem hook. Markdown files in a directory do not flow into this store; the corpus would always be empty unless we built a separate observation-emission pipeline.
+
+**Decision:** Switch to direct file reading at calibration time.
+
+- Reports at relevant scale (12–52 entries × ~7 KB each, total under 400 KB) fit comfortably in Claude's context.
+- Direct `Read` is faster (no MCP roundtrip), more transparent (file content is the source of truth), and removes a moving part.
+- The `weekly-reports` corpus was registered, then deleted on cleanup. The skill's calibration step now uses `ls -t … | head -12` followed by `Read` calls.
+
+**Revisit threshold:** if reports ever exceed ~100 entries (roughly 2 years of weekly cadence), reconsider either (a) emitting structured observations from the skill so the corpus filter mechanism becomes useful, or (b) a grep-based pre-filter to narrow which files Claude reads.
+
+### Stable core unaffected
+
+The §2 stable-core / pluggable-edge framing held up: the change touched only the calibration-check step (an "edge" mechanism), while the DB schema, report format, markdown file location, and skill structure are unchanged. Reports written today remain queryable by any future approach.

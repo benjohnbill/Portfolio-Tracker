@@ -2,14 +2,14 @@
 
 ## 1. Product Vision
 
-Portfolio Tracker is a solo-investor decision-support tool for a KRW-denominated, multi-sleeve portfolio spanning Korean ISA accounts, US-listed ETFs, and Brazilian bonds. It replaces ad-hoc spreadsheet reviews with a deterministic, explainable pipeline that combines macro context, quantitative signals, and portfolio state into a composite score with actionable recommendations. The system surfaces a weekly review dashboard where one number (the composite score out of 100) plus a handful of triggered rules tell the investor whether to hold, rebalance, or act. Every threshold is published and every recommendation traces back to named rules, making the logic fully auditable.
+Portfolio Tracker is a solo-investor decision-support tool for a KRW-denominated, multi-sleeve portfolio spanning Korean ISA accounts, US-listed ETFs, and Brazilian bonds. It replaces ad-hoc spreadsheet reviews with a deterministic, explainable pipeline that **frames portfolio risk-taking against macro context** -- the composite score signals whether the portfolio's current risk profile is justified by the current macro environment, and whether the portfolio is robust enough to survive when those two diverge. The system surfaces a weekly review dashboard where one number (the composite score out of 100) plus a handful of triggered rules tell the investor whether to hold, rebalance, or act. Every threshold is published and every recommendation traces back to named rules, making the logic fully auditable.
 
 ## 2. User Persona
 
 - Solo investor based in Korea
 - KRW base currency; all USD-denominated positions are converted via live USD/KRW exchange rates
 - Weekly review cadence -- not day-trading, not monthly; the system is designed around a Friday-to-Friday cycle
-- Wants: macro-aware signals that respect regime changes, drift alerts when category weights diverge from targets, explainable deterministic rules (no black-box ML), and stress test results showing how the portfolio would have fared in past crises
+- Wants: **risk-aware signals where macro regime contextualizes the portfolio's risk-taking** rather than dictating it, drift alerts when category weights diverge from targets, explainable deterministic rules (no black-box ML), and stress test results showing how the portfolio would have fared in past crises
 
 ## 3. Core Loop
 
@@ -52,13 +52,62 @@ Log executed transactions through the AddAssetModal, which auto-fetches prices a
 
 The composite score is calculated by `compute_fit_score`, `compute_alignment_score`, and `compute_posture_diversification_score` in ScoreService.
 
-**Composite = Fit (max 40) + Alignment (max 35) + Posture/Diversification (max 25) = 100**
+**Composite = Fit (max 30) + Alignment (max 30) + Posture/Diversification (max 40) = 100** (v2.4, 2026-04-27 — risk-first reallocation, see Score Allocation Rationale below)
 
-- **Fit Score (0--40):** Evaluates how well the portfolio's exposure profile matches the current macro regime. Five macro buckets (Liquidity, Rates, Inflation, Growth/Labor, Stress/Sentiment) each contribute up to 8 points. The function `_score_fit_bucket` compares each bucket's state (supportive / neutral / adverse) against the portfolio's exposure weights.
+- **Fit Score (0--30):** Evaluates how well the portfolio's exposure profile matches the current macro regime. Five macro buckets (Liquidity/FCI, Rates, Inflation, Growth/Labor, Stress/Sentiment) each contribute up to 6 points. The function `_score_fit_bucket` compares each bucket's state (supportive / neutral / adverse) against the portfolio's exposure weights. Predicate specs are externalized to `score_rules.py` with `RULES_LOGIC_VERSION` (v2.4).
 
-- **Alignment Score (0--35):** Measures how closely actual category weights match the target allocation defined in `CATEGORY_TARGETS`. Each category receives points proportional to its target weight (35 * target). A drift of 10% or less earns full points, 10--30% earns half, and over 30% earns zero and triggers a rebalance flag.
+- **Alignment Score (0--30):** Measures how closely actual category weights match the target allocation defined in `CATEGORY_TARGETS`. Each category receives points proportional to its target weight (30 * target). A drift of 10% or less earns full points, 10--30% earns half, and over 30% earns zero and triggers a rebalance flag.
 
-- **Posture/Diversification Score (0--25):** Three sub-components: Stress Resilience (0--10) based on simulated worst return and MDD thresholds, Concentration Control (0--10) based on HHI and top-position weights, and Diversifier Reserve (0--5) based on the combined weight of reserve and diversifier exposures.
+- **Posture/Diversification Score (0--40):** Three sub-components: Stress Resilience (0--20) based on simulated worst return and MDD thresholds, Concentration Control (0--12) based on HHI and top-position weights, and Diversifier Reserve (0--8) based on the combined weight of reserve and diversifier exposures. Stress Resilience is the largest sub-component because crisis survivorship dominates other risk dimensions when a regime turns adverse.
+
+### Sleeve-Level Fit Projection (v2 evolution, 2026-04-27)
+
+The deterministic exposure-factor matching defined above produces *factor-level* fit reasoning. For user-facing presentation, this projects deterministically onto sleeve-level **compatibility bands** ("below" / "in" / "above") via a published `SLEEVE_FACTOR_MAP` that records which exposure factor each sleeve contributes to and in what proportion.
+
+A sleeve's compatibility band is derived from the fit rule predicates that govern its contributing exposure factors. This is a *read-only derivation surface, not a normative optimizer*. Scoring itself remains exposure-factor based; the sleeve projection is the explanation layer for the `/intelligence/macro-context` page.
+
+This evolution preserves §8 Non-Goals -- no ML, only deterministic published rules and their sleeve-level projection.
+
+### Boundary Design Philosophy (v2.3, 2026-04-27)
+
+Indicator state classification follows five principles:
+
+1. **Economic eventfulness over historical percentile** -- hard thresholds require academic / policy precedent (Sahm Rule 0.5pp; NFCI ±0.25; T10Y3M inversion); percentiles are reserved for indicators where absolute level lacks robust meaning (Net Liquidity, M2 YoY, VXN).
+2. **Threshold rationale documentation** -- every threshold records its `threshold_rationale_source` (academic / policy / historical_percentile / custom) in `INDICATOR_META`.
+3. **Core / secondary indicator distinction** -- within each bucket, one indicator may be designated `core_indicator=True`; its strong reading floors or ceilings the bucket score deterministically (e.g., Sahm Rule strong adverse → Growth/Labor bucket score capped at 0).
+4. **Per-indicator computation window** -- `computation_window_weeks` is decoupled from the 26-week display horizon (vol short, labor mid, inflation/growth long).
+5. **Signal asymmetry awareness** -- `signal_asymmetry` field records whether false-negative or false-positive cost dominates; reserved as input for future hysteresis layer.
+
+### Score Allocation Rationale (v2.4, 2026-04-27)
+
+The 30/30/40 allocation reflects a **risk-first product philosophy**: Posture/Diversification (Crisis resilience + Concentration control + Diversifier reserve) carries the largest weight because portfolio survivorship dominates macro-environmental fit when the two diverge. Fit and Alignment are equal-weighted second-tier dimensions: macro context informs whether risk-taking is justified, while Alignment polices operational discipline against published targets.
+
+This allocation is a reasoned prior, not an empirical optimum. Phase F (see Future Evolution Path) anticipates re-validation after 26+ weeks of accumulated frozen attribution history. Pre-2026-04-27 weekly reports use the legacy 40/35/25 logic; their `logicVersion` field preserves the historical scoring per record.
+
+### Posture-Stance Veto (v2.4, 2026-04-27)
+
+Beyond contributing to the composite total, Posture/Diversification also gates the recommendation stance via two veto rules added to `_build_recommendation`:
+
+- **Posture < 8** (out of 40) → stance auto-overrides to `reduce_risk`, regardless of composite total.
+- **Stress Resilience sub-component < 4** (out of 20) → stance auto-overrides to `reduce_risk`, regardless of composite total.
+
+These vetoes ensure that when the portfolio's structural risk profile breaches survivorship floors, no level of macro fit or weight alignment can mask the warning. They sit *above* the existing 4-branch stance logic in `ARCHITECTURE.md §4` -- vetoes evaluate first; if no veto fires, the existing composite-score-based branches resolve.
+
+### Veto Threshold Recalibration (informational, v2.4)
+
+The veto thresholds (Posture < 8, Stress Resilience < 4) are reasoned priors, not empirically tuned values. If observed firing frequency proves disproportionate to actual portfolio risk events -- the veto fires weekly without drawdown materializing, or fails to catch realized stress -- thresholds should be recalibrated. Recalibration is reactive (not scheduled), triggered by user observation or empirical signal accumulation. A change bumps `RULES_LOGIC_VERSION`.
+
+### Future Evolution Path (informational; reservation, not commitment)
+
+The following items are deferred from v2.4 spec scope but reserved as evolution candidates. Each names the v2.4 placeholder field that anticipates it.
+
+- **Phase A — Hysteresis layer.** Entry/exit asymmetric persistence rules (e.g., adverse entry: 2-week confirmation; adverse release: 4-week improvement average). v2.4: `IndicatorMeta.persistence_weeks` field exists, value = 1 (no hysteresis active).
+- **Phase B — 5-state internal classification.** Strong SUP / weak SUP / NEU / weak ADV / strong ADV; display compresses to 3 states. v2.4: not yet present.
+- **Phase C — Risk-aware Alignment.** Split Alignment 30 into Structural (target weight drift) + Risk (realized vol / beta-weighted risk contribution drift). v2.4: not yet present; Alignment definition above unchanged.
+- **Phase D — Sleeve cluster correlation in Posture.** NDX + MSTR as shared risk cluster; concentration penalty across correlated sleeves. v2.4: not yet present.
+- **Phase E — Full weighted bucket aggregation.** External AI prior 0.5/0.3/0.2 (core + secondary 1 + secondary 2). v2.4: reduced form via `core_indicator: bool` floor/ceiling rule; full ratio deferred.
+- **Phase F — Empirical score allocation re-validation.** After 26+ weeks of frozen attribution, validate whether 30/30/40 allocation predicts portfolio outcomes better than alternatives. v2.4: rationale glossed above, no commitment to specific tuning.
+- **Phase G — Sub-page narrative reflow.** Risk-first ordering on `/intelligence/macro-context` (Positioning → Performance → Causal Map → Indicators). v2.4: atom→cause→current→result order retained pending usage feedback.
 
 ## 6. Asset Categories (Sleeves)
 

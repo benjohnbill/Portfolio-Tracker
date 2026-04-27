@@ -84,16 +84,49 @@
 - **Confidence slider:** Horizontal track (4px height), accent fill + thumb with glow ring
 - **Partial-data handling:** When frozen snapshots are incomplete, render explicit unavailable copy in muted text rather than blank space, zeros, or crashes
 
+## Macro Indicator Badge Convention (v2.4, 2026-04-27)
+
+A unified badge language for macro indicator visualization across `/intelligence/macro-context`, `/friday` MacroContextSection teaser, `/intelligence/attributions` bucket breakdown, and Regime Ribbon surfaces.
+
+**Bucket × State (3 colors × 5 buckets):**
+- Bucket label badge: 11px mono uppercase, 2px 8px padding. Three-letter abbreviation: LIQ / RAT / INF / GRO / STR.
+- State suffix in same badge: SUP / NEU / ADV
+- State coloring on badge background:
+  - **Supportive**: `#0a2010` bg, `#4ADE80` text (green-400)
+  - **Neutral**: `#11161d` bg, `#8b95a5` text, `#2a3040` border
+  - **Adverse**: `#200a0a` bg, `#F87171` text (red-400)
+
+**Lead/Lag Tier Badge (5 tiers):**
+- 10px mono uppercase, 1px 6px padding, `#5a6577` text on `#11161d` bg, no border.
+- Labels:
+  - `STRONG LEAD · 12-18M` (T10Y2Y, T10Y3M)
+  - `MID LEAD · 6-12M` (Net Liquidity, M2 YoY, NFCI)
+  - `COINCIDENT` (10Y Real Yield, VXN, Credit Spread)
+  - `WEAK LAG · 1-3M` (CPI YoY, Core PCE, NFP, Sahm Rule)
+  - `STRONG LAG · QUARTERLY` (Real GDP)
+
+**Compatibility Band Pill (sleeve-level):**
+- 11px mono uppercase, 2px 8px padding.
+- `pill-below`: `#200a0a` bg, `#F87171` text (under-allocated for current macro)
+- `pill-in`: `#0a2010` bg, `#4ADE80` text (in-band)
+- `pill-above`: `#2a1a00` bg, `#FBBF24` text (over-allocated for current macro — caution, not error)
+
+**Indicator State Pill (per-card, used inside IndicatorCard):**
+Same color treatment as Bucket × State badge but full-width pill at card footer rather than corner badge.
+
+**Usage policy:** these badges are *signal compression*. Color is information, never decoration. Hover-tooltip on every badge surfaces `definition` + `methodology` + `why_it_matters` from `INDICATOR_META`.
+
 ## Friday Page Hierarchy
 1. **Since Last Friday briefing card** — topmost. Events since last freeze: regime transitions, matured outcomes (1W/1M/3M/6M/1Y horizon crossings), Discord/Telegram alert history, optional snippet of last week's snapshot comment. Severity-grouped, NOT a realtime toast.
 2. **Hero strip** — score (large mono) + delta badge + regime badge + signal count + Freeze button (right-aligned)
-3. **Sleeve Health panel** — 6 sleeves (NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH). Each row: `sleeve label | current% / target% | drift bar | signal status | 4-week recency strip`. Drift + signal visible on one row per sleeve.
-4. **Two-column explore zone** — Portfolio delta (left, primary) + Macro regime (right, context)
-5. **Signals list** — expandable rows with severity badges. Each rule row includes a mini trust indicator ("followed N× / override M×; outcome Y%").
-6. **Decision journal** — form section. Fields: type dropdown, ticker, note (existing required text), **3-scalar confidence** (3 sliders 1–10 with anchor labels — see Component Patterns), **structured invalidation** (failure_mode enum dropdown + trigger_threshold numeric + free text).
-7. **Prior Invalidation retrieval card** — shown after the user fills invalidation (NOT before confidence — bias-avoidant per Codex challenge). Surfaces past invalidation hypotheses from adjacent setups (same regime + asset class, not strict ticker match) with realized outcomes.
-8. **Weekly snapshot comment** — optional 1–2 line textarea, collapsed by default ("💬 이번 주 코멘트 (선택)"). Empty input stores NULL.
-9. **Freeze button** — terminal atomic contract. Locks together: world state, 3-scalar confidence, structured invalidation, ritual-consistency stamp (green/amber/red per on-time), 3M auto-review schedule, trailing-1Y risk metrics JSON, weekly snapshot comment.
+3. **MacroContextSection teaser (v2.4, 2026-04-27)** — between Hero and Sleeve Health. Three stats: Macro state (n SUP / n ADV with overall label), Fit Score (current/30 with delta vs 4w avg), Updated (knownAsOf + logicVersion footer). "Open in Intelligence →" link to `/intelligence/macro-context`. The teaser is *summary, not full analysis* — depth lives in the Intelligence sub-page.
+4. **Sleeve Health panel** — 6 sleeves (NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH). Each row: `sleeve label | current% / target% | drift bar | signal status | 4-week recency strip`. Drift + signal visible on one row per sleeve.
+5. **Two-column explore zone** — Portfolio delta (left, primary) + Macro regime (right, context)
+6. **Signals list** — expandable rows with severity badges. Each rule row includes a mini trust indicator ("followed N× / override M×; outcome Y%").
+7. **Decision journal** — form section. Fields: type dropdown, ticker, note (existing required text), **3-scalar confidence** (3 sliders 1–10 with anchor labels — see Component Patterns), **structured invalidation** (failure_mode enum dropdown + trigger_threshold numeric + free text).
+8. **Prior Invalidation retrieval card** — shown after the user fills invalidation (NOT before confidence — bias-avoidant per Codex challenge). Surfaces past invalidation hypotheses from adjacent setups (same regime + asset class, not strict ticker match) with realized outcomes.
+9. **Weekly snapshot comment** — optional 1–2 line textarea, collapsed by default ("💬 이번 주 코멘트 (선택)"). Empty input stores NULL.
+10. **Freeze button** — terminal atomic contract. Locks together: world state, 3-scalar confidence, structured invalidation, ritual-consistency stamp (green/amber/red per on-time), 3M auto-review schedule, trailing-1Y risk metrics JSON, weekly snapshot comment.
 
 ## Intelligence Page Hierarchy
 
@@ -122,6 +155,20 @@ The intelligence pages show patterns across months, not this week's decision. Vi
 1. **Hero** — "Rule Accuracy" + all-time stats
 2. **Rule table** — Full-width. Columns: Rule | Fired | Followed | Ignored | Outcome (F) | Outcome (I) | Accuracy. Rules with < 3 data points: "(limited data)" badge.
 3. **Expandable detail** — Last 5 instances per rule with decision + outcome.
+
+### /intelligence/macro-context (new page — 2026-04-27)
+
+The narrative explanation surface for "what does each indicator mean, what's its relationship to score, where does my portfolio stand against macro, and how is performance scored." Single page, scroll narrative, 4 sections.
+
+1. **Hero** — Instrument Serif "Macro Context" + logicVersion badges (`RULES v1.0.0`, `META v1.0.0`) + knownAsOf date.
+2. **§1 Indicators (atom)** — 10x2 grid of 13 indicator cards. Each card: bucket × state badge corner, indicator label, current value (Geist Mono 24px), lead/lag tier badge. Hover-tooltip surfaces definition + methodology + why_it_matters from `INDICATOR_META`.
+3. **§2 Causal Map (cause)** — 4-column flow: Indicators → Buckets → Sleeve compatibility bands → Composite breakdown. Each indicator's contribution to its bucket and each bucket's contribution to Fit Score is visible. Composite breakdown column shows Fit / Alignment / Posture totals with the v2.4 30/30/40 split.
+4. **§3 Positioning (current)** — 6-row table (one per sleeve). Columns: Sleeve | Current% | Target% | Drift bar (visual) | Compatibility band pill (`below` / `in` / `above`). Compatibility band reflects sleeve-level fit projection (deterministic derivation, not normative target — see PRODUCT.md §5).
+5. **§4 Performance (result)** — 3 stat cards (Fit / Alignment / Posture with deltas vs prior week), then a 26-week composite-score trend chart (sparkline-style, amber gradient fill). Trend pulls from frozen `ScoringAttribution` history, never recomputed live.
+
+Footer: `rules v1.0.0 · meta v1.0.0 · known as of YYYY-MM-DD` for traceability.
+
+Streaming behavior: per-section `<Suspense>` boundaries; on cold path each section paints at its own delay (~0.4s steps). On hot path (T2 cache hit) entire reveal compresses to ~35ms. Skeleton shape matches loaded shape so layout never shifts.
 
 ### /intelligence (root additions — 2026-04-19)
 
@@ -191,3 +238,7 @@ When `weekly_snapshots.comment` is non-empty, render it prominently at the top o
 | 2026-04-19 | Ritual-Consistency Strip (8-dot header) permitted as process-completion signal | On-time freeze + fields-complete per week (green/amber/red). Measures discipline, not outcome. Outcome-streak gamification remains prohibited. |
 | 2026-04-19 | Sleeve Health panel consolidates 6 sleeves with 4-week drift/signal recency | NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH. Replaces scattered Target Drift + Triggered Rules fragments for sleeve-level view on `/friday`. |
 | 2026-04-19 | `/intelligence/risk-adjusted` new Scorecard page added | Portfolio vs SPY-KRW: CAGR / MDD / SD / Sharpe / Calmar / Sortino. Calmar is headline metric — quantifies "덜 아프게 시장 능가" goal. |
+| 2026-04-27 | `/intelligence/macro-context` new narrative page added | Indicator meaning → causal map → positioning → performance breakdown. Single-page scroll, 4 sections, RSC streaming with per-section Suspense. Backed by new `MacroContextService` + `score_rules.py` + `macro_indicator_meta.py`. |
+| 2026-04-27 | `/friday` MacroContextSection teaser added between Hero and Sleeve Health | Three-stat summary (macro state, fit score, updated) + link to Intelligence. Fills the previously broken `MacroContextSection.tsx` import in `FridayDashboard` and `FridayReportSection`. Action space stays uncluttered; depth lives in the Intelligence sub-page. |
+| 2026-04-27 | Macro Indicator Badge Convention codified (bucket × state, lead/lag tier, compatibility band, indicator state pill) | Unified badge language across Intelligence + Friday surfaces. Color is signal, never decoration. Hover-tooltip surfaces full meta from `INDICATOR_META`. |
+| 2026-04-27 | Risk-first reframing: Posture격상 (25 → 40), Fit / Alignment 동등 second-tier (each 30) | Composite score allocation reflects philosophy that portfolio survivorship dominates macro fit when the two diverge. Posture-stance veto added to `_build_recommendation` (Posture < 8 or Stress < 4 → reduce_risk override). See PRODUCT.md §5. |

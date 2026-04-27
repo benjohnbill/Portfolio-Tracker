@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Macro Context Mockup — v2.4 (2026-04-27)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.css">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #11161d;
+    --surface-alt: #1a2030;
+    --border: #2a3040;
+    --text-1: #e8eaed;
+    --text-2: #8b95a5;
+    --text-3: #5a6577;
+    --accent: #D4A574;
+    --accent-hov: #E0B88A;
+    --green: #4ADE80;
+    --red: #F87171;
+    --amber: #FBBF24;
+    --blue: #60A5FA;
+    --green-bg: #0a2010;
+    --amber-bg: #2a1a00;
+    --red-bg: #200a0a;
+    --font-ui: 'Geist Sans', system-ui, sans-serif;
+    --font-display: 'Instrument Serif', serif;
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text-1); font-family: var(--font-ui); }
+  body { padding: 64px 32px; max-width: 1280px; margin: 0 auto; line-height: 1.5; }
+
+  .mockup-header { margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .mockup-header h1 { font-family: var(--font-display); font-size: 48px; line-height: 1.1; letter-spacing: -0.02em; }
+  .mockup-header p { color: var(--text-2); font-size: 14px; margin-top: 8px; }
+  .mockup-header .v24-pill { display: inline-block; margin-top: 12px; padding: 4px 12px; background: var(--amber-bg); color: var(--amber); border-radius: 4px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel-divider { margin: 80px 0 48px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .panel-divider .label { font-family: var(--font-ui); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 600; }
+  .panel-divider h2 { font-family: var(--font-display); font-size: 32px; line-height: 1.2; margin-top: 8px; }
+  .panel-divider p { color: var(--text-2); font-size: 13px; margin-top: 8px; max-width: 720px; }
+
+  .page-frame { background: var(--bg); padding: 24px; border-radius: 8px; border: 1px solid var(--border); position: relative; }
+  .page-tag { position: absolute; top: 12px; right: 16px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; }
+
+  .hero { display: flex; align-items: baseline; justify-content: space-between; padding: 0 0 32px; }
+  .hero-title { font-family: var(--font-display); font-size: 32px; line-height: 1.2; letter-spacing: -0.02em; }
+  .hero-meta { display: flex; gap: 12px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); }
+  .hero-meta .badge { padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; }
+
+  section.macro-section { padding: 32px 0; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--accent); margin-bottom: 16px; }
+  .section-helper { color: var(--text-3); font-size: 12px; margin-bottom: 16px; max-width: 720px; }
+
+  .ind-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .ind-card { background: var(--surface); padding: 16px; border-radius: 8px; position: relative; transition: background 150ms ease-out; }
+  .ind-card:hover { background: var(--surface-alt); }
+  .ind-card.core { box-shadow: inset 2px 0 0 var(--accent); }
+  .ind-bucket { position: absolute; top: 8px; right: 8px; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; }
+  .b-supportive { background: var(--green-bg); color: var(--green); }
+  .b-neutral { background: var(--surface); color: var(--text-2); border: 1px solid var(--border); }
+  .b-adverse { background: var(--red-bg); color: var(--red); }
+  .ind-label { font-size: 13px; color: var(--text-1); padding-right: 80px; line-height: 1.3; }
+  .ind-value { font-family: var(--font-mono); font-size: 24px; font-variant-numeric: tabular-nums; margin: 12px 0 4px; color: var(--text-1); }
+  .ind-tier { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+  .new-badge { color: var(--accent); font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; margin-left: 4px; }
+
+  .causal-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; padding: 16px 0; }
+  .causal-col { background: var(--surface); border-radius: 8px; padding: 16px; }
+  .causal-col h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-2); margin-bottom: 12px; }
+  .causal-item { font-size: 13px; padding: 6px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+  .causal-item:last-child { border-bottom: 0; }
+  .causal-item .name { color: var(--text-1); }
+  .causal-item .val { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+
+  .pos-table { width: 100%; border-collapse: collapse; }
+  .pos-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); font-weight: 600; padding: 8px 12px 12px; border-bottom: 1px solid var(--border); }
+  .pos-table td { padding: 14px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .pos-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .band-bar { height: 6px; width: 180px; background: var(--surface-alt); border-radius: 3px; position: relative; overflow: hidden; }
+  .band-region { position: absolute; height: 100%; }
+  .band-low { left: 0; width: 33.3%; background: rgba(248, 113, 113, 0.18); }
+  .band-mid { left: 33.3%; width: 33.3%; background: rgba(74, 222, 128, 0.18); }
+  .band-hi { left: 66.6%; width: 33.4%; background: rgba(251, 191, 36, 0.18); }
+  .band-marker { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--accent); border-radius: 1px; }
+  .pos-band-pill { padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; }
+  .pill-in { background: var(--green-bg); color: var(--green); }
+  .pill-below { background: var(--red-bg); color: var(--red); }
+  .pill-above { background: var(--amber-bg); color: var(--amber); }
+
+  .perf-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 24px; }
+  .perf-card { background: var(--surface); border-radius: 8px; padding: 24px; position: relative; }
+  .perf-card.posture-card { box-shadow: inset 0 0 0 1px var(--accent); }
+  .perf-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 8px; }
+  .perf-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 32px; }
+  .perf-delta { font-family: var(--font-mono); font-size: 12px; margin-left: 8px; }
+  .perf-delta.up { color: var(--green); }
+  .perf-delta.down { color: var(--red); }
+  .perf-delta.flat { color: var(--text-3); }
+  .perf-card .max-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+  .perf-card .veto-flag { position: absolute; top: 12px; right: 16px; padding: 2px 8px; background: var(--red-bg); color: var(--red); border-radius: 4px; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .trend-chart { background: var(--surface); border-radius: 8px; padding: 24px; }
+  .trend-chart h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 16px; }
+  .trend-svg { width: 100%; height: 80px; }
+
+  .skel { background: linear-gradient(90deg, var(--surface) 0%, var(--surface-alt) 50%, var(--surface) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 4px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skel-line { height: 12px; margin: 6px 0; }
+
+  .sim .stage { position: relative; }
+  .sim .stage > .loaded-state { opacity: 0; }
+  .sim .stage > .skel-state { opacity: 1; position: absolute; inset: 0; }
+  .sim .stage.s-hero  > .loaded-state { animation: revealLoaded 6s infinite ease-out; animation-delay: 0.4s; }
+  .sim .stage.s-hero  > .skel-state   { animation: revealSkel    6s infinite ease-out; animation-delay: 0.4s; }
+  .sim .stage.s-ind   > .loaded-state { animation: revealLoaded 6s infinite ease-out; animation-delay: 0.8s; }
+  .sim .stage.s-ind   > .skel-state   { animation: revealSkel    6s infinite ease-out; animation-delay: 0.8s; }
+  .sim .stage.s-cau   > .loaded-state { animation: revealLoaded 6s infinite ease-out; animation-delay: 1.2s; }
+  .sim .stage.s-cau   > .skel-state   { animation: revealSkel    6s infinite ease-out; animation-delay: 1.2s; }
+  .sim .stage.s-pos   > .loaded-state { animation: revealLoaded 6s infinite ease-out; animation-delay: 1.6s; }
+  .sim .stage.s-pos   > .skel-state   { animation: revealSkel    6s infinite ease-out; animation-delay: 1.6s; }
+  .sim .stage.s-perf  > .loaded-state { animation: revealLoaded 6s infinite ease-out; animation-delay: 2.0s; }
+  .sim .stage.s-perf  > .skel-state   { animation: revealSkel    6s infinite ease-out; animation-delay: 2.0s; }
+  @keyframes revealLoaded { 0%, 6.6% { opacity: 0; } 10% { opacity: 1; } 83.3% { opacity: 1; } 93.3% { opacity: 0; } 100% { opacity: 0; } }
+  @keyframes revealSkel   { 0%, 6.6% { opacity: 1; } 10% { opacity: 0; } 83.3% { opacity: 0; } 93.3% { opacity: 1; } 100% { opacity: 1; } }
+  .stream-tick { position: absolute; right: -132px; top: 0; font-family: var(--font-mono); font-size: 11px; color: var(--text-3); width: 120px; padding-left: 12px; border-left: 1px solid var(--border); }
+  .stream-tick strong { color: var(--accent); display: block; font-weight: 400; }
+
+  .friday-mock { background: var(--bg); padding: 24px; border-radius: 8px; border: 1px solid var(--border); }
+  .friday-section { background: var(--surface); padding: 16px 24px; margin: 0 0 8px; border-radius: 8px; opacity: 0.4; }
+  .friday-section.highlight { opacity: 1; outline: 1px solid var(--accent); outline-offset: 2px; }
+  .friday-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 12px; font-weight: 600; }
+  .friday-section .meta-line { color: var(--text-3); font-size: 12px; }
+  .ctx-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0 12px; }
+  .ctx-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); margin-bottom: 6px; }
+  .ctx-stat-value { font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+  .ctx-link { color: var(--accent); font-size: 12px; text-decoration: none; }
+  .annotation { background: var(--surface); border-left: 3px solid var(--accent); padding: 12px 16px; margin: 24px 0; font-size: 13px; color: var(--text-2); border-radius: 0 4px 4px 0; }
+  .annotation strong { color: var(--accent); }
+
+  .lat-row { display: grid; grid-template-columns: 140px 1fr 100px; gap: 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .lat-row:last-child { border-bottom: 0; }
+  .lat-label { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); }
+  .lat-bar { height: 24px; border-radius: 4px; }
+  .lat-bar.cold  { background: linear-gradient(90deg, var(--red) 0%, var(--amber) 100%); width: 100%; }
+  .lat-bar.warm  { background: var(--amber); width: 5%; }
+  .lat-bar.hot   { background: var(--green); width: 1.4%; }
+  .lat-time { font-family: var(--font-mono); font-size: 14px; color: var(--text-1); text-align: right; font-variant-numeric: tabular-nums; }
+  .lat-meta { font-size: 12px; color: var(--text-3); margin-top: 4px; padding-left: 156px; }
+  .legend-block { background: var(--surface); padding: 16px 24px; border-radius: 8px; margin-top: 32px; font-size: 12px; color: var(--text-2); line-height: 1.7; }
+  .legend-block strong { color: var(--accent); }
+
+  /* Hover tooltip — production representation, applied across surfaces */
+  .tt-host { position: relative; cursor: help; }
+  .tt {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 240px;
+    max-width: 360px;
+    background: var(--surface-alt);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: var(--text-2);
+    line-height: 1.6;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease-out;
+    z-index: 20;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .tt strong { color: var(--text-1); display: block; font-size: 12px; margin-bottom: 6px; }
+  .tt em { color: var(--text-3); font-style: normal; font-family: var(--font-mono); display: block; margin-top: 8px; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .tt-host:hover > .tt { opacity: 1; }
+
+  /* Backwards-compat: legacy .ind-tooltip selector still works */
+  .ind-card { cursor: help; }
+  .ind-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: var(--surface-alt);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 11px;
+    color: var(--text-2);
+    line-height: 1.6;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease-out;
+    z-index: 10;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .ind-tooltip strong { color: var(--text-1); display: block; font-size: 12px; margin-bottom: 6px; }
+  .ind-tooltip em { color: var(--text-3); font-style: normal; font-family: var(--font-mono); display: block; margin-top: 8px; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .ind-card:hover .ind-tooltip { opacity: 1; }
+
+  /* Inline hint marker on hoverable surfaces */
+  .hint::after { content: " ⓘ"; color: var(--text-3); font-size: 10px; margin-left: 2px; }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .ind-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  @media (max-width: 1000px) {
+    .ind-grid { grid-template-columns: repeat(3, 1fr); }
+    .causal-row { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .stream-tick { display: none; }
+  }
+  @media (max-width: 760px) {
+    body { padding: 32px 16px; }
+    .ind-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .ind-card { padding: 12px; }
+    .ind-label { padding-right: 60px; font-size: 12px; }
+    .ind-value { font-size: 20px; }
+    .perf-row { grid-template-columns: 1fr; }
+    .ctx-card-grid { grid-template-columns: 1fr; gap: 12px; }
+    .pos-table { font-size: 12px; }
+    .pos-table th, .pos-table td { padding: 10px 8px; }
+    .band-bar { width: 100px; }
+    .lat-row { grid-template-columns: 100px 1fr 80px; gap: 10px; }
+    .lat-meta { padding-left: 110px; font-size: 11px; }
+  }
+  @media (max-width: 520px) {
+    .ind-grid { grid-template-columns: 1fr 1fr; }
+    .causal-row { grid-template-columns: 1fr; }
+    .hero { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .hero-meta { flex-wrap: wrap; }
+    .band-bar { width: 64px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="mockup-header">
+  <h1>Macro Context — Mockup</h1>
+  <p>2026-04-27 · self-development feedback loop spec, Phase 1 frontend visualization · 4 panels</p>
+  <span class="v24-pill">v2.4 · risk-first · 30/30/40 · 13 indicators · Posture/Stress veto</span>
+</header>
+
+<!-- ─────────── PANEL 1 — STATIC LOADED VIEW ─────────── -->
+<div class="panel-divider">
+  <span class="label">Panel 1</span>
+  <h2><i>/intelligence/macro-context</i> — fully loaded view (v2.4)</h2>
+  <p>4-section narrative scroll. Now reflects v2.4 risk-first reframing: composite breakdown shows Posture as the largest dimension (40), Fit and Alignment equal-weighted second-tier (30 each). Three new indicators — Sahm Rule, NFCI, T10Y3M — are marked (new); core indicators (★) carry deterministic floor / ceiling effect on bucket score.</p>
+</div>
+
+<div class="page-frame">
+  <span class="page-tag">/intelligence/macro-context</span>
+
+  <div class="hero">
+    <div class="hero-title">Macro Context</div>
+    <div class="hero-meta">
+      <span class="badge">RULES v1.0.0</span>
+      <span class="badge">META v1.0.0</span>
+      <span class="badge">2026-04-26</span>
+    </div>
+  </div>
+
+  <!-- §1 Indicators (13) -->
+  <section class="macro-section">
+    <div class="section-title">§1 — Indicators · 13 atomic readings</div>
+    <p class="section-helper">Each card shows current value, bucket × state badge, and lead/lag tier. <strong style="color:var(--accent)">Hover any card</strong> to see definition, methodology, and why it matters. Core indicators (★) deterministically floor / ceiling their bucket's score.</p>
+    <div class="ind-grid">
+
+      <div class="ind-card">
+        <span class="ind-bucket b-supportive">LIQ · SUP</span>
+        <div class="ind-label">Net Liquidity</div>
+        <div class="ind-value">5.42<span style="font-size:14px;color:var(--text-3)">T</span></div>
+        <div class="ind-tier">Mid lead · 6–12m</div>
+        <div class="ind-tooltip">
+          <strong>Net Liquidity (WALCL − TGA − RRP)</strong>
+          Fed 대차대조표에서 재무부 일반계정과 역레포를 차감한 값. 위험자산에 실제로 닿는 유동성을 포착한다. 클수록 같은 자산을 두고 더 많은 달러가 경쟁한다는 의미.
+          <em>FRED · 주간 · 백분위 분류</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-supportive">LIQ · SUP</span>
+        <div class="ind-label">M2 YoY</div>
+        <div class="ind-value">3.82<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Mid lead · 6–12m</div>
+        <div class="ind-tooltip">
+          <strong>M2 통화량, 전년동기 대비</strong>
+          M2(현금 + 요구불예금 + 저축성예금 + 소액 MMF)의 YoY 증가율. 통화 공급이 확장적일 때 6–12개월 후 위험자산 멀티플이 상승하는 경향이 역사적으로 관찰된다.
+          <em>FRED · 월간 · 백분위 분류</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">LIQ · NEU ★</span>
+        <div class="ind-label">NFCI<span class="new-badge">new</span></div>
+        <div class="ind-value">+0.08</div>
+        <div class="ind-tier">Mid lead · 6–12m</div>
+        <div class="ind-tooltip">
+          <strong>시카고 연준 NFCI</strong>
+          전미 금융여건 지수. 105개 위험·신용·레버리지 지표를 하나의 숫자로 압축. 양수 = 평균보다 타이트, 음수 = 느슨. Liquidity/FCI 버킷의 핵심 지표(★)로, strong reading 시 버킷 점수에 floor / ceiling 작용.
+          <em>FRED · 주간 · 정책 임계 ±0.25</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">RAT · NEU</span>
+        <div class="ind-label">10Y Real Yield</div>
+        <div class="ind-value">1.92<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Coincident</div>
+        <div class="ind-tooltip">
+          <strong>10년 실질금리 (TIPS)</strong>
+          인플레이션 보호된 10년 만기 국채 수익률. 인플레이션을 빼고 나면 진짜 자본 비용이 얼마인지를 보여준다. 실질금리가 높으면 장기 위험자산의 멀티플이 압축된다.
+          <em>FRED (DFII10) · 일간 · 백분위 + 하한 1.5%</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">RAT · NEU</span>
+        <div class="ind-label">10Y–2Y Spread</div>
+        <div class="ind-value">−0.18<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Strong lead · 12–18m</div>
+        <div class="ind-tooltip">
+          <strong>10년-2년 국채 스프레드</strong>
+          장기와 단기 국채 수익률의 차. 음수(역전)는 12–18개월 뒤 경기침체 신호로 작동해온 고전 게이지.
+          <em>FRED (T10Y2Y) · 일간 · −0.5% 이하 adverse</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-adverse">RAT · ADV ★</span>
+        <div class="ind-label">10Y–3M Spread<span class="new-badge">new</span></div>
+        <div class="ind-value">−0.42<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Strong lead · 12–18m</div>
+        <div class="ind-tooltip">
+          <strong>10년-3개월 국채 스프레드</strong>
+          NY 연준 경기침체 확률 모델이 사용하는 스프레드(10Y-2Y가 아님). 역전이 얼마나 지속되는지가 침체 확률 출력값을 좌우한다. Rates 버킷의 핵심 지표(★).
+          <em>FRED (T10Y3M) · 일간 · 학술 표준</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-adverse">INF · ADV</span>
+        <div class="ind-label">CPI YoY</div>
+        <div class="ind-value">3.71<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Weak lag · 1–3m</div>
+        <div class="ind-tooltip">
+          <strong>소비자물가지수, 전년동기 대비</strong>
+          헤드라인 소비자물가 상승률. 2.5% 이하 = Fed 편안 구간, 3.5% 이상 = 멀티플 압박(스태그플레이션 신호).
+          <em>FRED (CPIAUCSL) · 월간 · 정책 임계</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-adverse">INF · ADV ★</span>
+        <div class="ind-label">Core PCE YoY</div>
+        <div class="ind-value">3.15<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Weak lag · 1–3m</div>
+        <div class="ind-tooltip">
+          <strong>코어 PCE (식품·에너지 제외), YoY</strong>
+          Fed가 통화정책 결정에 가장 신뢰하는 인플레 게이지. CPI보다 느리게 움직이지만 노이즈가 적다. Inflation 버킷의 핵심 지표(★).
+          <em>FRED (PCEPILFE) · 월간 · Fed 이중 사명 목표 2%</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-supportive">GRO · SUP</span>
+        <div class="ind-label">Real GDP Growth</div>
+        <div class="ind-value">2.4<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Strong lag · quarterly</div>
+        <div class="ind-tooltip">
+          <strong>실질 GDP 성장률 (연율)</strong>
+          분기별 실질(인플레이션 조정) 경제 성장률을 연율로 환산한 값. 2% 이상 확장 supportive, 0.5% 이하 recessionary. 늦게 도착하지만 의심의 여지 없는 신호.
+          <em>FRED (A191RL1Q225SBEA) · 분기 · BEA 발표</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">GRO · NEU</span>
+        <div class="ind-label">NFP 3M Avg</div>
+        <div class="ind-value">128<span style="font-size:14px;color:var(--text-3)">k</span></div>
+        <div class="ind-tier">Weak lag · 1–3m</div>
+        <div class="ind-tooltip">
+          <strong>비농업 취업자 수, 3개월 이동평균</strong>
+          비농업 취업자 변화의 3M 이동평균. 150k 이상 = 건강한 고용, 50k 이하 = 노동시장 둔화. 단월 발표보다 노이즈가 적다.
+          <em>FRED (PAYEMS) · 월간 · BLS 발표</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">GRO · NEU ★</span>
+        <div class="ind-label">Sahm Rule<span class="new-badge">new</span></div>
+        <div class="ind-value">0.37<span style="font-size:14px;color:var(--text-3)">pp</span></div>
+        <div class="ind-tier">Weak lag · 1–3m</div>
+        <div class="ind-tooltip">
+          <strong>Sahm Rule</strong>
+          실업률 3개월 이동평균에서 직전 12개월 최저값을 뺀 값. 0.50pp 이상이면 NBER 기준 경기침체 시작 신호. 빠르게 발화하도록 설계되어, 움직이는 순간 이미 침체. Growth/Labor 버킷의 핵심 지표(★).
+          <em>FRED (SAHMREALTIME) · 월간 · 학술 표준</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-supportive">STR · SUP</span>
+        <div class="ind-label">VXN</div>
+        <div class="ind-value">17.2</div>
+        <div class="ind-tier">Coincident</div>
+        <div class="ind-tooltip">
+          <strong>나스닥-100 변동성 지수</strong>
+          NDX 옵션의 30일 내재 변동성. 낮으면 시장 평온, 높으면 스트레스. 3년 백분위(20/80) 기반 regime 분류.
+          <em>Yahoo Finance (^VXN) · 일간 · 백분위 분류</em>
+        </div>
+      </div>
+
+      <div class="ind-card">
+        <span class="ind-bucket b-neutral">STR · NEU</span>
+        <div class="ind-label">Credit Spread</div>
+        <div class="ind-value">3.41<span style="font-size:14px;color:var(--text-3)">%</span></div>
+        <div class="ind-tier">Coincident</div>
+        <div class="ind-tooltip">
+          <strong>BAA 회사채 vs 국채 OAS</strong>
+          투자등급 회사채의 옵션조정 스프레드(BAA - Treasury). 확대 = 신용시장 스트레스, 축소 = 위험선호 회복.
+          <em>FRED (BAMLC0A0CM) · 일간 · 백분위 분류</em>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- §2 Causal Map -->
+  <section class="macro-section">
+    <div class="section-title">§2 — Causal Map · indicator → bucket → sleeve → fit</div>
+    <p class="section-helper">Read left-to-right. Each indicator feeds a bucket; bucket states resolve to fit predicates over exposure factors; predicates project deterministically onto sleeve compatibility bands; composite (Fit + Alignment + Posture) totals at right. Core indicators (★) carry deterministic floor / ceiling effect on bucket score.</p>
+    <div class="causal-row">
+      <div class="causal-col tt-host">
+        <h4 class="hint">Indicators · 13</h4>
+        <div class="causal-item"><span class="name">Net Liquidity</span><span class="val">SUP</span></div>
+        <div class="causal-item"><span class="name">M2 YoY</span><span class="val">SUP</span></div>
+        <div class="causal-item"><span class="name">NFCI ★</span><span class="val">NEU</span></div>
+        <div class="causal-item"><span class="name">Real Yield 10Y</span><span class="val">NEU</span></div>
+        <div class="causal-item"><span class="name">10Y–2Y</span><span class="val">NEU</span></div>
+        <div class="causal-item"><span class="name">10Y–3M ★</span><span class="val" style="color:var(--red)">ADV</span></div>
+        <div class="causal-item"><span class="name">CPI YoY</span><span class="val">ADV</span></div>
+        <div class="causal-item"><span class="name">Core PCE ★</span><span class="val" style="color:var(--red)">ADV</span></div>
+        <div class="causal-item"><span class="name">GDP Growth</span><span class="val">SUP</span></div>
+        <div class="causal-item"><span class="name">NFP 3M</span><span class="val">NEU</span></div>
+        <div class="causal-item"><span class="name">Sahm Rule ★</span><span class="val">NEU</span></div>
+        <div class="causal-item"><span class="name">VXN</span><span class="val">SUP</span></div>
+        <div class="causal-item"><span class="name">Credit Spread</span><span class="val">NEU</span></div>
+        <div class="tt">
+          <strong>13개의 원자 단위</strong>
+          각 지표가 자신이 속한 버킷에 SUP / NEU / ADV로 기여한다. 핵심 지표(★)는 버킷 점수에 결정론적 floor / ceiling 작용 — 강하게 발화하면 다른 보조 지표와 무관하게 점수를 막거나 끌어올린다.
+          <em>5 buckets · 13 entries · indicator → bucket</em>
+        </div>
+      </div>
+      <div class="causal-col tt-host">
+        <h4 class="hint">Buckets · 5 (× 6 max)</h4>
+        <div class="causal-item"><span class="name">Liquidity/FCI</span><span class="val">NEU · 3</span></div>
+        <div class="causal-item"><span class="name">Rates ★</span><span class="val" style="color:var(--red)">ADV · 0</span></div>
+        <div class="causal-item"><span class="name">Inflation ★</span><span class="val" style="color:var(--red)">ADV · 0</span></div>
+        <div class="causal-item"><span class="name">Growth/Labor</span><span class="val">NEU · 3</span></div>
+        <div class="causal-item"><span class="name">Stress/Sentiment</span><span class="val">NEU · 3</span></div>
+        <div class="causal-item" style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px"><span class="name" style="color:var(--accent)">Fit total</span><span class="val" style="color:var(--accent)">9 / 30</span></div>
+        <div class="tt">
+          <strong>5개 버킷 점수 산출</strong>
+          각 버킷 0–6점. 기본은 다수결 — 두 지표 이상 supportive면 버킷 supportive(6), adverse면 0, 그 외 neutral(3). 핵심 지표(★) strong 발화 시 결과 강제. Rates는 10Y-3M strong adverse로 0점, Inflation은 Core PCE strong adverse로 0점 ceiling.
+          <em>5 × 6 = 30 max · core override 적용</em>
+        </div>
+      </div>
+      <div class="causal-col tt-host">
+        <h4 class="hint">Sleeve compat. bands</h4>
+        <div class="causal-item"><span class="name">NDX</span><span class="val pill-in pos-band-pill">in</span></div>
+        <div class="causal-item"><span class="name">DBMF</span><span class="val pill-in pos-band-pill">in</span></div>
+        <div class="causal-item"><span class="name">MSTR</span><span class="val pill-above pos-band-pill">above</span></div>
+        <div class="causal-item"><span class="name">BRAZIL</span><span class="val pill-below pos-band-pill">below</span></div>
+        <div class="causal-item"><span class="name">GLDM</span><span class="val pill-in pos-band-pill">in</span></div>
+        <div class="causal-item"><span class="name">BONDS/CASH</span><span class="val pill-in pos-band-pill">in</span></div>
+        <div class="tt">
+          <strong>Sleeve 호환 밴드</strong>
+          각 sleeve가 현재 macro 환경 안에서 below / in / above 어느 위치인지. SLEEVE_FACTOR_MAP을 통한 결정론적 도출 — exposure factor 기반 fit predicate가 sleeve로 투영된 값. 정상적인 목표가 아니라 *해석 layer*.
+          <em>6 sleeves · read-only projection · not a normative target</em>
+        </div>
+      </div>
+      <div class="causal-col tt-host">
+        <h4 class="hint">Composite</h4>
+        <div class="causal-item"><span class="name">Fit</span><span class="val">9 / 30</span></div>
+        <div class="causal-item"><span class="name">Alignment</span><span class="val">22 / 30</span></div>
+        <div class="causal-item" style="background:rgba(212,165,116,0.06);margin: 0 -16px;padding: 6px 16px"><span class="name" style="color:var(--accent)">Posture</span><span class="val" style="color:var(--accent)">28 / 40</span></div>
+        <div class="causal-item" style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px"><span class="name" style="color:var(--accent)">Total</span><span class="val" style="color:var(--accent);font-size:16px">59 / 100</span></div>
+        <div class="tt">
+          <strong>최종 합계 — risk-first 가중</strong>
+          Fit 30 + Alignment 30 + Posture 40 = 100. Posture가 가장 큰 가중치 — 위기 생존성이 macro fit보다 우선이라는 risk-first 철학. Posture &lt; 8 또는 Stress &lt; 4면 stance가 자동으로 reduce_risk로 봉인됨(veto).
+          <em>30 / 30 / 40 split · veto 8 / 4</em>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- §3 Positioning -->
+  <section class="macro-section">
+    <div class="section-title">§3 — Positioning · 6 sleeves vs current macro</div>
+    <p class="section-helper">Each sleeve's compatibility band derives deterministically from fit predicates and SLEEVE_FACTOR_MAP. Read-only projection — not a normative target.</p>
+    <table class="pos-table">
+      <thead>
+        <tr><th>Sleeve</th><th>Current</th><th>Target</th><th>Drift</th><th>Compatibility band</th><th></th></tr>
+      </thead>
+      <tbody>
+        <tr class="tt-host"><td><span class="hint">NDX</span></td><td class="mono">30.4%</td><td class="mono" style="color:var(--text-3)">30%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:50%"></div></div></td><td><span class="pos-band-pill pill-in">in</span></td><td style="color:var(--text-3);font-size:12px">+0.4pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>NDX (KODEX_1X / NDX_2X)</strong>성장 + 유동성에 우호. 인플레이션 / 타이트 FCI에 부담. 현재 30.4% (목표 30%) — 밴드 중앙. 매크로 환경 적합도 in.<em>contributing factors · risk_beta, growth, liquidity</em></div></td></tr>
+        <tr class="tt-host"><td><span class="hint">DBMF</span></td><td class="mono">28.1%</td><td class="mono" style="color:var(--text-3)">30%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:46%"></div></div></td><td><span class="pos-band-pill pill-in">in</span></td><td style="color:var(--text-3);font-size:12px">−1.9pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>DBMF (CTA managed futures)</strong>분산 + 추세 지속성에 우호. 주식 베타 중립~완충. 위기 시 ballast 역할 가능. 현재 28.1% (목표 30%) — 약간 below target이지만 밴드 안.<em>contributing factors · diversifier, trend persistence</em></div></td></tr>
+        <tr class="tt-host"><td><span class="hint">MSTR</span></td><td class="mono">11.3%</td><td class="mono" style="color:var(--text-3)">10%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:78%"></div></div></td><td><span class="pos-band-pill pill-above">above</span></td><td style="color:var(--text-3);font-size:12px">+1.3pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>MSTR</strong>유동성에 매우 민감(+2). 위험회피 환경에서 큰 충격(-2). 현재 11.3% (목표 10%) — 현재 macro 환경 기준 above band. Z-score / MNAV ratio 기반 알고 룰이 별도로 작동.<em>contributing factors · liquidity (++), growth, risk_off (--)</em></div></td></tr>
+        <tr class="tt-host"><td><span class="hint">BRAZIL</span></td><td class="mono">8.5%</td><td class="mono" style="color:var(--text-3)">10%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:18%"></div></div></td><td><span class="pos-band-pill pill-below">below</span></td><td style="color:var(--text-3);font-size:12px">−1.5pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>BRAZIL Bond</strong>달러 유동성과 글로벌 위험선호에 민감. 금리 상승에 부담. 현재 8.5% (목표 10%) — 현재 매크로 환경에서 below band, 비중 보강 여지 있음.<em>contributing factors · dollar liquidity, global risk on, rates (-)</em></div></td></tr>
+        <tr class="tt-host"><td><span class="hint">GLDM</span></td><td class="mono">11.6%</td><td class="mono" style="color:var(--text-3)">10%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:55%"></div></div></td><td><span class="pos-band-pill pill-in">in</span></td><td style="color:var(--text-3);font-size:12px">+1.6pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>GLDM (Gold)</strong>실질금리 상승에 부담(-). 스트레스 환경에서 안전자산 역할(+). 현재 11.6% (목표 10%) — 약간 over이지만 밴드 안. Reserve / Diversifier 기여.<em>contributing factors · real_rate (-), stress (+)</em></div></td></tr>
+        <tr class="tt-host"><td><span class="hint">BONDS/CASH</span></td><td class="mono">10.1%</td><td class="mono" style="color:var(--text-3)">10%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:50%"></div></div></td><td><span class="pos-band-pill pill-in">in</span></td><td style="color:var(--text-3);font-size:12px">+0.1pp</td><td style="position:relative;padding:0;border:0"><div class="tt" style="bottom:auto;top:50%;transform:translateY(-50%);left:auto;right:calc(100% + 8px)"><strong>BONDS/CASH (TLT, BIL, VBIL, IEF)</strong>성장 둔화에 우호(+). 인플레이션 재가속에 부담(-). 현재 10.1% (목표 10%) — 정확히 target. Reserve 역할.<em>contributing factors · growth slowdown (+), inflation reaccel (-)</em></div></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- §4 Performance breakdown -->
+  <section class="macro-section">
+    <div class="section-title">§4 — Performance breakdown · this week + 26-week trend</div>
+    <p class="section-helper">Three subscores with deltas vs prior week. Posture is currently above its veto threshold (8); Stress sub-component above its threshold (4). Trend pulls from frozen ScoringAttribution — never recomputed live.</p>
+    <div class="perf-row">
+      <div class="perf-card tt-host">
+        <div class="perf-label hint">Fit · 0–30</div>
+        <div class="perf-value">9<span class="perf-delta down">−4</span></div>
+        <div class="max-label">vs 4-week avg · 13</div>
+        <div class="tt">
+          <strong>Fit Score 9 / 30 산출</strong>
+          이번 주 낮은 이유: Inflation 버킷이 Core PCE(★) 강하게 ADV로 0점, Rates 버킷이 10Y-3M(★) 역전으로 0점. 나머지 3개 버킷은 NEU(3점씩) — 합계 9. 4주 평균(13)보다 −4 하락.
+          <em>5 buckets · core override applied · 0 + 0 + 3 + 3 + 3</em>
+        </div>
+      </div>
+      <div class="perf-card tt-host">
+        <div class="perf-label hint">Alignment · 0–30</div>
+        <div class="perf-value">22<span class="perf-delta flat">±0</span></div>
+        <div class="max-label">vs 4-week avg · 22</div>
+        <div class="tt">
+          <strong>Alignment 22 / 30 산출</strong>
+          현재 6개 sleeve 모두 ±10% drift 안 또는 그 근처. BRAZIL이 −1.5pp로 살짝 below target, 그 외는 부분 점수 또는 만점. 큰 rebalance 신호 없음.
+          <em>per-sleeve max = 30 × target_weight · drift threshold 10% / 30%</em>
+        </div>
+      </div>
+      <div class="perf-card posture-card tt-host">
+        <div class="perf-label hint">Posture · 0–40</div>
+        <div class="perf-value">28<span class="perf-delta up">+1</span></div>
+        <div class="max-label">Stress 14/20 · Concentration 9/12 · Reserve 5/8</div>
+        <div class="tt">
+          <strong>Posture 28 / 40 산출 — risk-first 핵심 지표</strong>
+          Stress Resilience 14/20: 시뮬레이션상 worst return / MDD 통과(중간 등급). Concentration Control 9/12: top1 / top2 / HHI 모두 안전. Diversifier Reserve 5/8: 다각화 일정 수준. veto 임계(8) 위 안전, Stress 임계(4) 위 안전 — stance 봉인 발동 X.
+          <em>20 / 12 / 8 sub-decomposition · veto thresholds: Posture &lt; 8, Stress &lt; 4</em>
+        </div>
+      </div>
+    </div>
+    <div class="trend-chart">
+      <h4>Composite score · 26 weeks (frozen ScoringAttribution)</h4>
+      <svg class="trend-svg" viewBox="0 0 500 80" preserveAspectRatio="none">
+        <defs><linearGradient id="trendGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#D4A574" stop-opacity="0.4"/><stop offset="100%" stop-color="#D4A574" stop-opacity="0.02"/></linearGradient></defs>
+        <path d="M0,28 L20,32 L40,30 L60,25 L80,28 L100,22 L120,28 L140,20 L160,22 L180,18 L200,25 L220,20 L240,16 L260,20 L280,18 L300,22 L320,20 L340,28 L360,32 L380,35 L400,30 L420,32 L440,38 L460,32 L480,36 L500,38 L500,80 L0,80 Z" fill="url(#trendGrad)"/>
+        <path d="M0,28 L20,32 L40,30 L60,25 L80,28 L100,22 L120,28 L140,20 L160,22 L180,18 L200,25 L220,20 L240,16 L260,20 L280,18 L300,22 L320,20 L340,28 L360,32 L380,35 L400,30 L420,32 L440,38 L460,32 L480,36 L500,38" fill="none" stroke="#D4A574" stroke-width="1.5"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:8px">
+        <span>26w ago · 72</span>
+        <span>13w · 65</span>
+        <span>now · 59</span>
+      </div>
+    </div>
+  </section>
+
+  <div style="padding:24px 0 0;font-family:var(--font-mono);font-size:11px;color:var(--text-3);text-align:center;border-top:1px solid var(--border);margin-top:32px">
+    rules v1.0.0 · meta v1.0.0 · known as of 2026-04-26
+  </div>
+</div>
+
+<!-- ─────────── PANEL 2 — STREAMING SIMULATION ─────────── -->
+<div class="panel-divider">
+  <span class="label">Panel 2</span>
+  <h2>Streaming reveal · 6-second loop</h2>
+  <p>Per-section <code>&lt;Suspense&gt;</code> reveals at staggered delay. Skeleton shape == loaded shape, no layout shift. Cycle restarts every 6s for inspection. In production, hot path compresses to ~35ms.</p>
+</div>
+
+<div class="page-frame sim">
+  <span class="page-tag">/intelligence/macro-context · STREAMING</span>
+
+  <div class="stage s-hero" style="position:relative;min-height:60px;margin-bottom:32px">
+    <div class="skel-state" style="display:flex;justify-content:space-between"><div class="skel" style="height:36px;width:280px"></div><div class="skel" style="height:24px;width:240px"></div></div>
+    <div class="loaded-state"><div class="hero"><div class="hero-title">Macro Context</div><div class="hero-meta"><span class="badge">RULES v1.0.0</span><span class="badge">META v1.0.0</span><span class="badge">2026-04-26</span></div></div></div>
+    <span class="stream-tick"><strong>+0.4s</strong>Hero (server)</span>
+  </div>
+
+  <div class="stage s-ind" style="position:relative;min-height:160px;margin-bottom:32px">
+    <div class="skel-state">
+      <div class="skel" style="height:14px;width:240px;margin-bottom:20px"></div>
+      <div class="ind-grid">
+        <div class="ind-card"><div class="skel skel-line" style="width:80%"></div><div class="skel" style="height:24px;width:60%;margin:12px 0 4px"></div><div class="skel skel-line" style="width:50%"></div></div>
+        <div class="ind-card"><div class="skel skel-line" style="width:80%"></div><div class="skel" style="height:24px;width:60%;margin:12px 0 4px"></div><div class="skel skel-line" style="width:50%"></div></div>
+        <div class="ind-card"><div class="skel skel-line" style="width:80%"></div><div class="skel" style="height:24px;width:60%;margin:12px 0 4px"></div><div class="skel skel-line" style="width:50%"></div></div>
+        <div class="ind-card"><div class="skel skel-line" style="width:80%"></div><div class="skel" style="height:24px;width:60%;margin:12px 0 4px"></div><div class="skel skel-line" style="width:50%"></div></div>
+        <div class="ind-card"><div class="skel skel-line" style="width:80%"></div><div class="skel" style="height:24px;width:60%;margin:12px 0 4px"></div><div class="skel skel-line" style="width:50%"></div></div>
+      </div>
+    </div>
+    <div class="loaded-state">
+      <div class="section-title">§1 — Indicators · 13 atomic readings</div>
+      <div class="ind-grid">
+        <div class="ind-card"><span class="ind-bucket b-supportive">LIQ · SUP</span><div class="ind-label">Net Liquidity</div><div class="ind-value">5.42<span style="font-size:14px;color:var(--text-3)">T</span></div><div class="ind-tier">Mid lead</div></div>
+        <div class="ind-card core"><span class="ind-bucket b-neutral">LIQ · NEU ★</span><div class="ind-label">NFCI<span class="new-badge">new</span></div><div class="ind-value">+0.08</div><div class="ind-tier">Mid lead</div></div>
+        <div class="ind-card core"><span class="ind-bucket b-adverse">RAT · ADV ★</span><div class="ind-label">10Y–3M<span class="new-badge">new</span></div><div class="ind-value">−0.42<span style="font-size:14px">%</span></div><div class="ind-tier">Strong lead</div></div>
+        <div class="ind-card core"><span class="ind-bucket b-neutral">GRO · NEU ★</span><div class="ind-label">Sahm Rule<span class="new-badge">new</span></div><div class="ind-value">0.37<span style="font-size:14px">pp</span></div><div class="ind-tier">Weak lag</div></div>
+        <div class="ind-card"><span class="ind-bucket b-supportive">STR · SUP</span><div class="ind-label">VXN</div><div class="ind-value">17.2</div><div class="ind-tier">Coincident</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:12px;font-family:var(--font-mono)">+ 8 more</div>
+    </div>
+    <span class="stream-tick"><strong>+0.8s</strong>§1 Indicators</span>
+  </div>
+
+  <div class="stage s-cau" style="position:relative;min-height:140px;margin-bottom:32px">
+    <div class="skel-state">
+      <div class="skel" style="height:14px;width:280px;margin-bottom:20px"></div>
+      <div class="causal-row">
+        <div class="causal-col"><div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div></div>
+        <div class="causal-col"><div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div></div>
+        <div class="causal-col"><div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div></div>
+        <div class="causal-col"><div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div></div>
+      </div>
+    </div>
+    <div class="loaded-state">
+      <div class="section-title">§2 — Causal Map</div>
+      <div class="causal-row">
+        <div class="causal-col"><h4>Indicators</h4><div class="causal-item"><span class="name">10Y–3M ★</span><span class="val" style="color:var(--red)">ADV</span></div><div class="causal-item"><span class="name">Core PCE ★</span><span class="val" style="color:var(--red)">ADV</span></div></div>
+        <div class="causal-col"><h4>Buckets</h4><div class="causal-item"><span class="name">Rates ★</span><span class="val" style="color:var(--red)">0</span></div><div class="causal-item"><span class="name">Inflation ★</span><span class="val" style="color:var(--red)">0</span></div></div>
+        <div class="causal-col"><h4>Sleeves</h4><div class="causal-item"><span class="name">MSTR</span><span class="val pos-band-pill pill-above">above</span></div><div class="causal-item"><span class="name">BRAZIL</span><span class="val pos-band-pill pill-below">below</span></div></div>
+        <div class="causal-col"><h4>Composite</h4><div class="causal-item"><span class="name">Fit</span><span class="val">9/30</span></div><div class="causal-item" style="color:var(--accent)"><span class="name">Posture</span><span class="val" style="color:var(--accent)">28/40</span></div></div>
+      </div>
+    </div>
+    <span class="stream-tick"><strong>+1.2s</strong>§2 Causal</span>
+  </div>
+
+  <div class="stage s-pos" style="position:relative;min-height:120px;margin-bottom:32px">
+    <div class="skel-state">
+      <div class="skel" style="height:14px;width:280px;margin-bottom:20px"></div>
+      <div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div><div class="skel skel-line"></div>
+    </div>
+    <div class="loaded-state">
+      <div class="section-title">§3 — Positioning</div>
+      <table class="pos-table">
+        <tr><td>NDX</td><td class="mono">30.4%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:50%"></div></div></td><td><span class="pos-band-pill pill-in">in</span></td></tr>
+        <tr><td>MSTR</td><td class="mono">11.3%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:78%"></div></div></td><td><span class="pos-band-pill pill-above">above</span></td></tr>
+        <tr><td>BRAZIL</td><td class="mono">8.5%</td><td><div class="band-bar"><div class="band-region band-low"></div><div class="band-region band-mid"></div><div class="band-region band-hi"></div><div class="band-marker" style="left:18%"></div></div></td><td><span class="pos-band-pill pill-below">below</span></td></tr>
+      </table>
+    </div>
+    <span class="stream-tick"><strong>+1.6s</strong>§3 Positioning</span>
+  </div>
+
+  <div class="stage s-perf" style="position:relative;min-height:120px">
+    <div class="skel-state">
+      <div class="skel" style="height:14px;width:240px;margin-bottom:20px"></div>
+      <div class="perf-row">
+        <div class="perf-card"><div class="skel skel-line" style="width:60%"></div><div class="skel" style="height:24px;width:30%;margin-top:12px"></div></div>
+        <div class="perf-card"><div class="skel skel-line" style="width:60%"></div><div class="skel" style="height:24px;width:30%;margin-top:12px"></div></div>
+        <div class="perf-card"><div class="skel skel-line" style="width:60%"></div><div class="skel" style="height:24px;width:30%;margin-top:12px"></div></div>
+      </div>
+    </div>
+    <div class="loaded-state">
+      <div class="section-title">§4 — Performance</div>
+      <div class="perf-row">
+        <div class="perf-card"><div class="perf-label">Fit · 0–30</div><div class="perf-value">9<span class="perf-delta down">−4</span></div></div>
+        <div class="perf-card"><div class="perf-label">Alignment · 0–30</div><div class="perf-value">22<span class="perf-delta flat">±0</span></div></div>
+        <div class="perf-card posture-card"><div class="perf-label">Posture · 0–40</div><div class="perf-value">28<span class="perf-delta up">+1</span></div></div>
+      </div>
+    </div>
+    <span class="stream-tick"><strong>+2.0s</strong>§4 Performance</span>
+  </div>
+</div>
+
+<!-- ─────────── PANEL 3 — /friday TEASER + VETO scenario ─────────── -->
+<div class="panel-divider">
+  <span class="label">Panel 3</span>
+  <h2><i>/friday</i> · MacroContextSection teaser + Posture veto in action</h2>
+  <p>Fills the previously broken <code>MacroContextSection.tsx</code> import. Three stats + link. v2.4 also introduces the Posture-stance veto: when Posture &lt; 8 or Stress Resilience &lt; 4, stance auto-overrides to <code>reduce_risk</code> regardless of total score. Below shows current state (no veto) followed by hypothetical veto-fired state.</p>
+</div>
+
+<div class="friday-mock">
+  <span class="page-tag" style="position:relative;top:auto;right:auto;display:inline-block;margin-bottom:24px">/friday · Friday ritual (current state)</span>
+
+  <div class="friday-section">
+    <h3>Since Last Friday</h3>
+    <div class="meta-line">5 events · 1 regime transition · 0 matured outcomes</div>
+  </div>
+
+  <div class="friday-section">
+    <h3>Hero · Composite Score · stance: hold</h3>
+    <div class="meta-line">59 / 100 · Posture 28/40 → no veto · Freeze pending</div>
+  </div>
+
+  <div class="friday-section highlight">
+    <h3>Macro Context</h3>
+    <div class="ctx-card-grid">
+      <div class="tt-host"><div class="ctx-stat-label hint">Macro state</div><div class="ctx-stat-value">2 SUP / 2 ADV</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:4px">overall · neutral</div><div class="tt"><strong>5개 버킷 현재 상태</strong>Liquidity/FCI SUP, Stress/Sentiment SUP, Rates ADV (10Y-3M 역전), Inflation ADV (Core PCE 끈적). Growth/Labor NEU. 2 SUP / 2 ADV / 1 NEU — 전체 neutral. 자세한 분류는 Intelligence 에서.<em>5 buckets · 2 sup / 2 adv / 1 neu</em></div></div>
+      <div class="tt-host"><div class="ctx-stat-label hint">Fit Score</div><div class="ctx-stat-value">9<span style="font-size:14px;color:var(--text-3)"> / 30</span><span class="perf-delta down" style="font-size:12px">−4</span></div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:4px">vs 4w avg · 13</div><div class="tt"><strong>Fit 9 / 30</strong>5개 버킷 중 2개 adverse(Inflation, Rates) → 두 버킷이 핵심 지표 override로 0점. 나머지 3개 버킷 NEU(3점씩) → 합 9. 4주 평균(13)보다 −4 하락 — 이번 주 매크로 환경이 특히 도전적.<em>2 adverse buckets · core indicator floor</em></div></div>
+      <div class="tt-host"><div class="ctx-stat-label hint">Updated</div><div class="ctx-stat-value" style="font-size:14px;color:var(--text-2);padding-top:6px">2026-04-26</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:4px">rules v1.0.0 · meta v1.0.0</div><div class="tt"><strong>Logic 버전 + 데이터 시점</strong>현재 점수는 score_rules v1.0.0 + indicator_meta v1.0.0 기준으로 산출. 새 데이터는 매일 21:00 UTC(06:00 KST) cron 실행 직후 갱신. 룰 / 메타 버전이 바뀌면 frozen 보고서는 원래 점수 그대로 보존.<em>cron · weekday 21:00 UTC · logicVersion-pinned</em></div></div>
+    </div>
+    <a href="#" class="ctx-link">Open in Intelligence →</a>
+  </div>
+
+  <div class="friday-section">
+    <h3>Sleeve Health</h3>
+    <div class="meta-line">6 sleeves · 1 above band · 1 below band · 4 in band</div>
+  </div>
+</div>
+
+<div class="annotation">
+  <strong>Posture veto scenario (illustrative).</strong> Imagine a future Friday where stress simulation worsens: Posture drops to 7/40 and Stress Resilience drops to 3/20. Both veto thresholds breach simultaneously. The Hero strip shifts from <code>stance: hold</code> to <code>stance: reduce_risk</code> regardless of composite score. The MacroContextSection teaser surfaces a red veto badge ("POSTURE VETO ACTIVE") next to Fit Score. Recalibration thresholds documented in PRODUCT.md §5 Veto Threshold Recalibration informational note.
+</div>
+
+<div class="friday-mock" style="margin-top:24px;border-color:var(--red)">
+  <span class="page-tag" style="position:relative;top:auto;right:auto;display:inline-block;margin-bottom:24px;color:var(--red);border-color:var(--red)">/friday · POSTURE VETO ACTIVE (illustrative)</span>
+
+  <div class="friday-section">
+    <h3 style="color:var(--red)">Hero · Composite Score · stance: reduce_risk (VETO)</h3>
+    <div class="meta-line">63 / 100 · <span style="color:var(--red)">Posture 7/40 → veto active</span> · Freeze pending</div>
+  </div>
+
+  <div class="friday-section highlight" style="outline-color:var(--red)">
+    <h3>Macro Context · <span style="color:var(--red)">VETO ACTIVE</span></h3>
+    <div class="ctx-card-grid">
+      <div><div class="ctx-stat-label">Posture (veto)</div><div class="ctx-stat-value" style="color:var(--red)">7<span style="font-size:14px;color:var(--text-3)"> / 40</span></div><div style="font-family:var(--font-mono);font-size:11px;color:var(--red);margin-top:4px">below threshold (8)</div></div>
+      <div><div class="ctx-stat-label">Stress Resilience</div><div class="ctx-stat-value" style="color:var(--red)">3<span style="font-size:14px;color:var(--text-3)"> / 20</span></div><div style="font-family:var(--font-mono);font-size:11px;color:var(--red);margin-top:4px">below threshold (4)</div></div>
+      <div><div class="ctx-stat-label">Composite</div><div class="ctx-stat-value">63 / 100</div><div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);margin-top:4px">veto overrides total</div></div>
+    </div>
+    <a href="#" class="ctx-link">Open in Intelligence →</a>
+  </div>
+</div>
+
+<!-- ─────────── PANEL 4 — LATENCY BUDGET ─────────── -->
+<div class="panel-divider">
+  <span class="label">Panel 4</span>
+  <h2>Latency budget · v2.4 cache strategy</h2>
+  <p>Date-keyed SystemCache (no TTL). T1 raw series + T2 computed snapshot. T3 envelope composes fresh per request (~35ms). T4 RSC unstable_cache.</p>
+</div>
+
+<div style="background:var(--surface);border-radius:8px;padding:24px">
+
+  <div class="lat-row">
+    <div class="lat-label">Cold path<br><span style="color:var(--text-3);font-size:10px">T1 miss</span></div>
+    <div class="lat-bar cold"></div>
+    <div class="lat-time">2–5s</div>
+  </div>
+  <div class="lat-meta" style="border-bottom:1px solid var(--border);padding-bottom:16px">FRED + Yahoo HTTP fetch (13 series — Net Liquidity, M2, NFCI, Real Yield, T10Y2Y, T10Y3M, CPI, Core PCE, GDP, NFP, Sahm Rule, VXN, Credit Spread) → state classification → bucket aggregation → score explain → DB queries → envelope. Once per date; cron warm-up at 21:00 UTC means user calls almost never hit cold path.</div>
+
+  <div class="lat-row">
+    <div class="lat-label">Warm path<br><span style="color:var(--text-3);font-size:10px">T1 hit, T2 miss</span></div>
+    <div class="lat-bar warm"></div>
+    <div class="lat-time">~50ms</div>
+  </div>
+  <div class="lat-meta" style="border-bottom:1px solid var(--border);padding-bottom:16px">Skip external fetch. Recompute snapshot from cached series.</div>
+
+  <div class="lat-row">
+    <div class="lat-label">Hot path<br><span style="color:var(--text-3);font-size:10px">T2 hit</span></div>
+    <div class="lat-bar hot"></div>
+    <div class="lat-time">~35ms</div>
+  </div>
+  <div class="lat-meta">Default user experience after the daily cron run.</div>
+</div>
+
+<div class="legend-block">
+  <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);font-weight:600;margin-bottom:8px">Cache flow recap</div>
+  External APIs <span style="color:var(--accent)">→</span> <strong>T1</strong> raw series (date-keyed) <span style="color:var(--accent)">→</span> <strong>T2</strong> computed snapshot (date+meta version-keyed) <span style="color:var(--accent)">→</span> composition (no cache, ~30ms) <span style="color:var(--accent)">→</span> envelope <span style="color:var(--accent)">→</span> Next.js <strong>RSC unstable_cache</strong> (24h revalidate, tag-invalidatable on freeze + transactions)
+</div>
+
+</body>
+</html>

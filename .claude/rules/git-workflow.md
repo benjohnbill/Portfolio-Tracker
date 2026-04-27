@@ -26,16 +26,19 @@ When creating PRs:
 3. **Code Review** - Use `code-reviewer` agent after writing code
 4. **Commit** - Follow conventional commits format
 
-## Branch Naming
+## Branch Workflow (Portfolio_Tracker)
 
-- `feature/` - New features
-- `fix/` - Bug fixes
-- `refactor/` - Code refactoring
-- `docs/` - Documentation changes
+**Main-only by default.** Solo dev project — work directly on `main`.
 
-## [CUSTOMIZE] Project-Specific Git Rules
+- Default to `main` for all changes (commits, fixes, small features)
+- Skill-forced feature branches (e.g. plan execution, worktrees) are OK but must stay **single-purpose** and short-lived
+- Scope-lock docs, plan docs, spec docs always land on `main`
+- Skill-created branches use prefixes when used: `feature/`, `fix/`, `refactor/`, `docs/`
+- No required reviewers, no branch protection — solo accountability via commits
 
-Add your project-specific git workflow here:
-- Branch protection rules
-- Required reviewers
-- CI/CD requirements
+## CI / Deploy
+
+- `.github/workflows/daily-quant-update.yml` — runs cron signal updates
+- `.github/workflows/keep-alive.yml` — pings backend
+- Render deploys backend on `main` push (see `render.yaml`)
+- Vercel deploys frontend on `main` push (no repo-local config)

@@ -1,5 +1,40 @@
 # Portfolio Tracker
 
+## Operational reference map
+
+Operational details live in dedicated docs — read on demand:
+- **Build/test/lint/dev/CI**: `AGENTS.md` §COMMANDS, §VALIDATION EXPECTATIONS
+- **Architecture & data flow**: `ARCHITECTURE.md`
+- **Product north stars (N1–N8), non-goals, weekly loop semantics**: `PRODUCT.md`
+- **Design system (typography, color, spacing)**: `DESIGN.md`
+- **Local env setup, secrets, ports**: `LOCAL_ENV_SETUP.md`
+- **Per-directory conventions**: `<dir>/AGENTS.md` (23 guides under backend/, frontend/, docs/)
+
+## Quick commands (fallback)
+
+```bash
+# Frontend
+cd frontend && npm run dev          # local dev server
+cd frontend && npm run lint         # repo-local config
+cd frontend && npm run build        # type-check + build
+
+# Backend (venv required — uvicorn is NOT on system PATH)
+cd backend && .venv/bin/python -m pytest tests -q
+cd backend && .venv/bin/python -m pytest tests/test_friday_service.py -q
+cd backend && .venv/bin/uvicorn app.main:app --reload     # port 8000
+```
+
+> Backend uvicorn lives at `backend/.venv/bin/uvicorn`; system PATH lookup fails.
+> Port 8000 conflicts with claude-mem ChromaDB worker if that is running.
+
+## Pre-commit gotchas
+
+- Never commit `backend/.env`, `KIS_*` values, `CRON_SECRET`, or live `DATABASE_URL`
+- Don't add request-time DDL to Friday paths — point operators to migrations instead
+- `GET /api/reports/weekly/latest` stays read-only (no regenerate/upsert on GET)
+- Frontend: keep `package.json` lint script non-interactive (no `next lint` setup prompts)
+- Don't stage root `AGENTS.md` `<claude-mem-context>` block (auto-injected, never commit)
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

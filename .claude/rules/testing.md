@@ -1,42 +1,60 @@
-# Testing Rules
+# Testing Rules (Portfolio_Tracker)
 
-## Minimum Test Coverage: 80%
+Project test infrastructure: **C+D hybrid**. Generic TDD principles are not repeated here.
 
-Test Types (ALL required):
-1. **Unit Tests** - Individual functions, utilities, components
-2. **Integration Tests** - API endpoints, database operations
-3. **E2E Tests** - Critical user flows
+## Test infrastructure
 
-## Test-Driven Development
+| Track | DB | Default? | When to use |
+|---|---|---|---|
+| C-track | sqlite (in-memory) | ✅ default | Unit + most integration tests |
+| D-track | docker postgres | on-demand | Migration tests, postgres-specific features (ON CONFLICT, JSONB ops) |
 
-MANDATORY workflow:
-1. Write test first (RED)
-2. Run test - it should FAIL
-3. Write minimal implementation (GREEN)
-4. Run test - it should PASS
-5. Refactor (IMPROVE)
-6. Verify coverage (80%+)
+## Running tests
 
-## Edge Cases to Test
+```bash
+# Default — full suite, sqlite C-track
+cd backend && .venv/bin/python -m pytest tests -q
 
-Every function must be tested with:
-- [ ] Null/undefined inputs
-- [ ] Empty arrays/strings
-- [ ] Invalid types
-- [ ] Boundary values (min/max)
-- [ ] Error conditions
+# Friday-specific path (most-touched surface)
+cd backend && .venv/bin/python -m pytest tests/test_friday_service.py -q
 
-## Test Quality Checklist
+# Single test
+cd backend && .venv/bin/python -m pytest tests/test_friday_service.py::test_name -q
 
-- [ ] Tests are independent (no shared state)
-- [ ] Test names describe behavior
-- [ ] Mocks used for external dependencies
-- [ ] Both happy path and error paths tested
-- [ ] No flaky tests
+# D-track (docker postgres) — only when sqlite cannot represent the behavior
+# See backend/tests/AGENTS.md for docker setup
+```
 
-## [CUSTOMIZE] Project-Specific Testing
+> `pytest` is NOT on system PATH. Always invoke via `backend/.venv/bin/python -m pytest`.
 
-Add your project-specific testing requirements here:
-- Test framework configuration
-- Mock setup patterns
-- E2E test scenarios
+## Critical caveats
+
+**Alembic stamp hack (sqlite C-track):**
+- sqlite test setup uses `alembic stamp head` rather than running migrations forward
+- Migration tests requiring forward-application must run on D-track (postgres)
+- If a new migration fails on sqlite stamp path, route the test to D-track
+
+**ON CONFLICT routing:**
+- sqlite and postgres handle `ON CONFLICT` differently
+- If a test exercises ON CONFLICT semantics, mark it postgres-only or it will pass on sqlite but break on prod
+- Cross-DB tests should use SQLAlchemy dialect-aware patterns, not raw SQL
+
+**Service-layer tests:**
+- Mock external services (FRED, Yahoo Finance, KIS API), never hit live endpoints
+- Use fixtures in `backend/tests/conftest.py` for shared DB / client setup
+
+## TDD workflow
+
+For new features and bugfixes:
+1. Write failing test (RED)
+2. Run on C-track → confirm failure
+3. Implement minimum code to pass (GREEN)
+4. Run full suite — no regressions
+5. Refactor (test must stay green)
+
+## Pre-commit gate
+
+- [ ] `cd backend && .venv/bin/python -m pytest tests -q` — all green (or pre-existing failures noted)
+- [ ] `cd frontend && npm run build` — type-check passes
+- [ ] `cd frontend && npm run lint` — no new lint errors
+- [ ] Pre-existing failures reported separately from new ones

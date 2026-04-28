@@ -31,6 +31,7 @@ from .services.notification_service import NotificationService
 from .services.discord_notifier import send_discord_message
 from .services.attribution_service import AttributionService
 from .services.intelligence_service import IntelligenceService
+from .services.macro_context_service import MacroContextService
 from .services.outcome_evaluator import OutcomeEvaluatorService
 from .api._discord_interactions import router as discord_interactions_router
 
@@ -884,6 +885,16 @@ def get_intelligence_quarterly_review(quarter: str, db: Session = Depends(get_db
     if not result:
         raise HTTPException(status_code=400, detail="Invalid quarter format. Use YYYY-Q1")
     return result
+
+
+@app.get("/api/intelligence/macro-context")
+def get_intelligence_macro_context(db: Session = Depends(get_db)):
+    try:
+        data = MacroContextService.get_macro_context(db)
+    except Exception as e:
+        logger.warning("intelligence_macro_context_upstream_unavailable", exc_info=e)
+        data = MacroContextService.get_macro_context_safe(db)
+    return {"status": "ok", "data": data}
 
 
 @app.get("/api/intelligence/reviews/annual")

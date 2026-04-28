@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { FridayBriefingSection } from '@/components/friday/FridayBriefingSection';
 import { FridayReportSection } from '@/components/friday/FridayReportSection';
 import { FridaySleeveSection } from '@/components/friday/FridaySleeveSection';
+import { MacroContextSection } from '@/components/friday/MacroContextSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SkeletonList } from '@/components/ui/skeleton-patterns';
 
@@ -16,6 +17,10 @@ export default function FridayPage() {
 
       <Suspense fallback={<ReportSkeleton />}>
         <FridayReportSection />
+      </Suspense>
+
+      <Suspense fallback={<MacroContextSkeleton />}>
+        <MacroContextSection />
       </Suspense>
 
       <Suspense fallback={<SleeveSkeleton />}>
@@ -92,6 +97,26 @@ function ReportSkeleton() {
         <div className="lg:col-span-5 space-y-4">
           <SkeletonList count={3} itemShape="card" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MacroContextSkeleton() {
+  return (
+    <div className="rounded-lg border border-border/40 p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-3 w-36" />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="space-y-1">
+            <Skeleton className="h-2 w-20" />
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-2 w-16" />
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -299,7 +299,7 @@ class PortfolioService:
                         # Fallback for historical/failed KIS API: use last transaction price
                         # Note: In a real scenario, we'd want historical price data for bonds too.
                         # For now, we use the buy price as a proxy if API fails or for historical dates.
-                        daily_value_krw += qty * 1864532.0 
+                        daily_value_krw += qty * 1838585.0
                     continue
                 
                 # Check if aid exists in price_data to avoid KeyError

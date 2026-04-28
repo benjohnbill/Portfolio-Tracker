@@ -222,7 +222,11 @@ function RecentDecisionsSkeleton() {
 
 function NavGrid() {
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-5 gap-4">
+      <Link href="/intelligence/macro-context" className="bg-card rounded-lg p-5 border border-border/40 hover:border-primary/40 transition-colors">
+        <p className="text-sm font-medium text-white">Macro Context</p>
+        <p className="text-xs text-muted-foreground mt-1">Indicator meaning · score causation · positioning · performance</p>
+      </Link>
       <Link href="/intelligence/attributions" className="bg-card rounded-lg p-5 border border-border/40 hover:border-primary/40 transition-colors">
         <p className="text-sm font-medium text-white">Score Attribution</p>
         <p className="text-xs text-muted-foreground mt-1">Decompose scores over time</p>

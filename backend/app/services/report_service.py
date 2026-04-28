@@ -128,9 +128,17 @@ class ReportService:
         action_report: Dict[str, Any],
         total_score: int,
         triggered_rules: List[Dict[str, Any]],
+        posture: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         actions = action_report.get("actions", [])
-        if actions:
+        posture_total = (posture or {}).get("score")
+        stress_score = (posture or {}).get("stressResilience", {}).get("score")
+
+        # Veto branches (v2.4) — evaluate first, override all subsequent logic.
+        veto_fired = (posture_total is not None and posture_total < 8) or (stress_score is not None and stress_score < 4)
+        if veto_fired:
+            stance = "reduce_risk"
+        elif actions:
             stance = "rebalance"
         elif total_score < 45:
             stance = "reduce_risk"
@@ -139,13 +147,18 @@ class ReportService:
         else:
             stance = "hold"
 
-        if actions:
+        if actions and stance != "reduce_risk":
             rec_actions = actions
         else:
+            reason = (
+                "Posture/Stress veto: portfolio risk floor breached, structural risk reduction required."
+                if veto_fired
+                else "No direct signal action fired; stance is derived from the composite weekly score."
+            )
             rec_actions = [{
                 "asset": "PORTFOLIO",
                 "action": stance.replace("_", " ").upper(),
-                "reason": "No direct signal action fired; stance is derived from the composite weekly score.",
+                "reason": reason,
             }]
 
         rationale = [rule["message"] for rule in triggered_rules[:3]] or ["Current report remains broadly stable."]
@@ -187,7 +200,7 @@ class ReportService:
         posture_score = compute_posture_diversification_score(db, allocation)
         total_score = fit_score["score"] + alignment_score["score"] + posture_score["score"]
         triggered_rules = ReportService._build_triggered_rules(action_report, fit_score, alignment_score)
-        recommendation = ReportService._build_recommendation(action_report, total_score, triggered_rules)
+        recommendation = ReportService._build_recommendation(action_report, total_score, triggered_rules, posture=posture_score)
         event_rows = db.query(EventAnnotation).filter(EventAnnotation.week_ending == week_ending).order_by(EventAnnotation.created_at.asc()).all()
 
         portfolio_snapshot = {

@@ -63,10 +63,8 @@ class PortfolioService:
 
     @staticmethod
     def get_price_lookup_ticker(asset: Asset) -> str:
-        """Use market code for KR assets and symbol for US assets."""
-        if asset.source == "KR":
-            return asset.code or asset.symbol
-        return asset.symbol
+        """Use code (market ticker) when set; fall back to symbol."""
+        return asset.code or asset.symbol
 
     @staticmethod
     def _latest_numeric(values, default: float = 0.0) -> float:

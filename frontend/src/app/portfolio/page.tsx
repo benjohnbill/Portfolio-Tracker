@@ -79,11 +79,11 @@ export default async function PortfolioPage({
             <h2 className="text-lg font-bold text-white">Signal Pulse Grid</h2>
             <div className="grid gap-6 md:grid-cols-2">
               <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
-                <AssetSignalSection 
-                  ticker="QQQ" 
-                  title="NDX vs 250MA" 
-                  description="Trend regime — drives TIGER_2X ↔ KODEX_1X rotation" 
-                  period={period} 
+                <AssetSignalSection
+                  ticker="QQQ"
+                  title="NDX vs 250MA"
+                  description="Trend regime — drives NDX_2X ↔ NDX_1X rotation"
+                  period={period}
                 />
               </Suspense>
               <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>

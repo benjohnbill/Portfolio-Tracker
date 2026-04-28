@@ -426,6 +426,23 @@ class MacroService:
         }
 
     @staticmethod
+    def get_macro_snapshot_cached(db) -> dict:
+        """T2 cache wrapper. Key = macro_snapshot:{YYYY-MM-DD}_v{META_LOGIC_VERSION}.
+        On hit, short-circuit the upstream FRED+Yahoo fetch. On miss, fetch and
+        write through. Per coding-style.md: date-keyed, no TTL — date rollover
+        invalidates automatically."""
+        from datetime import date
+        from .cache_service import CacheService
+        from ..data.macro_indicator_meta import META_LOGIC_VERSION
+        key = f"macro_snapshot:{date.today().isoformat()}_v{META_LOGIC_VERSION}"
+        cached = CacheService.get_cache(db, key)
+        if cached is not None:
+            return cached
+        snapshot = MacroService.get_macro_snapshot()
+        CacheService.set_cache(db, key, snapshot)
+        return snapshot
+
+    @staticmethod
     def get_macro_vitals() -> Dict[str, Any]:
         snapshot = MacroService.get_macro_snapshot()
         net_liquidity = next((item for item in snapshot["indicators"] if item["key"] == "net_liquidity"), None)

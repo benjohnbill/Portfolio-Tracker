@@ -98,7 +98,7 @@ def compute_alignment_score(allocation: List[Dict[str, Any]]) -> Dict[str, Any]:
     for category, target in CATEGORY_TARGETS.items():
         current = current_weights.get(category, 0.0)
         drift = abs(current - target) / target if target > 0 else 0.0
-        max_points = 35 * target
+        max_points = 30 * target
         if drift <= 0.10:
             score = max_points
         elif drift <= 0.30:
@@ -120,7 +120,7 @@ def compute_alignment_score(allocation: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     return {
         "score": round(total_score),
-        "max": 35,
+        "max": 30,
         "needsRebalance": needs_rebalance,
         "categories": category_breakdown,
     }
@@ -222,48 +222,51 @@ def compute_posture_diversification_score(db: Session, allocation: List[Dict[str
     worst_return = min((item.get("portfolio", {}).get("return", 0.0) for item in stress_results), default=0.0)
     worst_mdd = min((item.get("portfolio", {}).get("mdd", 0.0) for item in stress_results), default=0.0)
 
+    # Stress Resilience (0-20)
     if worst_return >= -15 and worst_mdd >= -20:
-        stress_score = 10
+        stress_score = 20
     elif worst_return >= -25 and worst_mdd >= -35:
-        stress_score = 6
+        stress_score = 12
     else:
-        stress_score = 2
+        stress_score = 4
 
-    if top1 <= 0.25 and top2 <= 0.45 and hhi <= 0.18:
-        concentration_score = 10
+    # Concentration Control (0-12)
+    if top1 <= 0.25 and top2 <= 0.45 and round(hhi, 6) <= 0.18:
+        concentration_score = 12
     elif top1 <= 0.35 and top2 <= 0.60:
-        concentration_score = 6
+        concentration_score = 7
     else:
         concentration_score = 2
 
+    # Diversifier Reserve (0-8)
     reserve_diversifier = exposures["reserve"] + exposures["diversifier"]
     if reserve_diversifier >= 0.15:
-        diversifier_score = 5
+        diversifier_score = 8
     elif reserve_diversifier >= 0.05:
-        diversifier_score = 3
+        diversifier_score = 5
     else:
         diversifier_score = 0
 
     return {
         "score": stress_score + concentration_score + diversifier_score,
-        "max": 25,
+        "max": 40,
         "stressResilience": {
             "score": stress_score,
-            "max": 10,
+            "max": 20,
             "worstReturn": worst_return,
             "worstMdd": worst_mdd,
             "scenarios": stress_results,
         },
         "concentrationControl": {
             "score": concentration_score,
-            "max": 10,
+            "max": 12,
             "top1Weight": round(top1, 4),
             "top2Weight": round(top2, 4),
             "hhi": round(hhi, 4),
         },
         "diversifierReserve": {
             "score": diversifier_score,
-            "max": 5,
+            "max": 8,
             "weight": round(reserve_diversifier, 4),
         },
     }

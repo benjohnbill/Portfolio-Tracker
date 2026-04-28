@@ -21,7 +21,7 @@ CATEGORY_TARGETS: Dict[str, float] = {
 
 def asset_to_category(symbol: str) -> str:
     s = (symbol or "").upper()
-    if any(token in s for token in ["NDX_"]):
+    if any(token in s for token in ["NDX_", "KODEX_1X", "KODEX1X", "TIGER"]):
         return "NDX"
     if "DBMF" in s:
         return "DBMF"

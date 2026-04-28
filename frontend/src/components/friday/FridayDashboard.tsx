@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import type { ExecutionSlippage, FridaySnapshot, FridaySnapshotSummary, WeeklyReport } from '@/lib/api';
+import { revalidateMacroContext } from '@/app/friday/actions';
 import { createFridayDecision, createFridaySlippage, createFridaySnapshot } from '@/lib/api';
 import { CalendarDays, CheckCircle2, Clock3, GitCompareArrows, ShieldAlert, Sparkles } from 'lucide-react';
 
@@ -102,6 +103,7 @@ export function FridayDashboard({ report, snapshots, currentSnapshot }: FridayDa
       await new Promise((resolve) => setTimeout(resolve, 150));
       setFreezeMessage('Saving snapshot...');
       await createFridaySnapshot(report.weekEnding, snapshotComment.trim() || undefined);
+      await revalidateMacroContext();
       setFreezeState('done');
       setFreezeMessage('Frozen successfully.');
       setTimeout(() => {

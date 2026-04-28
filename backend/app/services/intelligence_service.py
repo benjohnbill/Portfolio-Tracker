@@ -598,3 +598,27 @@ class IntelligenceService:
         result["period"] = year
         result["type"] = "annual"
         return result
+
+    @staticmethod
+    def get_attribution_history(db: Session, weeks: int = 26) -> list[dict]:
+        """Trims the most recent N weeks of frozen ScoringAttribution into
+        sparkline-shape rows. Oldest first, so the chart x-axis reads left→right."""
+        rows = (
+            db.query(ScoringAttribution, WeeklySnapshot.snapshot_date)
+            .join(WeeklySnapshot, ScoringAttribution.snapshot_id == WeeklySnapshot.id)
+            .order_by(WeeklySnapshot.snapshot_date.desc())
+            .limit(weeks)
+            .all()
+        )
+        out = [
+            {
+                "weekEnding": snap_date.isoformat(),
+                "totalScore": int(attr.total_score) if attr.total_score is not None else None,
+                "fitScore": int(attr.fit_score) if attr.fit_score is not None else None,
+                "alignmentScore": int(attr.alignment_score) if attr.alignment_score is not None else None,
+                "postureScore": int(attr.posture_score) if attr.posture_score is not None else None,
+            }
+            for attr, snap_date in rows
+        ]
+        out.reverse()  # oldest first
+        return out

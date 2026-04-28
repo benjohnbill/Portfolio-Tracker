@@ -72,6 +72,31 @@ class MacroService:
         return "neutral"
 
     @staticmethod
+    def _state_from_meta(indicator_key: str, series: pd.Series) -> str:
+        """Generic threshold-based classifier driven by INDICATOR_META.baseline_thresholds.
+        Used for indicators where absolute level has policy/academic precedent
+        (CPI, Core PCE, GDP, NFP, Sahm, NFCI, T10Y3M)."""
+        from ..data.macro_indicator_meta import INDICATOR_META
+        if series.empty:
+            return "neutral"
+        meta = INDICATOR_META.get(indicator_key)
+        if meta is None:
+            return "neutral"
+        thresholds = meta.baseline_thresholds
+        current = float(series.iloc[-1])
+        if "supportive_below" in thresholds and current <= thresholds["supportive_below"]:
+            return "supportive"
+        if "supportive_above" in thresholds and current >= thresholds["supportive_above"]:
+            return "supportive"
+        if "adverse_above" in thresholds and current >= thresholds["adverse_above"]:
+            return "adverse"
+        if "adverse_below" in thresholds and current <= thresholds["adverse_below"]:
+            return "adverse"
+        if "neutral_below" in thresholds and current < thresholds["neutral_below"]:
+            return "neutral"
+        return "neutral"
+
+    @staticmethod
     def _series_to_indicator(
         *,
         key: str,

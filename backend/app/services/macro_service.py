@@ -97,6 +97,20 @@ class MacroService:
         return "neutral"
 
     @staticmethod
+    def _t10y3m_state(series: pd.Series) -> str:
+        """T10Y3M with persistence — adverse only if inverted (<0) for the last
+        4 consecutive observations (NY Fed model standard, persistence_weeks=4
+        in INDICATOR_META)."""
+        if series.empty:
+            return "neutral"
+        last_4 = series.dropna().iloc[-4:] if len(series) >= 4 else series.dropna()
+        if len(last_4) >= 4 and (last_4 < 0).all():
+            return "adverse"
+        if float(series.iloc[-1]) >= 0:
+            return "supportive"
+        return "neutral"
+
+    @staticmethod
     def _series_to_indicator(
         *,
         key: str,
@@ -245,6 +259,18 @@ class MacroService:
             source="FRED",
             state=spread_state,
             trend_window=5,
+        ))
+
+        spread_3m_series = MacroService._safe_series("T10Y3M", 365 * 5)
+        indicators.append(MacroService._series_to_indicator(
+            key="yield_spread_10y3m",
+            bucket="Rates",
+            label="10Y-3M Spread",
+            series=spread_3m_series,
+            unit="%",
+            source="FRED",
+            state=MacroService._t10y3m_state(spread_3m_series),
+            trend_window=4,
         ))
 
         cpi_series = MacroService._yoy(MacroService._safe_series("CPIAUCSL"))

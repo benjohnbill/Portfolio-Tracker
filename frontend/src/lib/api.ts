@@ -1436,3 +1436,112 @@ export async function fetchCalmarTrajectory(): Promise<CalmarTrajectoryPayload> 
     return empty;
   }
 }
+
+// =====================================================================
+// Macro Context — /intelligence/macro-context (v2.4, 2026-04-27)
+// =====================================================================
+
+export type IndicatorState = 'supportive' | 'neutral' | 'adverse';
+export type LeadLagTier = 'strong_lead_12_18m' | 'mid_lead_6_12m' | 'coincident' | 'weak_lag_1_3m' | 'strong_lag_quarterly';
+export type CompatibilityBand = 'below' | 'in' | 'above';
+
+export interface IndicatorWithMeta {
+  key: string;
+  bucket: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  trend: 'up' | 'down' | 'flat';
+  state: IndicatorState;
+  source: string;
+  observationDate: string | null;
+  releaseDate: string | null;
+  knownAsOf: string;
+  definition?: string;
+  methodology?: string;
+  whyItMatters?: string;
+  leadLagTier?: LeadLagTier;
+  thresholdRationale?: string;
+  thresholdRationaleSource?: 'academic' | 'policy' | 'historical_percentile' | 'custom';
+  coreIndicator?: boolean;
+  signalAsymmetry?: 'fn_dominant' | 'fp_dominant' | 'symmetric';
+  persistenceWeeks?: number;
+  refreshFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+}
+
+export interface SleeveCompatibility {
+  sleeve: string;
+  currentWeight: number;
+  targetWeight: number;
+  compatibilityBand: CompatibilityBand;
+  contributingFactors: Record<string, number>;
+}
+
+export interface BucketRule {
+  bucket: string;
+  state: IndicatorState;
+  points: number;
+  narrative: string;
+  rule: {
+    predicatesFull: { field: string; op: string; value: number | [number, number] }[];
+    predicatesPartial: { field: string; op: string; value: number | [number, number] }[];
+    pointsFullMatch: number;
+    pointsPartialMatch: number;
+    pointsMiss: number;
+  };
+}
+
+export interface ScoreBreakdown {
+  score: number;
+  max: number;
+  deltaVsPriorWeek: number | null;
+}
+
+export interface WeeklyScoreHistory {
+  weekEnding: string;
+  totalScore: number | null;
+  fitScore: number | null;
+  alignmentScore: number | null;
+  postureScore: number | null;
+}
+
+export interface MacroContext {
+  indicators: IndicatorWithMeta[];
+  causalMap: {
+    bucketRules: BucketRule[];
+    currentBucketStates: { bucket: string; state: IndicatorState; confidence?: string }[];
+    sleeveImpacts: { bucket: string; sleeves: SleeveCompatibility[] }[];
+  };
+  positioning: {
+    sleeves: SleeveCompatibility[];
+    bands: { band: CompatibilityBand; meaning: string }[];
+  };
+  performance: {
+    fit: ScoreBreakdown | null;
+    alignment: ScoreBreakdown | null;
+    posture: ScoreBreakdown | null;
+    trends: WeeklyScoreHistory[];
+    avgTotalLast4Weeks: number | null;
+    lastTotal: number | null;
+  };
+  logicVersion: { rules: string; meta: string };
+  knownAsOf: string | null;
+}
+
+export interface MacroContextEnvelope {
+  status: EnvelopeStatus;
+  data: MacroContext | null;
+}
+
+export async function fetchMacroContext(): Promise<MacroContextEnvelope> {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  try {
+    const response = await fetch(`${API_BASE}/api/intelligence/macro-context`, { next: { tags: ['macro-context'] } });
+    if (!response.ok) return { status: 'unavailable', data: null };
+    const body = await response.json();
+    const data: MacroContext | null = body.data ?? null;
+    return { status: data ? 'ready' : 'unavailable', data };
+  } catch {
+    return { status: 'unavailable', data: null };
+  }
+}

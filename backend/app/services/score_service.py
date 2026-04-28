@@ -274,3 +274,101 @@ def compute_posture_diversification_score(db: Session, allocation: List[Dict[str
 
 def build_target_deviation(allocation: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return compute_alignment_score(allocation)["categories"]
+
+
+class ScoreService:
+    """Class-form facade. Existing free functions remain the implementation;
+    this class adds the explain_fit read-model and namespacing for new
+    surfaces (MacroContextService consumes ScoreService.explain_fit)."""
+
+    compute_fit_score = staticmethod(compute_fit_score)
+    compute_alignment_score = staticmethod(compute_alignment_score)
+    compute_posture_diversification_score = staticmethod(compute_posture_diversification_score)
+    asset_to_category = staticmethod(asset_to_category)
+
+    @staticmethod
+    def _project_to_sleeves(rule: FitRuleSpec, allocation: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Sleeve-level compatibility band derivation from SLEEVE_FACTOR_MAP.
+
+        Read-only projection — not a normative target. The band reflects
+        whether the sleeve's contributing factors align with the matched
+        FitRuleSpec direction.
+        """
+        from .score_rules import SLEEVE_FACTOR_MAP
+        weights_by_category: Dict[str, float] = {}
+        for item in allocation:
+            cat = asset_to_category(item.get("asset", ""))
+            if cat == "OTHER":
+                continue
+            weights_by_category[cat] = weights_by_category.get(cat, 0.0) + float(item.get("weight", 0.0) or 0.0)
+
+        if rule.state == "supportive":
+            direction = +1
+        elif rule.state == "adverse":
+            direction = -1
+        else:
+            direction = 0
+
+        sleeves: List[Dict[str, Any]] = []
+        for sleeve, factors in SLEEVE_FACTOR_MAP.items():
+            current = weights_by_category.get(sleeve, 0.0)
+            target = CATEGORY_TARGETS.get(sleeve, 0.0)
+            score_for_sleeve = sum(factors.values())
+            if direction == 0 or target <= 0:
+                band = "in"
+            elif direction * score_for_sleeve > 0:
+                drift = (current - target) / target
+                if drift < -0.10:
+                    band = "below"
+                elif drift > 0.10:
+                    band = "above"
+                else:
+                    band = "in"
+            else:
+                drift = (current - target) / target
+                if drift > 0.10:
+                    band = "above"
+                elif drift < -0.10:
+                    band = "below"
+                else:
+                    band = "in"
+            sleeves.append({
+                "sleeve": sleeve,
+                "currentWeight": round(current, 4),
+                "targetWeight": round(target, 4),
+                "compatibilityBand": band,
+                "contributingFactors": factors,
+            })
+        return sleeves
+
+    @staticmethod
+    def explain_fit(snapshot: Dict[str, Any], allocation: List[Dict[str, Any]]) -> Dict[str, Any]:
+        exposures = _build_exposures(allocation)
+        bucket_results: List[Dict[str, Any]] = []
+        for bucket_state in snapshot.get("buckets", []):
+            bucket_name = bucket_state.get("bucket", "Unknown")
+            state = bucket_state.get("state", "neutral")
+            try:
+                rule = _lookup_fit_rule(bucket_name, state)
+            except KeyError:
+                continue
+            points, narrative = _score_fit_bucket(bucket_name, state, exposures)
+            bucket_results.append({
+                "bucket": rule.bucket,
+                "state": state,
+                "points": points,
+                "narrative": narrative,
+                "rule": {
+                    "predicatesFull": [{"field": p.field, "op": p.op, "value": p.value} for p in rule.predicates_full],
+                    "predicatesPartial": [{"field": p.field, "op": p.op, "value": p.value} for p in rule.predicates_partial],
+                    "pointsFullMatch": rule.points_full_match,
+                    "pointsPartialMatch": rule.points_partial_match,
+                    "pointsMiss": rule.points_miss,
+                },
+                "sleeveProjection": ScoreService._project_to_sleeves(rule, allocation),
+            })
+        return {
+            "totalFit": sum(r["points"] for r in bucket_results),
+            "buckets": bucket_results,
+            "exposureAggregates": {k: round(v, 4) for k, v in exposures.items()},
+        }

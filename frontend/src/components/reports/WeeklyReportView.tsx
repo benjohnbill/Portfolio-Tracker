@@ -10,12 +10,15 @@ import { MSTRSignalSection } from '@/components/features/portfolio/MSTRSignalSec
 
 // Mapping rules/assets to chart types
 const ASSET_TO_TICKER: Record<string, string> = {
-  'QQQ': 'QQQ',
   'NDX': 'QQQ',
+  'NDX_1X': 'QQQ',
+  'NDX_2X': 'QQQ',
+  'QQQ': 'QQQ',
   'TIGER_2X': 'QQQ',
   'KODEX_1X': 'QQQ',
   'GLDM': 'GLDM',
   'TLT': 'TLT',
+  'ACE_TLT': 'TLT',
   'DBMF': 'DBMF',
   'MSTR': 'MSTR',
 };

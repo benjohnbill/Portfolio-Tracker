@@ -39,7 +39,7 @@ const TARGETS: Record<string, number> = {
 
 const assetToCategory = (symbol: string): string => {
   const s = symbol.toUpperCase();
-  if (['QQQ', 'TIGER', '379810', 'TIGER NASDAQ100'].some(t => s.includes(t))) return 'NDX';
+  if (s === 'NDX' || ['NDX_', 'QQQ', 'TIGER', '379810', '418660', 'TIGER NASDAQ100'].some(t => s.includes(t))) return 'NDX';
   if (s.includes('DBMF')) return 'DBMF';
   if (s.includes('BRAZIL')) return 'BRAZIL';
   if (s.includes('MSTR')) return 'MSTR';

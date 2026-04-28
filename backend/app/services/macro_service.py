@@ -274,13 +274,6 @@ class MacroService:
         ))
 
         cpi_series = MacroService._yoy(MacroService._safe_series("CPIAUCSL"))
-        cpi_state = "neutral"
-        if not cpi_series.empty:
-            latest_cpi = float(cpi_series.iloc[-1])
-            if latest_cpi <= 2.5:
-                cpi_state = "supportive"
-            elif latest_cpi >= 3.5:
-                cpi_state = "adverse"
         indicators.append(MacroService._series_to_indicator(
             key="cpi_yoy",
             bucket="Inflation",
@@ -288,18 +281,11 @@ class MacroService:
             series=cpi_series,
             unit="%",
             source="FRED",
-            state=cpi_state,
+            state=MacroService._state_from_meta("cpi_yoy", cpi_series),
             trend_window=3,
         ))
 
         core_pce_series = MacroService._yoy(MacroService._safe_series("PCEPILFE"))
-        pce_state = "neutral"
-        if not core_pce_series.empty:
-            latest_pce = float(core_pce_series.iloc[-1])
-            if latest_pce <= 2.5:
-                pce_state = "supportive"
-            elif latest_pce >= 3.0:
-                pce_state = "adverse"
         indicators.append(MacroService._series_to_indicator(
             key="core_pce_yoy",
             bucket="Inflation",
@@ -307,18 +293,11 @@ class MacroService:
             series=core_pce_series,
             unit="%",
             source="FRED",
-            state=pce_state,
+            state=MacroService._state_from_meta("core_pce_yoy", core_pce_series),
             trend_window=3,
         ))
 
         gdp_series = MacroService._safe_series("A191RL1Q225SBEA", 365 * 10)
-        gdp_state = "neutral"
-        if not gdp_series.empty:
-            latest_gdp = float(gdp_series.iloc[-1])
-            if latest_gdp >= 2.0:
-                gdp_state = "supportive"
-            elif latest_gdp <= 0.5:
-                gdp_state = "adverse"
         indicators.append(MacroService._series_to_indicator(
             key="real_gdp_growth",
             bucket="Growth/Labor",
@@ -326,19 +305,12 @@ class MacroService:
             series=gdp_series,
             unit="%",
             source="FRED",
-            state=gdp_state,
+            state=MacroService._state_from_meta("real_gdp_growth", gdp_series),
             trend_window=2,
         ))
 
         payems_series = MacroService._safe_series("PAYEMS", 365 * 10)
         nfp_series = MacroService._moving_average(MacroService._difference(payems_series), 3)
-        nfp_state = "neutral"
-        if not nfp_series.empty:
-            latest_nfp = float(nfp_series.iloc[-1])
-            if latest_nfp >= 150:
-                nfp_state = "supportive"
-            elif latest_nfp <= 50:
-                nfp_state = "adverse"
         indicators.append(MacroService._series_to_indicator(
             key="nfp_change_3m_avg",
             bucket="Growth/Labor",
@@ -346,7 +318,7 @@ class MacroService:
             series=nfp_series,
             unit="k",
             source="FRED",
-            state=nfp_state,
+            state=MacroService._state_from_meta("nfp_change_3m_avg", nfp_series),
             trend_window=3,
         ))
 

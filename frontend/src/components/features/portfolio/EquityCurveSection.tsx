@@ -1,7 +1,7 @@
 import { getPortfolioHistory } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
-import { AlphaChart } from '@/components/features/AlphaChart';
+import { TwrEquityCurve } from '@/components/features/TwrEquityCurve';
 import { AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 
 export async function EquityCurveSection({ period }: { period: string }) {
@@ -52,10 +52,10 @@ export async function EquityCurveSection({ period }: { period: string }) {
       <Card className="bg-[#11161d] border-border/40">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-bold text-white flex items-center">
-            Performance Alpha vs SPY <TrendingUp className="w-4 h-4 ml-2 text-muted-foreground" />
+            TWR vs SPY <TrendingUp className="w-4 h-4 ml-2 text-muted-foreground" />
           </CardTitle>
           <CardDescription className="text-xs">
-            Cashflow-neutral performance view for benchmark and alpha comparisons
+            Time-weighted return (cashflow-neutral) vs SPY benchmark — both indexed to 100 at start
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -73,7 +73,7 @@ export async function EquityCurveSection({ period }: { period: string }) {
               </div>
             </div>
           ) : (
-            <AlphaChart data={performanceSeries} />
+            <TwrEquityCurve data={performanceSeries} />
           )}
         </CardContent>
       </Card>

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 from sqlalchemy.orm import Session
 
 from .portfolio_service import PortfolioService
+from .score_rules import FIT_RULES, FitRuleSpec, ThresholdPredicate
 from .stress_service import StressService
 
 
@@ -125,65 +126,50 @@ def compute_alignment_score(allocation: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+_LEGACY_BUCKET_RENAME = {"Liquidity": "Liquidity/FCI"}
+
+
+def _exposure_value(field: str, exposures: Dict[str, float]) -> float:
+    if field == "diversifier_reserve":
+        return exposures["diversifier"] + exposures["reserve"]
+    return exposures[field]
+
+
+def _check_predicate(p: ThresholdPredicate, exposures: Dict[str, float]) -> bool:
+    value = _exposure_value(p.field, exposures)
+    if p.op == ">=":
+        return value >= p.value
+    if p.op == "<=":
+        return value <= p.value
+    if p.op == ">":
+        return value > p.value
+    if p.op == "<":
+        return value < p.value
+    if p.op == "between":
+        low, high = p.value  # type: ignore[misc]
+        return low <= value <= high
+    raise ValueError(f"Unknown predicate op: {p.op}")
+
+
+def _check_all(predicates: List[ThresholdPredicate], exposures: Dict[str, float]) -> bool:
+    return all(_check_predicate(p, exposures) for p in predicates)
+
+
+def _lookup_fit_rule(bucket: str, state: str) -> FitRuleSpec:
+    canonical_bucket = _LEGACY_BUCKET_RENAME.get(bucket, bucket)
+    for rule in FIT_RULES:
+        if rule.bucket == canonical_bucket and rule.state == state:
+            return rule
+    raise KeyError(f"No FIT_RULES entry for bucket={bucket!r} state={state!r}")
+
+
 def _score_fit_bucket(bucket: str, state: str, exposures: Dict[str, float]) -> Tuple[int, str]:
-    risk_beta = exposures["risk_beta"]
-    duration = exposures["duration"]
-    inflation_defense = exposures["inflation_defense"]
-    diversifier_reserve = exposures["diversifier"] + exposures["reserve"]
-
-    if bucket == "Liquidity":
-        if state == "supportive":
-            return (8, "Liquidity supports maintaining core risk exposure.") if 0.20 <= risk_beta <= 0.70 else (4, "Liquidity is supportive, but current risk stance is either too defensive or too aggressive.")
-        if state == "adverse":
-            if diversifier_reserve >= 0.20:
-                return 8, "Liquidity is tight, but reserve/diversifier sleeves are meaningful."
-            if diversifier_reserve >= 0.10:
-                return 4, "Liquidity is tight and reserve coverage is only partial."
-            return 0, "Liquidity is adverse while reserve/diversifier sleeves are thin."
-        return (8, "Liquidity is neutral and portfolio stance is balanced.") if 0.15 <= risk_beta <= 0.60 else (4, "Liquidity is neutral, but stance leans away from balance.")
-
-    if bucket == "Rates":
-        if state == "adverse":
-            if duration <= 0.20 and risk_beta <= 0.60:
-                return 8, "Adverse rates backdrop is matched by contained duration and beta exposure."
-            if duration <= 0.30:
-                return 4, "Adverse rates backdrop is only partially matched by current duration posture."
-            return 0, "Rates backdrop is adverse while duration exposure remains elevated."
-        if state == "supportive":
-            return (8, "Supportive rates backdrop allows duration and growth exposure.") if duration >= 0.10 or risk_beta >= 0.25 else (4, "Supportive rates backdrop is not fully utilized.")
-        return (8, "Rates backdrop is neutral and posture is balanced.") if duration <= 0.35 else (4, "Rates backdrop is neutral, but duration is elevated.")
-
-    if bucket == "Inflation":
-        if state == "adverse":
-            if inflation_defense >= 0.08:
-                return 8, "Inflation pressure is buffered by explicit inflation-defense exposure."
-            if inflation_defense >= 0.04:
-                return 4, "Inflation pressure is only partially buffered."
-            return 0, "Inflation pressure is adverse and inflation-defense exposure is minimal."
-        if state == "supportive":
-            return (8, "Cooling inflation supports the current mix.") if duration <= 0.35 else (4, "Cooling inflation helps, but duration remains meaningful.")
-        return (8, "Inflation is neutral and portfolio carries acceptable hedging.") if inflation_defense >= 0.05 or duration <= 0.30 else (4, "Inflation is neutral, but hedging is limited.")
-
-    if bucket == "Growth/Labor":
-        if state == "supportive":
-            return (8, "Growth backdrop supports current beta exposure.") if risk_beta >= 0.25 else (4, "Growth backdrop is supportive, but portfolio remains cautious.")
-        if state == "adverse":
-            if risk_beta <= 0.45 and diversifier_reserve >= 0.15:
-                return 8, "Weak growth backdrop is matched by contained beta and some ballast."
-            if risk_beta <= 0.60:
-                return 4, "Weak growth backdrop is only partially reflected in the portfolio mix."
-            return 0, "Weak growth backdrop conflicts with elevated beta exposure."
-        return (8, "Growth backdrop is neutral and risk posture is balanced.") if 0.20 <= risk_beta <= 0.55 else (4, "Growth backdrop is neutral, but risk posture is lopsided.")
-
-    if state == "adverse":
-        if diversifier_reserve >= 0.20 and risk_beta <= 0.55:
-            return 8, "Stress backdrop is adverse, but the portfolio still carries ballast."
-        if diversifier_reserve >= 0.10:
-            return 4, "Stress backdrop is adverse and ballast is only partial."
-        return 0, "Stress backdrop is adverse while portfolio ballast remains limited."
-    if state == "supportive":
-        return (8, "Calmer stress backdrop allows risk assets to remain engaged.") if risk_beta >= 0.20 else (4, "Stress backdrop is supportive, but the portfolio remains unusually defensive.")
-    return (8, "Stress backdrop is neutral and posture is balanced.") if diversifier_reserve >= 0.10 else (4, "Stress backdrop is neutral, but ballast is limited.")
+    rule = _lookup_fit_rule(bucket, state)
+    if rule.predicates_full and _check_all(rule.predicates_full, exposures):
+        return rule.points_full_match, rule.narrative_full
+    if rule.predicates_partial and _check_all(rule.predicates_partial, exposures):
+        return rule.points_partial_match, rule.narrative_partial
+    return rule.points_miss, rule.narrative_miss
 
 
 def compute_fit_score(macro_snapshot: Dict[str, Any], allocation: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -200,19 +186,19 @@ def compute_fit_score(macro_snapshot: Dict[str, Any], allocation: List[Dict[str,
         bucket_breakdown.append({
             "name": f"{name} Fit",
             "score": score,
-            "max": 8,
-            "state": _bucket_label(score, 8),
+            "max": 6,
+            "state": _bucket_label(score, 6),
             "explanation": explanation,
         })
         total += score
-        if score >= 8:
+        if score >= 6:
             positives.append(explanation)
         elif score <= 0:
             negatives.append(explanation)
 
     return {
         "score": total,
-        "max": 40,
+        "max": 30,
         "bucketBreakdown": bucket_breakdown,
         "positives": positives,
         "negatives": negatives,

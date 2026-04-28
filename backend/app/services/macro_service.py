@@ -111,6 +111,50 @@ class MacroService:
         return "neutral"
 
     @staticmethod
+    def _aggregate_bucket(bucket_name: str, bucket_indicators: list) -> dict:
+        """Bucket-state aggregator with core-indicator override.
+
+        If the bucket has a core_indicator (per INDICATOR_META) and that core's
+        state is supportive or adverse, the bucket inherits the core's state.
+        Otherwise majority among bucket_indicators.state values decides; tie
+        falls back to neutral."""
+        from ..data.macro_indicator_meta import INDICATOR_META
+
+        core_state: str | None = None
+        for ind in bucket_indicators:
+            meta = INDICATOR_META.get(ind.get("key"))
+            if meta is not None and meta.core_indicator:
+                state = ind.get("state")
+                if state in {"supportive", "adverse"}:
+                    core_state = state
+                    break
+
+        if core_state is not None:
+            return {
+                "bucket": bucket_name,
+                "state": core_state,
+                "confidence": "high",
+                "summary": f"{bucket_name} bucket is {core_state} (core indicator override).",
+            }
+
+        state_values = [i.get("state", "neutral") for i in bucket_indicators]
+        supportive = state_values.count("supportive")
+        adverse = state_values.count("adverse")
+        if supportive > adverse:
+            state, confidence = "supportive", "high" if supportive >= 2 else "medium"
+        elif adverse > supportive:
+            state, confidence = "adverse", "high" if adverse >= 2 else "medium"
+        else:
+            state = "neutral"
+            confidence = "medium" if supportive != adverse else "low"
+        return {
+            "bucket": bucket_name,
+            "state": state,
+            "confidence": confidence,
+            "summary": f"{bucket_name} bucket is {state}.",
+        }
+
+    @staticmethod
     def _series_to_indicator(
         *,
         key: str,
@@ -364,27 +408,9 @@ class MacroService:
         bucket_summaries: List[Dict[str, Any]] = []
         states: List[str] = []
         for bucket_name in MacroService.BUCKET_ORDER:
-            bucket_indicators = bucket_map.get(bucket_name, [])
-            state_values = [indicator.get("state", "neutral") for indicator in bucket_indicators]
-            supportive = state_values.count("supportive")
-            adverse = state_values.count("adverse")
-            if supportive == 2:
-                state = "supportive"
-                confidence = "high"
-            elif adverse == 2:
-                state = "adverse"
-                confidence = "high"
-            else:
-                state = "neutral"
-                confidence = "medium" if supportive != adverse else "low"
-
-            states.append(state)
-            bucket_summaries.append({
-                "bucket": bucket_name,
-                "state": state,
-                "confidence": confidence,
-                "summary": f"{bucket_name} bucket is {state}.",
-            })
+            summary = MacroService._aggregate_bucket(bucket_name, bucket_map.get(bucket_name, []))
+            states.append(summary["state"])
+            bucket_summaries.append(summary)
 
         overall_state = "neutral"
         if states.count("adverse") >= 3:

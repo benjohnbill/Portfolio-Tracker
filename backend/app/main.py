@@ -1089,6 +1089,12 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         )
         latest_comment = latest_snapshot.comment if latest_snapshot else None
 
+        # Warm T2 cache so the user's first morning request is hot.
+        try:
+            MacroService.get_macro_snapshot_cached(db)
+        except Exception as e:
+            logger.warning("cron_macro_snapshot_warmup_failed", exc_info=e)
+
         # Send success notification
         NotificationService.send_cron_success(
             duration_seconds=duration,

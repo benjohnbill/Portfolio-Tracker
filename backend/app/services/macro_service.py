@@ -205,6 +205,18 @@ class MacroService:
             trend_window=3,
         ))
 
+        nfci_series = MacroService._safe_series("NFCI", 365 * 5)
+        indicators.append(MacroService._series_to_indicator(
+            key="nfci",
+            bucket="Liquidity/FCI",
+            label="NFCI",
+            series=nfci_series,
+            unit="index",
+            source="FRED",
+            state=MacroService._state_from_meta("nfci", nfci_series),
+            trend_window=4,
+        ))
+
         real_yield_series = MacroService._safe_series("DFII10", 365 * 3)
         indicators.append(MacroService._series_to_indicator(
             key="real_yield_10y",

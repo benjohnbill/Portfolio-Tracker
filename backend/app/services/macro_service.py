@@ -10,7 +10,7 @@ import yfinance as yf
 
 
 class MacroService:
-    BUCKET_ORDER = ["Liquidity", "Rates", "Inflation", "Growth/Labor", "Stress/Sentiment"]
+    BUCKET_ORDER = ["Liquidity/FCI", "Rates", "Inflation", "Growth/Labor", "Stress/Sentiment"]
 
     @staticmethod
     def _date_str(days: int) -> str:
@@ -137,7 +137,7 @@ class MacroService:
         if any(df.empty for df in [walcl, wdtgal, rrp]):
             return MacroService._series_to_indicator(
                 key="net_liquidity",
-                bucket="Liquidity",
+                bucket="Liquidity/FCI",
                 label="Net Liquidity",
                 series=pd.Series(dtype=float),
                 unit="T",
@@ -153,7 +153,7 @@ class MacroService:
         state = MacroService._state_from_percentiles(df["Net_Liquidity"], supportive_high=True, hard_floor=5.0)
         return MacroService._series_to_indicator(
             key="net_liquidity",
-            bucket="Liquidity",
+            bucket="Liquidity/FCI",
             label="Net Liquidity",
             series=df["Net_Liquidity"],
             unit="T",
@@ -171,7 +171,7 @@ class MacroService:
         m2_series = MacroService._yoy(MacroService._safe_series("M2SL"))
         indicators.append(MacroService._series_to_indicator(
             key="m2_yoy",
-            bucket="Liquidity",
+            bucket="Liquidity/FCI",
             label="M2 YoY",
             series=m2_series,
             unit="%",

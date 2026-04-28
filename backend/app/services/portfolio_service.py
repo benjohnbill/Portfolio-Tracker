@@ -196,9 +196,10 @@ class PortfolioService:
         if "SPY" not in symbols_to_fetch:
             symbols_to_fetch.append("SPY")
         
+        price_fetch_start = start_date - timedelta(days=7)
         raw_prices = db.query(RawDailyPrice).filter(
             RawDailyPrice.ticker.in_(symbols_to_fetch),
-            RawDailyPrice.date >= start_date,
+            RawDailyPrice.date >= price_fetch_start,
             RawDailyPrice.date <= today
         ).all()
         
@@ -469,14 +470,8 @@ class PortfolioService:
 
     @staticmethod
     def calculate_invested_capital(db: Session) -> float:
-        transactions = db.query(Transaction).all()
-        invested = 0.0
-        for tx in transactions:
-            if tx.type == "BUY":
-                invested += float(tx.total_amount or (tx.quantity * tx.price) or 0.0)
-            elif tx.type == "SELL":
-                invested -= float(tx.total_amount or (tx.quantity * tx.price) or 0.0)
-        return max(invested, 0.0)
+        deposits = db.query(Transaction).filter(Transaction.type == "DEPOSIT").all()
+        return sum(float(tx.total_amount or 0.0) for tx in deposits)
 
     @staticmethod
     def get_portfolio_allocation(db: Session):

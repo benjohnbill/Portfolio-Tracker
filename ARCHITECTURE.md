@@ -92,11 +92,11 @@ The decision engine comprises three subsystems that feed into the weekly report.
 |---|---|---|---|
 | 1 | MSTR_HARD_EXIT | Z-score > 3.5 OR MNAV ratio > 2.5 | Sell 100% MSTR, buy DBMF |
 | 2 | MSTR_PROFIT_LOCK | Z-score > 2.0 (and rule 1 not triggered) | Sell 50% MSTR, buy DBMF |
-| 3 | NDX_SAFETY_MODE | NDX price < 250MA, holding TIGER_2X | Sell TIGER_2X, buy KODEX_1X |
+| 3 | NDX_SAFETY_MODE | NDX price < 250MA, holding NDX_2X | Sell NDX_2X, buy NDX_1X |
 | 4 | GLDM_DEFENSIVE | GLDM price < 250MA AND RSI > 35, holding GLDM | Sell GLDM, buy VBIL |
 | 5 | TLT_DEFENSIVE | TLT price < 250MA AND RSI > 35, holding TLT | Sell TLT, buy BIL |
 | 6 | MSTR_AGGRESSIVE_BUY | Z-score < 0.0, holding DBMF, no MSTR sell | Sell 10% DBMF, buy MSTR |
-| 7 | NDX_GROWTH_MODE | NDX price > 250MA, holding KODEX_1X, no NDX sell | Sell KODEX_1X, buy TIGER_2X |
+| 7 | NDX_GROWTH_MODE | NDX price > 250MA, holding NDX_1X, no NDX sell | Sell NDX_1X, buy NDX_2X |
 | 8 | TLT_REENTRY | TLT price > 250MA AND RSI < 65, holding BIL, no TLT sell | Sell BIL, buy TLT |
 | 9 | GLDM_REENTRY | GLDM price > 250MA AND RSI < 65, holding VBIL, no GLDM sell | Sell VBIL, buy GLDM |
 

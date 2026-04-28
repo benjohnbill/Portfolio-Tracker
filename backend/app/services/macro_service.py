@@ -312,6 +312,18 @@ class MacroService:
             trend_window=3,
         ))
 
+        sahm_series = MacroService._safe_series("SAHMREALTIME", 365 * 10)
+        indicators.append(MacroService._series_to_indicator(
+            key="sahm_rule",
+            bucket="Growth/Labor",
+            label="Sahm Rule",
+            series=sahm_series,
+            unit="pp",
+            source="FRED",
+            state=MacroService._state_from_meta("sahm_rule", sahm_series),
+            trend_window=3,
+        ))
+
         vxn_series = MacroService._safe_yf_series("^VXN", 365 * 3)
         vxn_state = MacroService._state_from_percentiles(vxn_series, supportive_high=False)
         indicators.append(MacroService._series_to_indicator(

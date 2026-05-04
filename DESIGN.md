@@ -1,102 +1,309 @@
+---
+version: v2.4
+name: OrbitAI
+description: Personal portfolio tracker with weekly Friday decision ritual. Industrial/Utilitarian aesthetic — flight deck instrument panel, not a Bloomberg replica. Korean market focus, single-investor scope.
+colors:
+  bg: "#0a0e14"
+  surface: "#11161d"
+  border: "#2a3040"
+  text-primary: "#e8eaed"
+  text-secondary: "#8b95a5"
+  text-tertiary: "#5a6577"
+  accent: "#D4A574"
+  profit: "#4ADE80"
+  loss: "#F87171"
+  warning: "#FBBF24"
+  info: "#60A5FA"
+  regime-on-bg: "#0a2010"
+  regime-on-text: "#4ADE80"
+  regime-off-bg: "#2a1a00"
+  regime-off-text: "#FBBF24"
+  regime-neutral-bg: "#11161d"
+  regime-neutral-text: "#8b95a5"
+  state-supportive-bg: "#0a2010"
+  state-supportive-text: "#4ADE80"
+  state-neutral-bg: "#11161d"
+  state-neutral-text: "#8b95a5"
+  state-neutral-border: "#2a3040"
+  state-adverse-bg: "#200a0a"
+  state-adverse-text: "#F87171"
+  pill-below-bg: "#200a0a"
+  pill-below-text: "#F87171"
+  pill-in-bg: "#0a2010"
+  pill-in-text: "#4ADE80"
+  pill-above-bg: "#2a1a00"
+  pill-above-text: "#FBBF24"
+typography:
+  hero:
+    fontFamily: Instrument Serif
+    fontSize: 48px
+    lineHeight: 1.1
+    letterSpacing: -0.02em
+  h2:
+    fontFamily: Geist
+    fontSize: 32px
+    lineHeight: 1.2
+  h3-section:
+    fontFamily: Geist
+    fontSize: 13px
+    fontWeight: 600
+    textTransform: uppercase
+    letterSpacing: 0.08em
+  body:
+    fontFamily: Geist
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.5
+  small:
+    fontFamily: Geist
+    fontSize: 12px
+    lineHeight: 1.4
+  data-large:
+    fontFamily: Geist Mono
+    fontSize: 24px
+    fontFeature: "tnum"
+  data-body:
+    fontFamily: Geist Mono
+    fontSize: 14px
+    fontFeature: "tnum"
+  badge:
+    fontFamily: Geist Mono
+    fontSize: 11px
+    textTransform: uppercase
+    letterSpacing: 0.05em
+  badge-tier:
+    fontFamily: Geist Mono
+    fontSize: 10px
+    textTransform: uppercase
+spacing:
+  2xs: 2px
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  2xl: 48px
+  3xl: 64px
+  card-padding: 24px
+  card-gap: 8px
+  section-gap: 64px
+  max-content-width: 1200px
+rounded:
+  sm: 4px
+  md: 6px
+  lg: 8px
+motion:
+  ease-enter: ease-out
+  ease-exit: ease-in
+  ease-move: ease-in-out
+  duration-micro: 50-100ms
+  duration-short: 150-250ms
+  duration-medium: 250-400ms
+  page-fade-in: 500ms
+components:
+  card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    padding: "{spacing.card-padding}"
+    border: none
+    shadow: none
+    hoverBorderColor: "{colors.accent}"
+    hoverBorderOpacity: 0.4
+  badge:
+    typography: "{typography.badge}"
+    padding: 2px 8px
+    rounded: "{rounded.sm}"
+  badge-bucket-state-supportive:
+    backgroundColor: "{colors.state-supportive-bg}"
+    textColor: "{colors.state-supportive-text}"
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  badge-bucket-state-neutral:
+    backgroundColor: "{colors.state-neutral-bg}"
+    textColor: "{colors.state-neutral-text}"
+    border: 1px solid {colors.state-neutral-border}
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  badge-bucket-state-adverse:
+    backgroundColor: "{colors.state-adverse-bg}"
+    textColor: "{colors.state-adverse-text}"
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  badge-leadlag-tier:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-tertiary}"
+    typography: "{typography.badge-tier}"
+    padding: 1px 6px
+    border: none
+  pill-below:
+    backgroundColor: "{colors.pill-below-bg}"
+    textColor: "{colors.pill-below-text}"
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  pill-in:
+    backgroundColor: "{colors.pill-in-bg}"
+    textColor: "{colors.pill-in-text}"
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  pill-above:
+    backgroundColor: "{colors.pill-above-bg}"
+    textColor: "{colors.pill-above-text}"
+    typography: "{typography.badge}"
+    padding: 2px 8px
+  outcome-badge-positive:
+    backgroundColor: "{colors.regime-on-bg}"
+    textColor: "{colors.profit}"
+    typography: "{typography.badge}"
+  outcome-badge-negative:
+    backgroundColor: "{colors.state-adverse-bg}"
+    textColor: "{colors.loss}"
+    typography: "{typography.badge}"
+  outcome-badge-pending:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-secondary}"
+    typography: "{typography.badge}"
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.bg}"
+    rounded: "{rounded.md}"
+  button-secondary:
+    backgroundColor: transparent
+    textColor: "{colors.text-primary}"
+    border: 1px solid {colors.border}
+    rounded: "{rounded.md}"
+  button-ghost:
+    backgroundColor: transparent
+    textColor: "{colors.text-primary}"
+    border: none
+  input-form:
+    backgroundColor: "{colors.bg}"
+    border: 1px solid {colors.border}
+    focusBorderColor: "{colors.accent}"
+    rounded: "{rounded.md}"
+  data-table-row:
+    borderBottom: 1px solid {colors.border}
+    hoverBorderColor: "{colors.accent}"
+  expandable-row:
+    chevronColor: "{colors.text-secondary}"
+    expandDuration: 250ms
+    expandEasing: "{motion.ease-enter}"
+  confidence-slider:
+    trackHeight: 4px
+    fillColor: "{colors.accent}"
+    thumbColor: "{colors.accent}"
+    thumbGlow: true
+  section-title:
+    typography: "{typography.h3-section}"
+    textColor: "{colors.accent}"
+    letterSpacing: 0.1em
+---
+
 # Design System — OrbitAI
 
-## Product Context
-- **What this is:** Personal portfolio tracker with weekly Friday decision ritual
-- **Who it's for:** Single investor (the builder), Korean market focus
-- **Space/industry:** Personal finance, quant-lite portfolio management
-- **Project type:** Web app (dashboard/data-dense), Next.js + FastAPI
+## Overview
 
-## Aesthetic Direction
-- **Direction:** Industrial/Utilitarian
-- **Decoration level:** Minimal — typography and data do all the work
-- **Mood:** Calm surface, depth on demand. A flight deck instrument panel, not a Bloomberg replica. Professional warmth without corporate sterility.
-- **Reference sites:** Bloomberg Terminal (concealed complexity), Koyfin (institutional data for individuals), TradingView (interactive exploration)
+**Product context.** Personal portfolio tracker for a single investor (the builder), Korean market focus. Personal finance, quant-lite portfolio management. Web app on Next.js + FastAPI, weekly Friday decision ritual at the heart of the loop.
 
-## Typography
-- **Display/Hero:** Instrument Serif — adds human warmth to headlines. The contrast between serif headlines and mono data creates visual tension that says "human judgment + quantitative backing."
-- **Body:** Geist — modern utilitarian workhorse. Clean, readable, professional.
-- **UI/Labels:** Geist (same as body, 600 weight for labels, 11px uppercase with 0.08em tracking)
-- **Data/Tables:** Geist Mono — tabular-nums, perfect alignment in financial data columns
-- **Code:** Geist Mono
-- **Loading:** Geist via CDN (cdn.jsdelivr.net/npm/geist), Instrument Serif + Geist Mono via Google Fonts
-- **Scale:**
-  - Hero: 48px / 1.1 line-height / -0.02em tracking
-  - H2: 32px / 1.2
-  - H3/Section: 13px / uppercase / 0.08em tracking / 600 weight
-  - Body: 14px / 1.5
-  - Small: 12px / 1.4
-  - Data large: 24px mono
-  - Data body: 14px mono
-  - Badge: 11px mono / uppercase / 0.05em tracking
+**Aesthetic direction.** Industrial / Utilitarian. Decoration is minimal — typography and data do the work. The mood is *calm surface, depth on demand*: a flight deck instrument panel, not a Bloomberg replica. Professional warmth without corporate sterility.
+
+**Reference touchstones.** Bloomberg Terminal (concealed complexity), Koyfin (institutional data for individuals), TradingView (interactive exploration).
+
+---
 
 ## Color
-- **Approach:** Restrained — color is SIGNAL, not decoration
-- **Primary (accent):** #D4A574 (amber/gold) — interactive elements, focus states, active nav. Signals "attention, warmth, craft."
-- **Accent hover:** #E0B88A
-- **Neutrals:**
-  - Background: #0a0e14 (deep navy-black)
-  - Surface: #11161d (elevated cards, panels)
-  - Surface-alt: #1a2030 (hover, active states)
-  - Border: #2a3040 (subtle separation only)
-  - Text primary: #e8eaed (high contrast body)
-  - Text secondary: #8b95a5 (muted, labels, descriptions)
-  - Text tertiary: #5a6577 (disabled, hints, timestamps)
-- **Semantic:**
-  - Profit/Success: #4ADE80 (green-400)
-  - Loss/Error: #F87171 (red-400)
-  - Warning: #FBBF24 (amber-400)
-  - Info: #60A5FA (blue-400)
-- **Dark mode:** This IS dark mode. No light mode planned.
-- **Regime badges:**
-  - Risk On: #4ADE80 text on #0a2010 bg
-  - Risk Off: #FBBF24 text on #2a1a00 bg
-  - Neutral: #8b95a5 text on #11161d bg
+
+**Approach.** Restrained — color is *signal*, not decoration.
+
+The palette is built around three layers: a deep navy-black base (`bg`, `surface`, `surface-alt`), three text registers (primary / secondary / tertiary), and a single warm accent (`#D4A574` amber/gold). Semantic colors (profit / loss / warning / info) carry meaning only — never decoration. Regime, indicator-state, and compatibility-band colors share the same green / amber / red language so a glance reads consistently across surfaces.
+
+- **Primary accent (`#D4A574` amber/gold).** Interactive elements, focus states, active nav. Signals "attention, warmth, craft." Hover is expressed as `accent` at 90% opacity rather than a separate hover token.
+- **Neutrals.** `bg #0a0e14` deep navy-black background. `surface #11161d` for elevated cards and panels. `border #2a3040` for subtle separation only. Text primary / secondary / tertiary at `#e8eaed` / `#8b95a5` / `#5a6577`.
+- **Hover states.** Cards and table rows do not swap background on hover — they transition the border to `accent` at 40% opacity, keeping the surface lineage intact. This is a deliberate departure from a `surface-alt` swap palette; see Decisions Log (2026-05-04).
+- **Semantic.** Profit `#4ADE80` (green-400), Loss `#F87171` (red-400), Warning `#FBBF24` (amber-400), Info `#60A5FA` (blue-400).
+- **Dark mode.** This *is* dark mode. No light mode planned.
+- **Regime badges.** Risk On (`#4ADE80` text on `#0a2010` bg), Risk Off (`#FBBF24` text on `#2a1a00` bg), Neutral (`#8b95a5` text on `#11161d` bg).
+
+---
+
+## Typography
+
+Three faces, three domains. **Instrument Serif** for hero headlines — serif human-warmth against the dataset. **Geist** for body and UI labels — modern utilitarian workhorse, clean and readable. **Geist Mono** for all data — tabular-nums, perfect column alignment.
+
+The contrast between serif headlines and mono data creates visual tension that says *"human judgment + quantitative backing."*
+
+- **Display / Hero:** Instrument Serif, 48px / 1.1 line-height / -0.02em tracking
+- **H2:** 32px / 1.2
+- **H3 / Section:** 13px / uppercase / 0.08em tracking / 600 weight
+- **Body:** 14px / 1.5
+- **Small:** 12px / 1.4
+- **Data large:** 24px mono
+- **Data body:** 14px mono
+- **Badge:** 11px mono / uppercase / 0.05em tracking
+- **UI / Labels:** Geist (same as body, 600 weight for labels, 11px uppercase with 0.08em tracking)
+
+**Loading.** Geist via CDN (`cdn.jsdelivr.net/npm/geist`), Instrument Serif + Geist Mono via Google Fonts.
+
+---
 
 ## Spacing
-- **Base unit:** 4px
-- **Density:** Comfortable — breathable data, not cramped like Bloomberg
-- **Scale:** 2xs(2px) xs(4px) sm(8px) md(16px) lg(24px) xl(32px) 2xl(48px) 3xl(64px)
-- **Card padding:** 24px
-- **Card gap:** 8px (tight, spacing-based containment)
-- **Section gap:** 64px
+
+**Base unit:** 4px.
+**Density:** Comfortable — breathable data, not cramped like Bloomberg.
+**Scale:** `2xs 2px` `xs 4px` `sm 8px` `md 16px` `lg 24px` `xl 32px` `2xl 48px` `3xl 64px`.
+**Card padding:** 24px.
+**Card gap:** 8px (tight, spacing-based containment).
+**Section gap:** 64px.
+
+---
 
 ## Layout
-- **Approach:** Hybrid — grid-disciplined for the Friday ritual page, creative for archive comparison
-- **Grid:** 2-column for desktop explore zone, single column for mobile
-- **Max content width:** 1200px
-- **Border radius:** sm:4px (badges), md:6px (inputs, buttons), lg:8px (cards)
-- **Cards:** No borders, no shadows. Containment via background color shift (#0a0e14 → #11161d). Hover state: #1a2030.
+
+**Approach.** Hybrid — grid-disciplined for the Friday ritual page, creative for archive comparison.
+
+- **Grid:** 2-column for desktop explore zone, single column for mobile.
+- **Max content width:** 1200px.
+- **Border radius:** `sm 4px` (badges), `md 6px` (inputs, buttons), `lg 8px` (cards).
+- **Cards:** No borders, no shadows. Containment via background-color shift (`#0a0e14` → `#11161d`). Hover state: border transition to `accent` at 40% opacity (no background swap).
+
+---
 
 ## Motion
-- **Approach:** Minimal-functional — speed = trust
-- **Easing:** enter(ease-out) exit(ease-in) move(ease-in-out)
-- **Duration:** micro(50-100ms) short(150-250ms) medium(250-400ms)
-- **Allowed:** Accordion expansion (drill-down), state transitions (badge changes), fade-in on page load (500ms)
-- **Not allowed:** Scroll-driven effects, entrance animations on cards, parallax, decorative motion
+
+**Approach.** Minimal-functional — speed = trust.
+
+- **Easing:** enter (ease-out), exit (ease-in), move (ease-in-out).
+- **Duration:** micro 50–100ms, short 150–250ms, medium 250–400ms.
+- **Allowed:** Accordion expansion (drill-down), state transitions (badge changes), fade-in on page load (500ms).
+- **Not allowed:** Scroll-driven effects, entrance animations on cards, parallax, decorative motion.
+
+---
 
 ## Component Patterns
-- **Section titles:** 11px uppercase, 0.1em tracking, accent color, with optional icon
-- **Data tables:** Minimal chrome, border-bottom only (1px var(--border)), hover row highlight
-- **Expandable rows:** Chevron indicator, accordion expand with 250ms ease-out
-- **Badges:** Compact (2px 8px padding), uppercase mono, semantic background tints
-- **Buttons:** Primary (amber bg, dark text), Secondary (transparent, border), Ghost (no border)
-- **Form inputs:** Dark bg (#0a0e14), subtle border (#2a3040), accent border on focus
-- **Confidence slider:** Horizontal track (4px height), accent fill + thumb with glow ring
-- **Partial-data handling:** When frozen snapshots are incomplete, render explicit unavailable copy in muted text rather than blank space, zeros, or crashes
+
+- **Section titles:** 11px uppercase, 0.1em tracking, accent color, optional icon.
+- **Data tables:** Minimal chrome, border-bottom only (1px `var(--border)`), hover row highlight.
+- **Expandable rows:** Chevron indicator, accordion expand with 250ms ease-out.
+- **Badges:** Compact (2px 8px padding), uppercase mono, semantic background tints.
+- **Buttons:** Primary (amber bg, dark text), Secondary (transparent, border), Ghost (no border).
+- **Form inputs:** Dark bg (`#0a0e14`), subtle border (`#2a3040`), accent border on focus.
+- **Confidence slider:** Horizontal track (4px height), accent fill + thumb with glow ring.
+- **Partial-data handling:** When frozen snapshots are incomplete, render explicit unavailable copy in muted text rather than blank space, zeros, or crashes.
+
+---
 
 ## Macro Indicator Badge Convention (v2.4, 2026-04-27)
 
 A unified badge language for macro indicator visualization across `/intelligence/macro-context`, `/friday` MacroContextSection teaser, `/intelligence/attributions` bucket breakdown, and Regime Ribbon surfaces.
 
-**Bucket × State (3 colors × 5 buckets):**
+**Bucket × State (3 colors × 5 buckets).**
 - Bucket label badge: 11px mono uppercase, 2px 8px padding. Three-letter abbreviation: LIQ / RAT / INF / GRO / STR.
-- State suffix in same badge: SUP / NEU / ADV
+- State suffix in same badge: SUP / NEU / ADV.
 - State coloring on badge background:
-  - **Supportive**: `#0a2010` bg, `#4ADE80` text (green-400)
-  - **Neutral**: `#11161d` bg, `#8b95a5` text, `#2a3040` border
-  - **Adverse**: `#200a0a` bg, `#F87171` text (red-400)
+  - **Supportive:** `#0a2010` bg, `#4ADE80` text (green-400)
+  - **Neutral:** `#11161d` bg, `#8b95a5` text, `#2a3040` border
+  - **Adverse:** `#200a0a` bg, `#F87171` text (red-400)
 
-**Lead/Lag Tier Badge (5 tiers):**
+**Lead/Lag Tier Badge (5 tiers).**
 - 10px mono uppercase, 1px 6px padding, `#5a6577` text on `#11161d` bg, no border.
 - Labels:
   - `STRONG LEAD · 12-18M` (T10Y2Y, T10Y3M)
@@ -105,54 +312,62 @@ A unified badge language for macro indicator visualization across `/intelligence
   - `WEAK LAG · 1-3M` (CPI YoY, Core PCE, NFP, Sahm Rule)
   - `STRONG LAG · QUARTERLY` (Real GDP)
 
-**Compatibility Band Pill (sleeve-level):**
+**Compatibility Band Pill (sleeve-level).**
 - 11px mono uppercase, 2px 8px padding.
 - `pill-below`: `#200a0a` bg, `#F87171` text (under-allocated for current macro)
 - `pill-in`: `#0a2010` bg, `#4ADE80` text (in-band)
 - `pill-above`: `#2a1a00` bg, `#FBBF24` text (over-allocated for current macro — caution, not error)
 
-**Indicator State Pill (per-card, used inside IndicatorCard):**
-Same color treatment as Bucket × State badge but full-width pill at card footer rather than corner badge.
+**Indicator State Pill (per-card, used inside IndicatorCard).** Same color treatment as Bucket × State badge but full-width pill at card footer rather than corner badge.
 
-**Usage policy:** these badges are *signal compression*. Color is information, never decoration. Hover-tooltip on every badge surfaces `definition` + `methodology` + `why_it_matters` from `INDICATOR_META`.
+**Usage policy.** These badges are *signal compression*. Color is information, never decoration. Hover-tooltip on every badge surfaces `definition` + `methodology` + `why_it_matters` from `INDICATOR_META`.
+
+---
 
 ## Friday Page Hierarchy
+
 1. **Since Last Friday briefing card** — topmost. Events since last freeze: regime transitions, matured outcomes (1W/1M/3M/6M/1Y horizon crossings), Discord/Telegram alert history, optional snippet of last week's snapshot comment. Severity-grouped, NOT a realtime toast.
-2. **Hero strip** — score (large mono) + delta badge + regime badge + signal count + Freeze button (right-aligned)
+2. **Hero strip** — score (large mono) + delta badge + regime badge + signal count + Freeze button (right-aligned).
 3. **MacroContextSection teaser (v2.4, 2026-04-27)** — between Hero and Sleeve Health. Three stats: Macro state (n SUP / n ADV with overall label), Fit Score (current/30 with delta vs 4w avg), Updated (knownAsOf + logicVersion footer). "Open in Intelligence →" link to `/intelligence/macro-context`. The teaser is *summary, not full analysis* — depth lives in the Intelligence sub-page.
 4. **Sleeve Health panel** — 6 sleeves (NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH). Each row: `sleeve label | current% / target% | drift bar | signal status | 4-week recency strip`. Drift + signal visible on one row per sleeve.
-5. **Two-column explore zone** — Portfolio delta (left, primary) + Macro regime (right, context)
+5. **Two-column explore zone** — Portfolio delta (left, primary) + Macro regime (right, context).
 6. **Signals list** — expandable rows with severity badges. Each rule row includes a mini trust indicator ("followed N× / override M×; outcome Y%").
 7. **Decision journal** — form section. Fields: type dropdown, ticker, note (existing required text), **3-scalar confidence** (3 sliders 1–10 with anchor labels — see Component Patterns), **structured invalidation** (failure_mode enum dropdown + trigger_threshold numeric + free text).
 8. **Prior Invalidation retrieval card** — shown after the user fills invalidation (NOT before confidence — bias-avoidant per Codex challenge). Surfaces past invalidation hypotheses from adjacent setups (same regime + asset class, not strict ticker match) with realized outcomes.
 9. **Weekly snapshot comment** — optional 1–2 line textarea, collapsed by default ("💬 이번 주 코멘트 (선택)"). Empty input stores NULL.
 10. **Freeze button** — terminal atomic contract. Locks together: world state, 3-scalar confidence, structured invalidation, ritual-consistency stamp (green/amber/red per on-time), 3M auto-review schedule, trailing-1Y risk metrics JSON, weekly snapshot comment.
 
+---
+
 ## Intelligence Page Hierarchy
 
 The intelligence pages show patterns across months, not this week's decision. Visual language: research notebook, not real-time dashboard.
 
 ### /intelligence (Dashboard)
-1. **Hero strip** — Instrument Serif "Intelligence" + data coverage badge ("32 weeks analyzed")
-2. **3-stat row** — Rule accuracy %, avg score trend, regime stability (Geist Mono, 24px)
-3. **Contribution heatmap** — Full-width, 52-week calendar grid. Cell: 12x12px, gap: 2px. Color: opacity-scaled amber (#D4A574 at 20%-100%). Empty weeks: subtle border, no fill. Partial: diagonal stripe.
+
+1. **Hero strip** — Instrument Serif "Intelligence" + data coverage badge ("32 weeks analyzed").
+2. **3-stat row** — Rule accuracy %, avg score trend, regime stability (Geist Mono, 24px).
+3. **Contribution heatmap** — Full-width, 52-week calendar grid. Cell: 12x12px, gap: 2px. Color: opacity-scaled amber (`#D4A574` at 20%–100%). Empty weeks: subtle border, no fill. Partial: diagonal stripe.
 4. **Recent decisions timeline** — Vertical list, most recent first. Each card: type + ticker + confidence + outcome badge.
-5. **Navigation links** — to /friday (ritual) + /archive (history)
+5. **Navigation links** — to `/friday` (ritual) + `/archive` (history).
 
 ### /intelligence/attributions (Score Decomposition)
-1. **Hero** — "Score Attribution" + period selector (3M / 6M / 1Y / All)
-2. **Stacked area chart** — Full-width Recharts AreaChart. Fit: #60A5FA (blue-400, opacity 0.3), Alignment: #D4A574 (amber, opacity 0.3), Posture: #4ADE80 (green-400, opacity 0.3). Y-axis: 0-100.
+
+1. **Hero** — "Score Attribution" + period selector (3M / 6M / 1Y / All).
+2. **Stacked area chart** — Full-width Recharts AreaChart. Fit: `#60A5FA` (blue-400, opacity 0.3), Alignment: `#D4A574` (amber, opacity 0.3), Posture: `#4ADE80` (green-400, opacity 0.3). Y-axis: 0–100.
 3. **Bucket breakdown table** — Columns: Bucket | This week | 4-week avg | Best | Worst. Geist Mono. Sort by variance.
 4. **Regime overlay toggle** — Vertical markers on chart at regime transitions.
 
 ### /intelligence/outcomes (Decision Evaluation)
-1. **Hero** — "Decision Outcomes" + horizon toggle (1M / 3M / 6M / 1Y)
+
+1. **Hero** — "Decision Outcomes" + horizon toggle (1M / 3M / 6M / 1Y).
 2. **Decision cards** — Vertical list. Expandable: portfolio delta %, score delta, regime change, asset price change.
 3. **Summary stats** — Decisions followed %, avg outcome followed vs ignored.
 4. **Empty state** (< 4 weeks) — "Decisions need time. Your first outcomes will appear in [X] weeks."
 
 ### /intelligence/rules (Rule Performance)
-1. **Hero** — "Rule Accuracy" + all-time stats
+
+1. **Hero** — "Rule Accuracy" + all-time stats.
 2. **Rule table** — Full-width. Columns: Rule | Fired | Followed | Ignored | Outcome (F) | Outcome (I) | Accuracy. Rules with < 3 data points: "(limited data)" badge.
 3. **Expandable detail** — Last 5 instances per rule with decision + outcome.
 
@@ -161,7 +376,7 @@ The intelligence pages show patterns across months, not this week's decision. Vi
 The narrative explanation surface for "what does each indicator mean, what's its relationship to score, where does my portfolio stand against macro, and how is performance scored." Single page, scroll narrative, 4 sections.
 
 1. **Hero** — Instrument Serif "Macro Context" + logicVersion badges (`RULES v1.0.0`, `META v1.0.0`) + knownAsOf date.
-2. **§1 Indicators (atom)** — 10x2 grid of 13 indicator cards. Each card: bucket × state badge corner, indicator label, current value (Geist Mono 24px), lead/lag tier badge. Hover-tooltip surfaces definition + methodology + why_it_matters from `INDICATOR_META`.
+2. **§1 Indicators (atom)** — 10×2 grid of 13 indicator cards. Each card: bucket × state badge corner, indicator label, current value (Geist Mono 24px), lead/lag tier badge. Hover-tooltip surfaces definition + methodology + why_it_matters from `INDICATOR_META`.
 3. **§2 Causal Map (cause)** — 4-column flow: Indicators → Buckets → Sleeve compatibility bands → Composite breakdown. Each indicator's contribution to its bucket and each bucket's contribution to Fit Score is visible. Composite breakdown column shows Fit / Alignment / Posture totals with the v2.4 30/30/40 split.
 4. **§3 Positioning (current)** — 6-row table (one per sleeve). Columns: Sleeve | Current% | Target% | Drift bar (visual) | Compatibility band pill (`below` / `in` / `above`). Compatibility band reflects sleeve-level fit projection (deterministic derivation, not normative target — see PRODUCT.md §5).
 5. **§4 Performance (result)** — 3 stat cards (Fit / Alignment / Posture with deltas vs prior week), then a 26-week composite-score trend chart (sparkline-style, amber gradient fill). Trend pulls from frozen `ScoringAttribution` history, never recomputed live.
@@ -180,7 +395,7 @@ Streaming behavior: per-section `<Suspense>` boundaries; on cold path each secti
 
 ### /intelligence/risk-adjusted (new page — B5)
 
-1. **Hero** — "Risk-Adjusted Performance" + horizon toggle (trailing 3M / 6M / 1Y / All)
+1. **Hero** — "Risk-Adjusted Performance" + horizon toggle (trailing 3M / 6M / 1Y / All).
 2. **Scorecard table** — columns: Metric | My Portfolio | SPY (KRW) | Delta. Rows: CAGR, MDD, SD (annualized), Sharpe, **Calmar (headline)**, Sortino. Geist Mono alignment. Positive deltas in green, negative in red.
 3. **Calmar mini-sparkline** — small trailing-52-week line of Calmar delta. Anchor to goal metric.
 4. **Notes** — for each metric below 26 weeks of data: "(insufficient history)" badge.
@@ -203,21 +418,26 @@ Add to existing outcome cards:
 When `weekly_snapshots.comment` is non-empty, render it prominently at the top of each archive card (above score / regime / decisions) as a short italic quote. Makes 52-week scrolling human-navigable by observation, not only by numbers.
 
 ### Intelligence Component Patterns
-- **Contribution heatmap:** CSS Grid, 52 cols. Amber opacity scale (20%-100% based on score). Hover tooltip with score breakdown.
-- **Outcome badge:** 11px mono uppercase. Positive: #4ADE80 on #0a2010. Negative: #F87171 on #200a0a. Pending: #8b95a5 on #11161d.
-- **Horizon toggle:** Button group matching existing period selectors on /portfolio page.
-- **"Insufficient data" state:** Muted text (#5a6577) + progress indicator showing weeks until threshold (12 weeks for importance, 4 weeks for basic outcomes).
+
+- **Contribution heatmap:** CSS Grid, 52 cols. Amber opacity scale (20%–100% based on score). Hover tooltip with score breakdown.
+- **Outcome badge:** 11px mono uppercase. Positive: `#4ADE80` on `#0a2010`. Negative: `#F87171` on `#200a0a`. Pending: `#8b95a5` on `#11161d`.
+- **Horizon toggle:** Button group matching existing period selectors on `/portfolio` page.
+- **"Insufficient data" state:** Muted text (`#5a6577`) + progress indicator showing weeks until threshold (12 weeks for importance, 4 weeks for basic outcomes).
 
 ### Intelligence Data-Density States
+
 | State | Treatment |
 |-------|-----------|
-| Loading | Skeleton pulse: 52x1 grid of skeleton cells for heatmap, skeleton rows for tables |
+| Loading | Skeleton pulse: 52×1 grid of skeleton cells for heatmap, skeleton rows for tables |
 | < 4 weeks | "Getting started" card with progress bar toward first threshold |
-| 4-12 weeks | Show data with "(early data)" badge on statistical claims |
+| 4–12 weeks | Show data with "(early data)" badge on statistical claims |
 | 12+ weeks | Full intelligence view, no caveats |
 | Error | Per-section error badge: "Attribution data unavailable" (matching Friday pattern) |
 
+---
+
 ## Decisions Log
+
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-04-03 | Industrial/Utilitarian aesthetic | Matches "cockpit for exploration" identity, function-first |
@@ -229,7 +449,7 @@ When `weekly_snapshots.comment` is non-empty, render it prominently at the top o
 | 2026-04-04 | Partial snapshot compare uses explicit unavailable placeholders | Preserve archive stability and honesty when frozen snapshot coverage is incomplete |
 | 2026-04-08 | Intelligence pages use full-width layouts for time-series charts | Wider than Friday's 2-column. 52+ week data needs room to breathe |
 | 2026-04-08 | Attribution uses muted color palette (opacity-scaled amber, desaturated blues) | Prevents visual noise on data-dense pages. Green/red reserved for outcome deltas only |
-| 2026-04-08 | 4-tier data-density states for intelligence pages | < 4 weeks → getting started, 4-12 → early data badges, 12+ → full view. Honest about data maturity |
+| 2026-04-08 | 4-tier data-density states for intelligence pages | < 4 weeks → getting started, 4–12 → early data badges, 12+ → full view. Honest about data maturity |
 | 2026-04-19 | Bell icon removed → replaced by "Since Last Friday" briefing card on `/friday` top | Bell is notification-era daily-app UI. Briefing card is accumulated ledger with severity hierarchy. Matches weekly ritual cadence. |
 | 2026-04-19 | SPY-KRW retained as goal benchmark; peer-composition framing rejected | Benchmark = what we want to exceed (risk-adjusted), not composition match. Portfolio designed for Calmar/MDD dominance over SPY-KRW. |
 | 2026-04-19 | Single confidence slider → 3-scalar stack | (1) `vs_spy_riskadj` (primary), (2) `vs_cash` (baseline), (3) `vs_spy_pure` (stretch). Expected ordering #1 ≥ #2 ≥ #3. Ordering deviation is itself a signal. |
@@ -242,3 +462,4 @@ When `weekly_snapshots.comment` is non-empty, render it prominently at the top o
 | 2026-04-27 | `/friday` MacroContextSection teaser added between Hero and Sleeve Health | Three-stat summary (macro state, fit score, updated) + link to Intelligence. Fills the previously broken `MacroContextSection.tsx` import in `FridayDashboard` and `FridayReportSection`. Action space stays uncluttered; depth lives in the Intelligence sub-page. |
 | 2026-04-27 | Macro Indicator Badge Convention codified (bucket × state, lead/lag tier, compatibility band, indicator state pill) | Unified badge language across Intelligence + Friday surfaces. Color is signal, never decoration. Hover-tooltip surfaces full meta from `INDICATOR_META`. |
 | 2026-04-27 | Risk-first reframing: Posture격상 (25 → 40), Fit / Alignment 동등 second-tier (each 30) | Composite score allocation reflects philosophy that portfolio survivorship dominates macro fit when the two diverge. Posture-stance veto added to `_build_recommendation` (Posture < 8 or Stress < 4 → reduce_risk override). See PRODUCT.md §5. |
+| 2026-05-04 | DESIGN.md ported to YAML frontmatter + body format (1:1 from prose). Drift resolution: `surface-alt #1a2030` and `accent-hover #E0B88A` tokens removed | Frontmatter aligned with frontend code baseline. Hover states are expressed as border transition (`accent` at 40% opacity) + interactive opacity (`accent` at 90%) rather than background/color swap. Original swap-palette intent recorded here for future system evolution. |

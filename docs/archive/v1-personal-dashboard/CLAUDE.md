@@ -9,6 +9,7 @@ Operational details live in dedicated docs — read on demand:
 - **Design system (typography, color, spacing)**: `DESIGN.md`
 - **Local env setup, secrets, ports**: `LOCAL_ENV_SETUP.md`
 - **Per-directory conventions**: `<dir>/AGENTS.md` (23 guides under backend/, frontend/, docs/)
+- **Project conventions** (coding, testing, git, karpathy guidelines): `.claude/rules/*.md` (auto-loaded by Claude Code)
 
 ## Quick commands (fallback)
 
@@ -27,6 +28,12 @@ cd backend && .venv/bin/uvicorn app.main:app --reload     # port 8000
 > Backend uvicorn lives at `backend/.venv/bin/uvicorn`; system PATH lookup fails.
 > Port 8000 conflicts with claude-mem ChromaDB worker if that is running.
 
+## 자가 기록
+
+작업 중 발견한 것 (envelope 패턴 위반, 새 service 분리, 새 testing edge case, 새 contract 등)은
+관련 문서에 능동 갱신 — `ARCHITECTURE.md`, `PRODUCT.md`, `.claude/rules/*.md` 중 적절한 곳.
+글로벌 `~/.claude/CLAUDE.md` §프로젝트 CLAUDE.md 패턴 참조.
+
 ## Pre-commit gotchas
 
 - Never commit `backend/.env`, `KIS_*` values, `CRON_SECRET`, or live `DATABASE_URL`
@@ -37,29 +44,8 @@ cd backend && .venv/bin/uvicorn app.main:app --reload     # port 8000
 
 ## Skill routing
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
-- Save progress, checkpoint, resume → invoke checkpoint
-- Code quality, health check → invoke health
-
-## Design System
-Always read DESIGN.md before making any visual or UI decisions.
-All font choices, colors, spacing, and aesthetic direction are defined there.
-Do not deviate without explicit user approval.
-In QA mode, flag any code that doesn't match DESIGN.md.
+Skills auto-route via description. Active guidance table is in global `~/.claude/CLAUDE.md` §능동 가이드.
+프로젝트 specific skill 확장은 `.claude/rules/`에서 정의.
 
 ## Current Contract Notes
 - `GET /api/reports/weekly/latest` is a read-only persisted-report endpoint. Do not regenerate or upsert reports on that GET path.

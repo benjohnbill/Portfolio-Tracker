@@ -171,3 +171,15 @@ Session N+4~ — IA Phase 2-4 (Navigation / Page redesign / Aesthetic)
 ---
 
 > **자가 기록 mandate.** 다음 세션 진행 중 새 발견 / 결정 / 미정 항목 변경이 생기면 이 파일에 즉시 반영. 시점 명기 (YYYY-MM-DD).
+
+---
+
+## ⚠ Resolution (2026-05-06) — superseded
+
+이 handoff note는 *2026-05-06 session에서 superseded*됨.
+
+**결과:** 상품화 / Active OSS는 *real intent가 아니었음* (가벼운 wish). 진짜 default = Path A (본인용 PT 진화). 가벼운 공유는 deferred option.
+
+**자세한 결정 + carry-over discoveries + 다음 세션 plan:** [`2026-05-06-vision-pivot-resolution.md`](./2026-05-06-vision-pivot-resolution.md)
+
+→ **다음 세션은 *resolution doc*을 진입점으로 사용. 이 doc은 *historical reference*로만.**

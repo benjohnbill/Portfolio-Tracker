@@ -1,29 +1,43 @@
 import yfinance as yf
 import FinanceDataReader as fdr
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from typing import Tuple, Dict
 import pandas as pd
+
+# Module-level cache for the current backend process. Keyed by
+# (symbol, source, ISO date). Day rollover invalidates automatically
+# because the date component changes; no TTL mechanism needed.
+_PRICE_CACHE: Dict[Tuple[str, str, str], float] = {}
+
 
 class PriceService:
     @staticmethod
     def get_current_price(symbol: str, source: str = "US") -> float:
         """
         Fetches the latest closing price for a given symbol.
-        source: "US" for Yahoo Finance, "KR" for FinanceDataReader
+        source: "US" for Yahoo Finance, "KR" for FinanceDataReader.
+        Same-day calls reuse a process-local cache.
         """
+        cache_key = (symbol, source, date.today().isoformat())
+        if cache_key in _PRICE_CACHE:
+            return _PRICE_CACHE[cache_key]
+
         try:
             if source == "US":
                 ticker = yf.Ticker(symbol)
-                # Try to get live price first, fallback to history
                 data = ticker.history(period="1d")
                 if not data.empty:
-                    return float(data['Close'].iloc[-1])
-                
+                    price = float(data['Close'].iloc[-1])
+                    _PRICE_CACHE[cache_key] = price
+                    return price
+
             elif source == "KR":
-                # KR symbols are usually 6-digit codes
                 df = fdr.DataReader(symbol, (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
                 if not df.empty:
-                    return float(df['Close'].iloc[-1])
-            
+                    price = float(df['Close'].iloc[-1])
+                    _PRICE_CACHE[cache_key] = price
+                    return price
+
             return 0.0
         except Exception as e:
             print(f"Error fetching price for {symbol}: {e}")

@@ -443,8 +443,8 @@ class MacroService:
         return snapshot
 
     @staticmethod
-    def get_macro_vitals() -> Dict[str, Any]:
-        snapshot = MacroService.get_macro_snapshot()
+    def get_macro_vitals(db) -> Dict[str, Any]:
+        snapshot = MacroService.get_macro_snapshot_cached(db)
         net_liquidity = next((item for item in snapshot["indicators"] if item["key"] == "net_liquidity"), None)
         real_yield = next((item for item in snapshot["indicators"] if item["key"] == "real_yield_10y"), None)
         if not net_liquidity or not real_yield:

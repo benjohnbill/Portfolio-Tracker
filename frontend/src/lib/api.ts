@@ -684,9 +684,7 @@ function normalizePortfolioHistoryResponse(payload: unknown, period: string): Po
 export async function getPortfolioHistory(period: string = 'all'): Promise<PortfolioHistoryData> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/portfolio/history?period=${period}`, {
-      cache: 'no-store' 
-    });
+    const res = await fetch(`${API_BASE}/api/portfolio/history?period=${period}`);
     if (!res.ok) throw new Error('Failed to fetch from backend');
     return normalizePortfolioHistoryResponse(await res.json(), period);
   } catch (error) {
@@ -718,9 +716,7 @@ export async function getPortfolioAllocation(): Promise<PortfolioAllocationData[
 export async function getAssets(): Promise<Asset[]> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/assets`, {
-      cache: 'no-store' 
-    });
+    const res = await fetch(`${API_BASE}/api/assets`);
     if (!res.ok) throw new Error('Failed to fetch assets');
     return res.json();
   } catch (error) {
@@ -775,9 +771,7 @@ export async function getNDXHistory(period: string = '1y'): Promise<NDXHistoryPo
 export async function getAssetHistory(ticker: string, period: string = '1y'): Promise<NDXHistoryPoint[]> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/signals/history?ticker=${ticker}&period=${period}`, {
-      cache: 'no-store',
-    });
+    const res = await fetch(`${API_BASE}/api/signals/history?ticker=${ticker}&period=${period}`);
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -788,9 +782,7 @@ export async function getAssetHistory(ticker: string, period: string = '1y'): Pr
 export async function getMSTRHistory(period: string = '1y'): Promise<MSTRHistoryPoint[]> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/signals/mstr-history?period=${period}`, {
-      cache: 'no-store',
-    });
+    const res = await fetch(`${API_BASE}/api/signals/mstr-history?period=${period}`);
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -841,9 +833,7 @@ export async function getPortfolioPageData(period: string = 'all'): Promise<{
 export async function getActionReport(): Promise<ActionReport> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/algo/action-report`, {
-      cache: 'no-store' 
-    });
+    const res = await fetch(`${API_BASE}/api/algo/action-report`);
     if (!res.ok) throw new Error('Failed to fetch action report');
     return res.json();
   } catch (error) {
@@ -867,7 +857,7 @@ export async function getActionReport(): Promise<ActionReport> {
 export async function getLatestWeeklyReport(): Promise<WeeklyReportEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly/latest`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/reports/weekly/latest`);
     if (!res.ok) return emptyWeeklyReportEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -882,7 +872,7 @@ export async function getLatestWeeklyReport(): Promise<WeeklyReportEnvelope> {
 export async function getWeeklyReports(limit: number = 24): Promise<WeeklyReportSummariesEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly?limit=${limit}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/reports/weekly?limit=${limit}`);
     if (!res.ok) return emptyWeeklyReportSummariesEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -897,7 +887,7 @@ export async function getWeeklyReports(limit: number = 24): Promise<WeeklyReport
 export async function getWeeklyReport(weekEnding: string): Promise<WeeklyReportDetailEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/reports/weekly/${weekEnding}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/reports/weekly/${weekEnding}`);
     if (!res.ok) return emptyWeeklyReportDetailEnvelope(weekEnding);
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -914,9 +904,7 @@ const emptyFridayCurrentEnvelope: FridayCurrentEnvelope = emptyWeeklyReportEnvel
 export async function getFridayCurrent(): Promise<FridayCurrentEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/friday/current`, {
-      cache: 'no-store'
-    });
+    const res = await fetch(`${API_BASE}/api/v1/friday/current`);
     if (!res.ok) return emptyFridayCurrentEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -938,9 +926,7 @@ const emptyFridaySnapshotsEnvelope: FridaySnapshotsEnvelope = {
 export async function getFridaySnapshots(): Promise<FridaySnapshotsEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/friday/snapshots`, {
-      cache: 'no-store'
-    });
+    const res = await fetch(`${API_BASE}/api/v1/friday/snapshots`);
     if (!res.ok) return emptyFridaySnapshotsEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -970,9 +956,7 @@ const emptyFridaySnapshotEnvelope = (date: string): FridaySnapshotEnvelope => ({
 export async function getFridaySnapshot(snapshotDate: string): Promise<FridaySnapshotEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/friday/snapshot/${snapshotDate}`, {
-      cache: 'no-store',
-    });
+    const res = await fetch(`${API_BASE}/api/v1/friday/snapshot/${snapshotDate}`);
     if (!res.ok) return emptyFridaySnapshotEnvelope(snapshotDate);
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -998,7 +982,7 @@ export async function getFridayBriefing(since?: string): Promise<FridayBriefingE
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const qs = since ? `?since=${encodeURIComponent(since)}` : '';
-    const res = await fetch(`${API_BASE}/api/v1/friday/briefing${qs}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/v1/friday/briefing${qs}`);
     if (!res.ok) return emptyFridayBriefingEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1026,7 +1010,7 @@ const emptyFridaySleeveHistoryEnvelope: FridaySleeveHistoryEnvelope = {
 export async function getFridaySleeveHistory(weeks: number = 4): Promise<FridaySleeveHistoryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/friday/sleeve-history?weeks=${weeks}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/v1/friday/sleeve-history?weeks=${weeks}`);
     if (!res.ok) return emptyFridaySleeveHistoryEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1049,9 +1033,7 @@ const emptyFridayCompareEnvelope = (a: string, b: string): FridayCompareEnvelope
 export async function compareFridaySnapshots(a: string, b: string): Promise<FridayCompareEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/friday/compare?a=${a}&b=${b}`, {
-      cache: 'no-store',
-    });
+    const res = await fetch(`${API_BASE}/api/v1/friday/compare?a=${a}&b=${b}`);
     if (!res.ok) return emptyFridayCompareEnvelope(a, b);
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1196,7 +1178,7 @@ export async function getIntelligenceAttributions(
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     const qs = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE}/api/intelligence/attributions${qs}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/attributions${qs}`);
     if (!res.ok) return emptyIntelligenceAttributionsEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1214,7 +1196,7 @@ export async function getIntelligenceOutcomes(
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const qs = horizon ? `?horizon=${horizon}` : '';
-    const res = await fetch(`${API_BASE}/api/intelligence/outcomes${qs}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/outcomes${qs}`);
     if (!res.ok) return emptyIntelligenceOutcomesEnvelope(horizon);
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1229,7 +1211,7 @@ export async function getIntelligenceOutcomes(
 export async function getIntelligenceRuleAccuracy(): Promise<IntelligenceRulesAccuracyEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/rules/accuracy`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/rules/accuracy`);
     if (!res.ok) return emptyIntelligenceRulesAccuracyEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1244,7 +1226,7 @@ export async function getIntelligenceRuleAccuracy(): Promise<IntelligenceRulesAc
 export async function getIntelligenceRegimeHistory(): Promise<IntelligenceRegimeHistoryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/regime/history`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/regime/history`);
     if (!res.ok) return emptyIntelligenceRegimeHistoryEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1281,7 +1263,7 @@ export interface ReviewAggregation {
 export async function getReviewSummary(): Promise<IntelligenceReviewSummaryEnvelope> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/reviews/summary`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/summary`);
     if (!res.ok) return emptyIntelligenceReviewSummaryEnvelope;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) {
@@ -1296,7 +1278,7 @@ export async function getReviewSummary(): Promise<IntelligenceReviewSummaryEnvel
 export async function getMonthlyReview(month: string): Promise<ReviewAggregation | null> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/reviews/monthly?month=${month}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/monthly?month=${month}`);
     if (!res.ok) return null;
     return res.json();
   } catch (error) {
@@ -1308,7 +1290,7 @@ export async function getMonthlyReview(month: string): Promise<ReviewAggregation
 export async function getQuarterlyReview(quarter: string): Promise<ReviewAggregation | null> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/reviews/quarterly?quarter=${quarter}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/quarterly?quarter=${quarter}`);
     if (!res.ok) return null;
     return res.json();
   } catch (error) {
@@ -1320,7 +1302,7 @@ export async function getQuarterlyReview(quarter: string): Promise<ReviewAggrega
 export async function getAnnualReview(year: string): Promise<ReviewAggregation | null> {
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/intelligence/reviews/annual?year=${year}`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/intelligence/reviews/annual?year=${year}`);
     if (!res.ok) return null;
     return res.json();
   } catch (error) {
@@ -1406,7 +1388,7 @@ export async function fetchRiskAdjustedScorecard(): Promise<RiskAdjustedScorecar
   const empty = emptyRiskAdjustedScorecard();
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/scorecard`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/scorecard`);
     if (!res.ok) return empty;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) return empty;
@@ -1427,7 +1409,7 @@ export async function fetchCalmarTrajectory(): Promise<CalmarTrajectoryPayload> 
   };
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/calmar-trajectory`, { cache: 'no-store' });
+    const res = await fetch(`${API_BASE}/api/v1/intelligence/risk-adjusted/calmar-trajectory`);
     if (!res.ok) return empty;
     const data = await res.json();
     if (!data || typeof data !== 'object' || !('status' in data)) return empty;

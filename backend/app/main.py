@@ -116,6 +116,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/healthz")
+def healthz():
+    """Lightweight health-check for external uptime pings.
+    Intentionally does not touch the DB or any external API so a 5-minute
+    ping schedule generates no load and never blocks on cold-start IO."""
+    return {"status": "ok"}
+
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Portfolio Tracker API"}
@@ -414,25 +422,36 @@ def get_portfolio_summary(db: Session = Depends(get_db)):
         )
 
 @app.get("/api/macro-vitals")
-def get_macro_vitals():
-    return MacroService.get_macro_vitals() or {"status": "loading"}
+def get_macro_vitals(db: Session = Depends(get_db)):
+    return MacroService.get_macro_vitals(db) or {"status": "loading"}
 
 @app.get("/api/stress-test")
 def get_stress_test(db: Session = Depends(get_db)):
     txs = db.query(Transaction).filter(Transaction.type.in_(["BUY", "SELL"])).all()
     holdings = {}
-    for t in txs: holdings[t.asset_id] = holdings.get(t.asset_id, 0) + (t.quantity if t.type == "BUY" else -t.quantity)
+    for t in txs:
+        holdings[t.asset_id] = holdings.get(t.asset_id, 0) + (t.quantity if t.type == "BUY" else -t.quantity)
     active_holdings = {aid: qty for aid, qty in holdings.items() if qty > 0.0001}
-    if not active_holdings: return []
+    if not active_holdings:
+        return []
+
+    # Batch: one query for all referenced assets.
+    asset_rows = db.query(Asset).filter(Asset.id.in_(active_holdings.keys())).all()
+    asset_by_id = {a.id: a for a in asset_rows}
+
     total_value = 0
     asset_values = {}
     for aid, qty in active_holdings.items():
-        asset = db.query(Asset).filter(Asset.id == aid).first()
+        asset = asset_by_id.get(aid)
+        if asset is None:
+            continue
         price = PriceService.get_current_price(asset.symbol, asset.source)
         val = qty * price
         asset_values[asset.symbol] = val
         total_value += val
-    if total_value == 0: return []
+
+    if total_value == 0:
+        return []
     weights = {sym: val / total_value for sym, val in asset_values.items()}
     return StressService.run_simulation(weights)
 

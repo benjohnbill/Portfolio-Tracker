@@ -1,9 +1,10 @@
-import { getMSTRHistory } from '@/lib/api';
+import { getMSTRHistoryCached as getMSTRHistory } from '@/lib/api-rsc-cache';
+import type { MSTRHistoryPoint } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MSTRZScoreChart } from '@/components/features/MSTRZScoreChart';
 
-export async function MSTRSignalSection({ period }: { period: string }) {
-  const mstrHistory = await getMSTRHistory(period);
+export async function MSTRSignalSection({ period, preloaded }: { period: string; preloaded?: MSTRHistoryPoint[] }) {
+  const mstrHistory = preloaded ?? (await getMSTRHistory(period));
 
   return (
     <Card className="bg-[#11161d] border-border/40">

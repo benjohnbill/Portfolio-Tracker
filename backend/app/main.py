@@ -414,8 +414,8 @@ def get_portfolio_summary(db: Session = Depends(get_db)):
         )
 
 @app.get("/api/macro-vitals")
-def get_macro_vitals():
-    return MacroService.get_macro_vitals() or {"status": "loading"}
+def get_macro_vitals(db: Session = Depends(get_db)):
+    return MacroService.get_macro_vitals(db) or {"status": "loading"}
 
 @app.get("/api/stress-test")
 def get_stress_test(db: Session = Depends(get_db)):

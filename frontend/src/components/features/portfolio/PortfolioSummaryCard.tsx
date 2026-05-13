@@ -1,11 +1,26 @@
 import { getPortfolioSummaryCached as getPortfolioSummary } from '@/lib/api-rsc-cache';
+import type { ApiResult, PortfolioSummary } from '@/lib/api';
 import { isReady } from '@/lib/envelope';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
-export async function PortfolioSummaryCard() {
-  const envelope = await getPortfolioSummary();
+export async function PortfolioSummaryCard({
+  preloaded,
+}: {
+  preloaded?: ApiResult<PortfolioSummary>;
+} = {}) {
+  // Two shapes converge here:
+  //   - legacy fetcher returns PortfolioSummaryEnvelope (status + PortfolioSummary fields at root)
+  //   - aggregator returns ApiResult<PortfolioSummary> ({ data, error })
+  // Normalise to "ready PortfolioSummary or null".
+  let summary: PortfolioSummary | null;
+  if (preloaded) {
+    summary = preloaded.error === null ? preloaded.data : null;
+  } else {
+    const envelope = await getPortfolioSummary();
+    summary = isReady(envelope) ? envelope : null;
+  }
 
-  if (!isReady(envelope)) {
+  if (!summary) {
     return (
       <Card className="bg-[#11161d] border-border/40">
         <CardHeader>
@@ -19,7 +34,7 @@ export async function PortfolioSummaryCard() {
     );
   }
 
-  const { total_value, invested_capital, metrics } = envelope;
+  const { total_value, invested_capital, metrics } = summary;
 
   return (
     <Card className="bg-[#11161d] border-border/40">

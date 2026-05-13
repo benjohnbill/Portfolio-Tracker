@@ -1,11 +1,27 @@
 import { getPortfolioHistoryCached as getPortfolioHistory } from '@/lib/api-rsc-cache';
+import type { ApiResult, PortfolioHistoryData } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
 import { TwrEquityCurve } from '@/components/features/TwrEquityCurve';
 import { AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 
-export async function EquityCurveSection({ period }: { period: string }) {
-  const historyData = await getPortfolioHistory(period);
+export async function EquityCurveSection({
+  period,
+  preloaded,
+}: {
+  period: string;
+  preloaded?: ApiResult<PortfolioHistoryData>;
+}) {
+  const historyData = preloaded?.data ?? (await getPortfolioHistory(period));
+
+  if (!historyData) {
+    return (
+      <Card className="bg-[#11161d] border-border/40 h-64 flex items-center justify-center text-muted-foreground">
+        No archive wealth data available for this period.
+      </Card>
+    );
+  }
+
   const archiveSeries = historyData.archive.series;
   const performanceSeries = historyData.performance.series;
 

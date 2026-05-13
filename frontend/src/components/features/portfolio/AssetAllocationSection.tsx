@@ -1,10 +1,15 @@
 import { getPortfolioAllocationCached as getPortfolioAllocation } from '@/lib/api-rsc-cache';
+import type { ApiResult, PortfolioAllocationData } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
 import { Briefcase, ShieldCheck } from 'lucide-react';
 
-export async function AssetAllocationSection() {
-  const allocationData = await getPortfolioAllocation();
+export async function AssetAllocationSection({
+  preloaded,
+}: {
+  preloaded?: ApiResult<PortfolioAllocationData[]>;
+} = {}) {
+  const allocationData = preloaded ? (preloaded.data ?? []) : await getPortfolioAllocation();
 
   const siloedAccounts = allocationData.reduce((acc, asset) => {
     const type = asset.account_silo || asset.account_type || 'OVERSEAS';

@@ -14,6 +14,7 @@ import { AssetAllocationSection } from '@/components/features/portfolio/AssetAll
 import { AssetSignalSection } from '@/components/features/portfolio/AssetSignalSection';
 import { MSTRSignalSection } from '@/components/features/portfolio/MSTRSignalSection';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getPortfolioPageData } from '@/lib/api';
 
 export default async function PortfolioPage({
   searchParams,
@@ -22,6 +23,7 @@ export default async function PortfolioPage({
 }) {
   const params = await searchParams;
   const period = typeof params.period === 'string' ? params.period : '1y';
+  const pageData = await getPortfolioPageData(period);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -72,7 +74,7 @@ export default async function PortfolioPage({
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-8">
           <Suspense fallback={<Skeleton className="h-[600px] w-full rounded-xl" />}>
-            <EquityCurveSection period={period} />
+            <EquityCurveSection period={period} preloaded={pageData.history} />
           </Suspense>
 
           <div className="space-y-4">
@@ -84,10 +86,11 @@ export default async function PortfolioPage({
                   title="NDX vs 250MA"
                   description="Trend regime — drives NDX_2X ↔ NDX_1X rotation"
                   period={period}
+                  preloaded={pageData.ndxHistory}
                 />
               </Suspense>
               <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
-                <MSTRZScoreSectionWrapper period={period} />
+                <MSTRZScoreSectionWrapper period={period} preloaded={pageData.mstrHistory} />
               </Suspense>
               <Suspense fallback={<Skeleton className="h-[300px] w-full rounded-xl" />}>
                 <AssetSignalSection 
@@ -111,11 +114,11 @@ export default async function PortfolioPage({
 
         <div className="lg:col-span-4 space-y-6">
           <Suspense fallback={<Skeleton className="h-[400px] w-full rounded-xl" />}>
-            <PortfolioSummaryCard />
+            <PortfolioSummaryCard preloaded={pageData.summary} />
           </Suspense>
 
           <Suspense fallback={<Skeleton className="h-[600px] w-full rounded-xl" />}>
-            <AssetAllocationSection />
+            <AssetAllocationSection preloaded={pageData.allocation} />
           </Suspense>
         </div>
       </div>
@@ -124,6 +127,6 @@ export default async function PortfolioPage({
 }
 
 // Small helper to maintain naming consistency with the file created
-async function MSTRZScoreSectionWrapper({ period }: { period: string }) {
-  return <MSTRSignalSection period={period} />;
+async function MSTRZScoreSectionWrapper({ period, preloaded }: { period: string; preloaded?: import('@/lib/api').MSTRHistoryPoint[] }) {
+  return <MSTRSignalSection period={period} preloaded={preloaded} />;
 }

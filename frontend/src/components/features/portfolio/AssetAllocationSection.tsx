@@ -1,4 +1,4 @@
-import { getPortfolioAllocation } from '@/lib/api';
+import { getPortfolioAllocationCached as getPortfolioAllocation } from '@/lib/api-rsc-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TargetDeviationChart } from '@/components/features/TargetDeviationChart';
 import { Briefcase, ShieldCheck } from 'lucide-react';

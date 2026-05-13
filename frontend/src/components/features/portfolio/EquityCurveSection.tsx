@@ -1,4 +1,4 @@
-import { getPortfolioHistory } from '@/lib/api';
+import { getPortfolioHistoryCached as getPortfolioHistory } from '@/lib/api-rsc-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { HistoryChart } from '@/components/features/HistoryChart';
 import { TwrEquityCurve } from '@/components/features/TwrEquityCurve';

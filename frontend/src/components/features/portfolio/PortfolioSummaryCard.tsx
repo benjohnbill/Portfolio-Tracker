@@ -1,4 +1,4 @@
-import { getPortfolioSummary } from '@/lib/api';
+import { getPortfolioSummaryCached as getPortfolioSummary } from '@/lib/api-rsc-cache';
 import { isReady } from '@/lib/envelope';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 

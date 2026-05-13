@@ -1,4 +1,4 @@
-import { getMSTRHistory } from '@/lib/api';
+import { getMSTRHistoryCached as getMSTRHistory } from '@/lib/api-rsc-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MSTRZScoreChart } from '@/components/features/MSTRZScoreChart';
 

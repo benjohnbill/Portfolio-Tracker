@@ -1,4 +1,4 @@
-import { getAssetHistory } from '@/lib/api';
+import { getAssetHistoryCached as getAssetHistory } from '@/lib/api-rsc-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { NDXTrendChart } from '@/components/features/NDXTrendChart';
 

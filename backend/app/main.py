@@ -116,6 +116,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/api/healthz")
+def healthz():
+    """Lightweight health-check for external uptime pings.
+    Intentionally does not touch the DB or any external API so a 5-minute
+    ping schedule generates no load and never blocks on cold-start IO."""
+    return {"status": "ok"}
+
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Portfolio Tracker API"}

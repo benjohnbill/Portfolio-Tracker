@@ -1,0 +1,41 @@
+name: HistoryChart
+file: frontend/src/components/features/HistoryChart.tsx
+
+primary_question: "내 archive wealth(예치금 포함 절대 자산)의 시간 곡선이 어떻게 흘러왔나?"
+
+secondary_questions:
+  - "특정 날짜의 absolute_wealth 값이 정확히 얼마였나? (tooltip)"
+  - "곡선이 단조 우상향인가, 변동성 구간이 있나?"
+  - "y축 단위(만원)와 통화 포맷(KRW)이 어떻게 표시되나?"
+
+connects_to:
+  - target: "[[archive-wealth]]"
+    trigger: "(passive — read-only chart, no click navigation)"
+  - target: "[[absolute-wealth-curve]]"
+    trigger: "(visual rendering of the series)"
+
+data_contract:
+  - AbsoluteHistoryPoint[] (props)
+  - fields: date, absolute_wealth
+  - upstream: GET /api/portfolio/history → history.archive.series
+
+uses_design_components:
+  - Recharts AreaChart (single-series area)
+  - linearGradient fill (teal #4fd1c5)
+
+rendered_in:
+  - location: /portfolio
+    via: EquityCurveSection (top card "Archive Wealth Curve")
+
+pattern_notes:
+  type: "chart atom"
+  notes: |
+    Single-series area chart. NaN-date filter inline. No period selector — parent
+    section owns period state. Color hardcoded (#4fd1c5) — flagged for design-token
+    migration in 1721 audit.
+
+keywords:
+  - "[[archive-wealth]]"
+  - "[[absolute-wealth-curve]]"
+  - "[[recharts-area]]"
+  - "[[krw-formatter]]"

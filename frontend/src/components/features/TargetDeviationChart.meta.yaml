@@ -1,0 +1,44 @@
+name: TargetDeviationChart
+file: frontend/src/components/features/TargetDeviationChart.tsx
+
+primary_question: "Core-6 target 대비 현재 자산 weight가 얼마나 drift 됐고, rebalance가 필요한가?"
+
+secondary_questions:
+  - "어느 카테고리(NDX / DBMF / BRAZIL / MSTR / GLDM / BONDS-CASH)가 ±30% 초과로 드리프트?"
+  - "각 카테고리의 current % / target % / deviation % 정확히 얼마?"
+  - "어떤 카테고리가 'Optimized'(safe band 안)이고 어떤 게 'Drift'인가?"
+
+connects_to:
+  - target: "[[core-6-target]]"
+    trigger: "(passive — target weights hardcoded in TARGETS)"
+  - target: "[[rebalance-threshold]]"
+    trigger: "|deviation| > 0.3 → needsRebalance bit → red bar + alert pill"
+  - target: "[[asset-category-mapping]]"
+    trigger: "assetToCategory()가 symbol prefix로 6개 카테고리 분류"
+
+data_contract:
+  - allocation: { asset, weight }[] (props)
+  - TARGETS: hardcoded Record<category, weight> (Core 6)
+  - upstream: GET /api/portfolio/allocation → PortfolioAllocationData[]
+
+uses_design_components:
+  - Recharts BarChart (vertical layout, paired bars)
+  - CustomTooltip + alert pill grid (AlertTriangle / CheckCircle2)
+
+rendered_in:
+  - location: /portfolio
+    via: AssetAllocationSection (top card "Strategy Deviation")
+
+pattern_notes:
+  type: "chart atom"
+  notes: |
+    Paired bar(target ghost + current solid) + 30% drift band. Rebalance signal는
+    chart 외부의 pill grid에도 동시 표시(redundant by design). assetToCategory가
+    legacy QQQ/TIGER residue 포함 — 885 observation 참조. Colors hardcoded — 1721 audit.
+
+keywords:
+  - "[[core-6-target]]"
+  - "[[rebalance-threshold]]"
+  - "[[asset-category-mapping]]"
+  - "[[target-deviation]]"
+  - "[[recharts-bar]]"

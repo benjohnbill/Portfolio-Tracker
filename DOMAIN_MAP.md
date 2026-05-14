@@ -55,6 +55,37 @@
 - **data-density** — DataDensityBadge가 표시하는 분석 가능한 주(week) 수 단계: <4 getting-started / <12 early-data / ≥12 analyzed. ✅
 - **contribution-heatmap** — 지난 52주 totalScore를 셀별 opacity로 코딩한 grid. cell hover → tooltip(date · score/100). ✅
 - **performance-trend** — frozen totalScore 주간 시계열 (WeeklyScoreHistory[]). PerformanceTrendChart sparkline. ✅
+- **transaction** — POST /api/transactions의 unit. type: BUY/SELL/DEPOSIT/WITHDRAW. trade는 symbol/quantity/price, cashflow는 total_amount + note. ✅
+- **account-silo** — 계좌 silo 분류: ISA_ETF / OVERSEAS_ETF / BRAZIL_BOND / PENSION. account_type은 silo에서 추론(ISA_ETF→ISA, 그 외→OVERSEAS). ✅
+- **cashflow** — DEPOSIT 또는 WITHDRAW 한 transaction. archive-wealth에는 포함, twr에서는 sterilize. ✅
+- **trade** — BUY 또는 SELL transaction. symbol + quantity 필수, price 비우면 자동 시세. ✅
+- **symbol** — asset의 ticker. 기존 KR ETF는 심볼 그대로(NDX_1X, ACE_TLT), 신규 KR ETF는 6자리 KRX 코드(예: 476760), 해외 자산은 티커(MSTR, DBMF). ✅
+- **archive-wealth** — cashflow 포함 절대 자산 시계열. portfolio/history.archive.series. y축 KRW. ✅
+- **absolute-wealth-curve** — archive-wealth의 chart-level 명칭. HistoryChart가 단일 area로 시각화. ✅
+- **mstr-zscore** — MSTR price의 rolling z-score signal. zone: <0 AGG BUY, 0-2 HOLD, 2-3.5 PROFIT LOCK, ≥3.5 HARD EXIT. ✅
+- **zone-threshold** — mstr-zscore zone 경계값(0, 2.0, 3.5). chart에 ReferenceLine + 색 ReferenceArea로 시각화. ✅
+- **mnav-ratio** — MSTR mnav ratio (BTC NAV 대비 시총 배수). zscore와 병기 표시. ✅
+- **mstr-rotation-rule** — MSTR↔DBMF rotation rule. zscore zone이 신호 driver. ✅
+- **ndx-250ma** — NDX(또는 임의 ticker) 가격 vs 250-day moving average. above/below 분기가 trend regime. ✅
+- **trend-regime** — above-MA(GROWTH MODE) / below-MA(SAFETY MODE) binary. NDX/GLDM/TLT 각각에 적용. ✅
+- **asset-signal** — ticker-agnostic 신호 chart. AssetSignalSection이 QQQ/GLDM/TLT 3개 인스턴스로 재사용. ✅
+- **asset-history** — GET /api/asset/{ticker}/history → NDXHistoryPoint[]. price + ma_250 시계열. ✅
+- **ndx-rotation-rule** — NDX_2X↔NDX_1X rotation rule. 250MA above/below가 신호 driver. ✅
+- **mstr-history** — GET /api/mstr/history → MSTRHistoryPoint[]. date · z_score · mnav_ratio. ✅
+- **core-6-target** — sleeve별 target weight Record: NDX 30 / DBMF 30 / BRAZIL 10 / MSTR 10 / GLDM 10 / BONDS-CASH 10. TargetDeviationChart의 TARGETS 상수. ✅
+- **rebalance-threshold** — |deviation/target| > 0.3 → rebalance 필요 신호. TargetDeviationChart의 needsRebalance bit. ✅
+- **asset-category-mapping** — symbol → core-6 category 분류 함수 assetToCategory(). prefix/substring 기반(NDX/DBMF/BRAZIL/MSTR/GLDM/BONDS-CASH/OTHER). ✅
+- **twr** — time-weighted return. cashflow 영향 sterilize 후 누적 수익률. PerformanceHistoryPoint.performance_value. ✅
+- **spy-benchmark** — KRW 환산 SPY benchmark, indexed to 100. PerformanceHistoryPoint.benchmark_value. ✅
+- **indexed-to-100** — TWR/SPY 모두 시작점 100 기준 누적으로 normalize → 직접 비교. ✅
+- **cashflow-neutral** — twr이 deposit/withdraw 영향 배제한 순수 수익률이라는 성질. TwrEquityCurve CardDescription이 명시. ✅
+- **portfolio-allocation** — GET /api/portfolio/allocation → PortfolioAllocationData[]. asset · name · quantity · value · weight · account_type · account_silo. ✅
+- **holdings** — portfolio-allocation을 silo별로 그룹화한 list. silo 카드 안 row 단위. ✅
+- **portfolio-summary** — GET /api/portfolio/summary → PortfolioSummary. total_value · invested_capital · metrics{cagr, mdd, volatility, sharpe_ratio}. ✅
+- **structural-metrics** — CAGR / MDD / Volatility / Sharpe — long-horizon 누적 지표 (this-week 지표와 의도적으로 대비). PortfolioSummaryCard의 6 metric tile. ✅
+- **daily-delta** — archive.series 마지막 두 포인트로 계산한 오늘자 ₩ + % 변화. EquityCurveSection 헤더 pill. ✅
+- **performance-coverage** — performance.status === 'unavailable' 일 때 coverage_start 안내. cashflow coverage 완료 전에는 benchmark-relative history 미산출. ✅
+- **envelope** — { status, data, error } 표준 envelope. PortfolioSummaryCard가 legacy envelope ↔ ApiResult 두 shape를 isReady gate로 정규화. ✅
 
 ## §2 Behaviors (동작 / 시간 변화)
 
@@ -70,6 +101,9 @@
 - **period-refetch** — ReviewsView가 period chip 클릭 시 getMonthlyReview/Quarterly/Annual 1건 fetch → AggregationCard 렌더. ✅
 - **causal-hover-sync** — CausalMapSection 4 column이 single highlight state로 cross-column row를 sync 강조. ✅
 - **maturity-gating** — based_on_freezes < required_weeks 면 view 본체 대신 "Accumulating" placeholder 노출. risk-adjusted-scorecard, calmar-trajectory에 적용. ✅
+- **router-refresh** — AddAssetModal이 createTransaction 성공 후 next/navigation router.refresh()로 RSC 재요청 → portfolio 화면 즉시 갱신. ✅
+- **silo-grouping** — portfolio-allocation을 account_silo 키로 reduce → ISA/OVERSEAS/BRAZIL_BOND 카드. siloLabelMap이 legacy + 신규 silo 라벨을 모두 매핑. ✅
+- **indexed-normalization** — benchmark/portfolio 두 시계열을 first non-zero 시점 100 기준으로 나누어 누적 비교 가능하게 만드는 처리. TwrEquityCurve 안에서 firstBv 변수로 inline. ✅
 
 ## §3 Cluster-Level Concepts (여러 entity의 종합 / 묶음)
 
@@ -83,6 +117,10 @@
 - **macro-causation** — macro-indicator → indicator-bucket → bucket-state → sleeve-compatibility → composite-breakdown 인과 chain. CausalMapSection이 한 화면에 압축. ✅
 - **review-roll-up** — review-summary + review-aggregation의 weekly → monthly → quarterly → annual 시간 단위 누적 view. ✅
 - **maturity-progression** — freeze-count gate (26주 risk-adj, 52주 calmar). 같은 게이트 패밀리지만 unlock 후 답하는 질문이 다름. ✅
+- **portfolio-long-horizon** — equity-curve(archive + twr) + portfolio-summary + portfolio-allocation을 한 surface로 묶음. /portfolio가 대표. friday cluster의 this-week 지향과 의도적으로 대비. ✅
+- **signal-pulse-grid** — NDX(asset-signal) + MSTR(mstr-zscore) + GLDM(asset-signal) + TLT(asset-signal) 4-cell signal grid. 각 cell은 rotation-rule driver. ✅
+- **target-deviation-cluster** — core-6-target + rebalance-threshold + holdings + portfolio-allocation을 strategy deviation chart + silo list 두 sub-section으로 결합. AssetAllocationSection이 한 surface. ✅
+- **inputs-entry** — AddAssetModal 단일 atom으로 trade + cashflow를 같이 입력. Phase 2 navigation grammar에서 별도 /inputs surface 후보. ✅
 
 ## §4 Atom Types (컴포넌트 역할 분류 vocabulary)
 
@@ -100,14 +138,17 @@
 recharts-based 또는 table-shaped; one quantitative view.
 - Batch 1: 없음.
 - Batch 2: AttributionsView (stacked area + table), RiskAdjustedScorecard (6×3 metric table), PerformanceTrendChart (single-series sparkline).
+- Batch 3: HistoryChart, MSTRZScoreChart, NDXTrendChart, TargetDeviationChart, TwrEquityCurve.
 
 ### data-fetcher atom
 RSC wrapper — fetch + error/empty handling, then renders a display atom.
 - Batch 1: FridayBriefingSection, FridayReportSection, FridaySleeveSection, FridaySnapshotSection.
 - Batch 2: IntelligenceAttributionsSection, IntelligenceOutcomesSection, IntelligenceRegimeHistorySection, IntelligenceReviewsSection, IntelligenceRulesSection.
+- Batch 3: AssetAllocationSection, AssetSignalSection, EquityCurveSection, MSTRSignalSection, PortfolioSummaryCard.
 
 ### form-input atom
-사용자 입력 받음. _(Batch 1-2 instances 없음 — Batch 3에 AddAssetModal 예정)_
+사용자 입력 받음.
+- Batch 3: AddAssetModal (inventory의 유일한 form-input — trade ↔ cashflow state-shape switching).
 
 ### shell / utility atom
 navigation / shared primitives. atom 정의 약화 (질문에 답 X), 그러나 inventory 일관성 위해 포함.
@@ -159,3 +200,19 @@ _(흡수 from docs/DOMAIN_MAP — Batch 4 마무리 시 통합)_
   - `[[review-roll-up]]` cluster: ReviewsView owns 2-stage state (periodType → period). This is the most state-heavy multi-question atom seen so far; flagged as Phase 2-4 candidate for "selection grammar" extraction.
   - Risk-adjusted page is the lone client-component-with-useEffect holdout (vs RSC pattern elsewhere). Migration noted in RiskAdjustedScorecard.meta pattern_notes.
   - Cumulative atom-type tally after Batch 2: 9 multi-question, 2 gateway-thin, 3 chart, 9 data-fetcher, 0 form-input, 1 utility. data-fetcher + multi-question dominate (75%) — confirms RSC envelope + composite-question patterns as the spine.
+
+- 2026-05-14 — [batch-3] features/ + features/portfolio/ 11 atoms done. Vocab additions:
+  - §1 Entities (+30): transaction, account-silo, cashflow, trade, symbol, archive-wealth, absolute-wealth-curve, mstr-zscore, zone-threshold, mnav-ratio, mstr-rotation-rule, ndx-250ma, trend-regime, asset-signal, asset-history, ndx-rotation-rule, mstr-history, core-6-target, rebalance-threshold, asset-category-mapping, twr, spy-benchmark, indexed-to-100, cashflow-neutral, portfolio-allocation, holdings, portfolio-summary, structural-metrics, daily-delta, performance-coverage, envelope.
+  - §2 Behaviors (+3): router-refresh, silo-grouping, indexed-normalization.
+  - §3 Clusters (+4): portfolio-long-horizon, signal-pulse-grid, target-deviation-cluster, inputs-entry.
+  - §4 Atom-type instances (batch 3): 0 multi-question, 0 gateway-thin, 5 chart, 5 data-fetcher, 1 form-input, 0 shell.
+
+  **Framework reflections (Checkpoint 3):**
+  - Chart-heavy batch as predicted. 5 chart atoms (vs 3 in Batch 2) — features/ folder의 본질이 노출. portfolio/ data-fetcher 5개는 각각 *정확히 1개 chart atom*을 wrap하는 N:1 composition (intelligence/ data-fetcher가 multi-question view를 wrap한 것과 다른 패턴).
+  - AssetSignalSection이 한 atom card로 3 인스턴스(QQQ, GLDM, TLT)를 cover하는 첫 케이스. *ticker-agnostic wrapper* — 한 component file이지만 rendered_in에 3 위치 명시. atom card의 schema가 instance-level이 아니라 file-level이라는 점 재확인 (39 atoms 카운트 일관성 유지).
+  - `[[core-6-target]]`이 hardcoded constant인데 entity로 등록 — single source of truth로 DOMAIN_MAP에 올라간 첫 *configuration-as-entity* 케이스. legacy QQQ/TIGER residue가 features/ 전역에 흩어진 이유(885 observation)는 정확히 이 backbone 부재 때문. Phase 2 refactor에서 TARGETS 상수를 DOMAIN_MAP 참조 형태로 끌어올릴 후보.
+  - `[[twr]]` vs `[[archive-wealth]]` 분리가 EquityCurveSection의 2-chart layout으로 명시적으로 노출 — `[[cashflow-neutral]]` 개념이 user에게 보이는 가장 직접적인 surface. friday surface의 freeze-only briefing과 정성이 다름(연속 곡선 vs 점-결정).
+  - `[[form-input]]` atom type 처음 등장(AddAssetModal). 한 개 atom뿐인데도 atom-type carve-out 한 가치 있음 — `[[router-refresh]]` 같은 mutation-side behavior가 다른 type에는 안 나타남(이건 form-input 전유). Phase 2 navigation grammar에서 inputs-entry cluster가 독립 surface(/inputs/add) 후보로 거론될 수 있음.
+  - Hardcoded color는 features/ 전체에 만연(1721 audit). 5 chart 모두 pattern_notes에 "Colors hardcoded — flagged in 1721 audit" 적힘. Phase 4 aesthetic uplift의 가장 명확한 entry point.
+  - `[[envelope]]` entity가 batch 3에서 처음 명시 — PortfolioSummaryCard가 legacy envelope ↔ ApiResult 두 shape를 isReady gate로 정규화하는 comment block이 backend ↔ frontend 계약의 진화 흔적. UX-1 envelope 통일 과제(memory)와 직접 연결.
+  - Cumulative atom-type tally after Batch 3: 9 multi-question, 2 gateway-thin, 8 chart, 14 data-fetcher, 1 form-input, 1 utility = 35 atoms / 39 total. data-fetcher 우세는 유지(40%), chart 비중 8/35 (23%)로 상승. Batch 4(archive + reports + shell) 4 atoms 추가 후 39 total 도달 예상.

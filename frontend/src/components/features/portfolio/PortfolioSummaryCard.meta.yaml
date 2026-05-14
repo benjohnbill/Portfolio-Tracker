@@ -1,0 +1,47 @@
+name: PortfolioSummaryCard
+file: frontend/src/components/features/portfolio/PortfolioSummaryCard.tsx
+
+primary_question: "내 portfolio의 구조적 metric(가치/투자원금/CAGR/MDD/변동성/Sharpe)이 한눈에 어떤가?"
+
+secondary_questions:
+  - "Total Value vs Invested Capital의 차이가 얼마(=누적 손익)?"
+  - "CAGR(%), MDD(%), Volatility(%), Sharpe Ratio 현재 값은?"
+  - "Summary가 unavailable일 때 어떻게 표시되나?"
+
+connects_to:
+  - target: "[[portfolio-summary]]"
+    trigger: "data fetch + 6-field metric grid render"
+  - target: "[[envelope]]"
+    trigger: "preloaded(ApiResult) / fetcher(envelope) 두 shape를 isReady gate로 정규화"
+  - target: "[[structural-metrics]]"
+    trigger: "CAGR / MDD / Sharpe — long-horizon 누적 지표 (this-week 아님)"
+
+data_contract:
+  - getPortfolioSummary() → PortfolioSummaryEnvelope
+  - fields: total_value, invested_capital, metrics.{cagr, mdd, volatility, sharpe_ratio}
+  - preloaded ApiResult<PortfolioSummary> 지원
+
+uses_design_components:
+  - Card + CardHeader + CardTitle + CardDescription
+  - 6 metric tile (rounded-lg border) — grid
+
+rendered_in:
+  - location: /portfolio
+    via: lg:col-span-4 우측 컬럼 top (Suspense fallback)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Twin-shape normalization — comment block에서 명시 ("legacy envelope" vs "aggregator
+    ApiResult"). isReady envelope gate로 ready or null. 6-tile grid이지만 chart 없음
+    (순수 number display). CardDescription "not just this week"로 friday surface와
+    의도적으로 대비 — long-horizon cluster의 명시적 anchor.
+
+keywords:
+  - "[[portfolio-summary]]"
+  - "[[structural-metrics]]"
+  - "[[envelope]]"
+  - "[[cagr]]"
+  - "[[mdd]]"
+  - "[[sharpe]]"
+  - "[[long-horizon]]"

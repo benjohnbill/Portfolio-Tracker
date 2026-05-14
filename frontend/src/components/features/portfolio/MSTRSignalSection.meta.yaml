@@ -1,0 +1,42 @@
+name: MSTRSignalSection
+file: frontend/src/components/features/portfolio/MSTRSignalSection.tsx
+
+primary_question: "MSTR의 z-score signal이 현재 어느 zone(AGG BUY / HOLD / PROFIT LOCK / HARD EXIT)인가?"
+
+secondary_questions:
+  - "현재 z-score, mnav_ratio 수치는?"
+  - "MSTR↔DBMF rotation rule이 왜 z-score를 driver로 쓰나?"
+
+connects_to:
+  - target: "[[mstr-zscore]]"
+    trigger: "data fetch + MSTRZScoreChart render"
+  - target: "[[mstr-rotation-rule]]"
+    trigger: "CardDescription에 'MSTR ↔ DBMF rotation' 명시 — rule book 연결"
+  - target: "[[mstr-history]]"
+    trigger: "getMSTRHistory(period) → MSTRHistoryPoint[]"
+
+data_contract:
+  - getMSTRHistory(period) → MSTRHistoryPoint[]
+  - fields: date, z_score, mnav_ratio
+  - upstream: GET /api/mstr/history
+
+uses_design_components:
+  - Card + CardHeader + CardTitle + CardDescription (minimal shell)
+  - MSTRZScoreChart (chart atom 합성)
+
+rendered_in:
+  - location: /portfolio
+    via: Signal Pulse Grid 2nd cell (preloaded via pageData.mstrHistory)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Thinnest data-fetcher in batch — 1 chart atom + 2-line description. MSTR-specific
+    (반대로 AssetSignalSection은 ticker-agnostic). chart atom 자체는 /portfolio 전용
+    surface로만 wrap 됨.
+
+keywords:
+  - "[[mstr-zscore]]"
+  - "[[mstr-history]]"
+  - "[[mstr-rotation-rule]]"
+  - "[[signal-pulse-grid]]"

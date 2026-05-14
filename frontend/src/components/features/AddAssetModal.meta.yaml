@@ -1,0 +1,50 @@
+name: AddAssetModal
+file: frontend/src/components/features/AddAssetModal.tsx
+
+primary_question: "이번 거래(매매 또는 입출금)를 어떻게 portfolio에 기록하나?"
+
+secondary_questions:
+  - "trade(BUY/SELL)와 cashflow(DEPOSIT/WITHDRAW) 입력 폼이 어떻게 갈라지나?"
+  - "어느 account silo(ISA_ETF / OVERSEAS_ETF / BRAZIL_BOND)로 들어가나?"
+  - "심볼 입력 컨벤션(KR ETF 코드 vs 해외 티커)이 뭐였더라?"
+  - "price를 비우면 자동 시세가 채워지나?"
+  - "제출 후 portfolio 화면이 즉시 갱신되나?"
+
+connects_to:
+  - target: "[[transaction]]"
+    trigger: "Submit → POST /api/transactions → router.refresh()"
+  - target: "[[account-silo]]"
+    trigger: "silo 선택 → account_type 자동 추론(ISA_ETF→ISA, 그 외→OVERSEAS)"
+  - target: "[[cashflow]]"
+    trigger: "type=DEPOSIT/WITHDRAW → cash 폼 분기 (symbol/quantity/price 숨김)"
+
+data_contract:
+  - createTransaction(TransactionCreate) → POST /api/transactions
+  - TransactionType: BUY | SELL | DEPOSIT | WITHDRAW
+  - AccountSilo: ISA_ETF | OVERSEAS_ETF | BRAZIL_BOND
+
+uses_design_components:
+  - Sheet (slide-in side panel)
+  - Button (primary submit + outline cancel)
+  - Input (text/number/date)
+
+rendered_in:
+  - location: /portfolio
+    via: page header action row (right-aligned, next to period selector)
+
+pattern_notes:
+  type: "form-input atom"
+  notes: |
+    Inventory 유일한 form-input atom. Type 토글에 따라 form schema가 trade ↔ cashflow로
+    완전히 갈라짐(state-shape switching). Sheet trigger를 atom 안에 둠 — page는 그냥
+    <AddAssetModal /> 하나만 render. Phase 2 navigation grammar에서 "inputs" 클러스터
+    독립 surface(/inputs/add) 후보로 거론될 수 있음.
+
+keywords:
+  - "[[transaction]]"
+  - "[[cashflow]]"
+  - "[[trade]]"
+  - "[[account-silo]]"
+  - "[[symbol]]"
+  - "[[router-refresh]]"
+  - "[[form-input]]"

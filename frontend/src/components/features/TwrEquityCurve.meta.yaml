@@ -1,0 +1,44 @@
+name: TwrEquityCurve
+file: frontend/src/components/features/TwrEquityCurve.tsx
+
+primary_question: "Cashflow-neutral TWR이 SPY benchmark 대비 어떻게 누적되어 왔나?"
+
+secondary_questions:
+  - "두 라인이 indexed-to-100 기준으로 언제 갈라졌나?"
+  - "특정 날짜의 TWR과 SPY 값이 얼마(+x.xx%)였나?"
+  - "benchmark 라인(점선)이 portfolio 라인(파란 실선)과 어떻게 구분되나?"
+
+connects_to:
+  - target: "[[twr]]"
+    trigger: "(passive — time-weighted return rendering)"
+  - target: "[[spy-benchmark]]"
+    trigger: "benchmark_value를 first non-zero로 normalize → indexed to 100"
+  - target: "[[indexed-to-100]]"
+    trigger: "두 series 모두 시작점 100 기준 누적 — direct benchmark 비교 가능"
+
+data_contract:
+  - PerformanceHistoryPoint[] (props)
+  - fields: date, performance_value (= twr), benchmark_value
+  - upstream: GET /api/portfolio/history → history.performance.series
+
+uses_design_components:
+  - Recharts LineChart (2 series, connectNulls)
+  - dashed SPY line (#64748b) + solid TWR line (#60A5FA)
+
+rendered_in:
+  - location: /portfolio
+    via: EquityCurveSection (2nd card "TWR vs SPY"; rendered only when performance.status !== 'unavailable')
+
+pattern_notes:
+  type: "chart atom"
+  notes: |
+    Indexed-to-100 normalization inline (firstBv divisor). Empty data returns null
+    (parent shows unavailable card via status === 'unavailable' gate). Cashflow
+    sterilization happens upstream(briefing_service) — atom just renders.
+
+keywords:
+  - "[[twr]]"
+  - "[[spy-benchmark]]"
+  - "[[indexed-to-100]]"
+  - "[[cashflow-neutral]]"
+  - "[[recharts-line]]"

@@ -1,0 +1,44 @@
+name: NDXTrendChart
+file: frontend/src/components/features/NDXTrendChart.tsx
+
+primary_question: "NDX(또는 다른 ticker) 가격이 250-day MA 위/아래 어느 regime에 있나?"
+
+secondary_questions:
+  - "현재 price vs ma_250 거리(%)는 얼마이고 +/- 방향은?"
+  - "과거 above/below 구간들이 시간 축에서 어떻게 교차해왔나?"
+  - "GROWTH MODE / SAFETY MODE의 binary regime label이 무엇을 의미하나?"
+
+connects_to:
+  - target: "[[ndx-250ma]]"
+    trigger: "(passive — single-ticker MA-trend visualization)"
+  - target: "[[trend-regime]]"
+    trigger: "above/below 250MA가 NDX_2X↔NDX_1X rotation rule의 signal trigger"
+  - target: "[[asset-signal]]"
+    trigger: "AssetSignalSection이 ticker 인자에 따라 QQQ/GLDM/TLT 등을 같은 chart로 재사용"
+
+data_contract:
+  - NDXHistoryPoint[] (props)
+  - fields: date, price, ma_250
+  - upstream: GET /api/asset/{ticker}/history → NDXHistoryPoint[]
+
+uses_design_components:
+  - Recharts LineChart + ReferenceArea (zones)
+  - 2-line composite (price + dashed ma_250)
+
+rendered_in:
+  - location: /portfolio
+    via: AssetSignalSection (reused across QQQ, GLDM, TLT — 3 cells in Signal Pulse Grid)
+
+pattern_notes:
+  type: "chart atom"
+  notes: |
+    Above/below MA를 useMemo로 segment 분할 → ReferenceArea 색칠. Component name is
+    NDX-prefixed for legacy reasons but functionally ticker-agnostic. distPct 계산
+    inline. Colors hardcoded (green/red) — flagged in 1721 audit.
+
+keywords:
+  - "[[ndx-250ma]]"
+  - "[[trend-regime]]"
+  - "[[asset-signal]]"
+  - "[[ndx-rotation-rule]]"
+  - "[[recharts-line]]"

@@ -1,0 +1,44 @@
+name: AssetSignalSection
+file: frontend/src/components/features/portfolio/AssetSignalSection.tsx
+
+primary_question: "지정된 ticker(QQQ / GLDM / TLT)가 자신의 250MA 대비 어느 regime에 있나?"
+
+secondary_questions:
+  - "이 chart가 어느 자산을 보여주는지(title + description)?"
+  - "Period selector를 바꾸면 어떻게 fetch가 갱신되나?"
+  - "preloaded prop이 없을 때 fallback fetch path는?"
+
+connects_to:
+  - target: "[[asset-signal]]"
+    trigger: "ticker prop으로 임의 ticker 시그널 chart에 재사용 (NDX-rotation, GLDM-defensive, TLT-duration)"
+  - target: "[[asset-history]]"
+    trigger: "getAssetHistory(ticker, period) → NDXTrendChart"
+  - target: "[[trend-regime]]"
+    trigger: "underlying NDXTrendChart가 above/below MA zone 시각화"
+
+data_contract:
+  - getAssetHistory(ticker, period) → NDXHistoryPoint[]
+  - props: { ticker, title, description, period, preloaded? }
+  - upstream: GET /api/asset/{ticker}/history
+
+uses_design_components:
+  - Card + CardHeader + CardTitle + CardDescription (uniform shell)
+  - NDXTrendChart (chart atom 합성)
+
+rendered_in:
+  - location: /portfolio
+    via: Signal Pulse Grid의 3개 cell — QQQ ("NDX vs 250MA"), GLDM ("Gold vs 250MA"), TLT ("Bonds vs 250MA")
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Reusable wrapper. ticker / title / description 모두 caller가 결정 — atom 자체는
+    ticker-agnostic. QQQ는 preloaded(page-level aggregate), 나머지 2개는 자체 fetch
+    (현재). pageData에 추가 ticker 묶기는 후속 최적화 후보.
+
+keywords:
+  - "[[asset-signal]]"
+  - "[[asset-history]]"
+  - "[[trend-regime]]"
+  - "[[ticker-agnostic]]"
+  - "[[reusable-wrapper]]"

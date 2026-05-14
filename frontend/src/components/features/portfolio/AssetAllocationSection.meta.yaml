@@ -1,0 +1,45 @@
+name: AssetAllocationSection
+file: frontend/src/components/features/portfolio/AssetAllocationSection.tsx
+
+primary_question: "현재 자산 배분이 Core-6 target과 어떻게 다르고, 계좌별로는 어떻게 silo 돼있나?"
+
+secondary_questions:
+  - "어느 카테고리가 target ±30% 밖으로 drift 됐나? (상단 chart)"
+  - "각 silo(ISA / OVERSEAS / BRAZIL_BOND / PENSION)에 어떤 holdings가 있고 weight는?"
+  - "silo별 총 가치(KRW)는 얼마인가?"
+
+connects_to:
+  - target: "[[portfolio-allocation]]"
+    trigger: "data fetch + render to TargetDeviationChart + silo list"
+  - target: "[[account-silo]]"
+    trigger: "asset.account_silo로 그룹화 → ISA_ETF / OVERSEAS_ETF / BRAZIL_BOND 카드"
+  - target: "[[core-6-target]]"
+    trigger: "TargetDeviationChart에 props.allocation 전달"
+
+data_contract:
+  - getPortfolioAllocation() → PortfolioAllocationData[]
+  - fields: asset, name, quantity, value, weight, account_type, account_silo
+  - preloaded ApiResult<PortfolioAllocationData[]> 지원 (page-level aggregate fetch)
+
+uses_design_components:
+  - Card + CardHeader + CardTitle (2-section composition)
+  - TargetDeviationChart (chart atom 합성)
+  - lucide-react Briefcase, ShieldCheck icons
+
+rendered_in:
+  - location: /portfolio
+    via: 우측 lg:col-span-4 컬럼 (Suspense fallback)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Composition atom — fetcher + 2 sub-sections(deviation chart + silo grid). silo
+    grouping은 reduce inline. siloLabelMap 6 entries (legacy ISA/OVERSEAS도 같이 처리).
+    Holdings row의 weight%, value, name 표시 → drill-down은 아직 없음.
+
+keywords:
+  - "[[portfolio-allocation]]"
+  - "[[account-silo]]"
+  - "[[core-6-target]]"
+  - "[[holdings]]"
+  - "[[silo-grouping]]"

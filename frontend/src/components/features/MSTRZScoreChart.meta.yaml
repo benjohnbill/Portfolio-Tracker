@@ -1,0 +1,44 @@
+name: MSTRZScoreChart
+file: frontend/src/components/features/MSTRZScoreChart.tsx
+
+primary_question: "MSTR z-score가 현재 어느 zone(AGG BUY / HOLD / PROFIT LOCK / HARD EXIT)에 있나?"
+
+secondary_questions:
+  - "z-score 시계열이 zone threshold(0 / 2.0 / 3.5)를 어떻게 넘나들었나?"
+  - "현재 z-score와 mnav_ratio 수치는?"
+  - "status label이 어떤 색·텍스트로 표시되나?"
+
+connects_to:
+  - target: "[[mstr-zscore]]"
+    trigger: "(passive — visual zone classification)"
+  - target: "[[zone-threshold]]"
+    trigger: "ReferenceLine + ReferenceArea가 임계값을 시각화"
+  - target: "[[mstr-rotation-rule]]"
+    trigger: "AGG BUY / PROFIT LOCK / HARD EXIT은 MSTR↔DBMF rotation의 signal trigger"
+
+data_contract:
+  - MSTRHistoryPoint[] (props)
+  - fields: date, z_score, mnav_ratio
+  - upstream: GET /api/mstr/history → MSTRHistoryPoint[]
+
+uses_design_components:
+  - Recharts LineChart + ReferenceLine + ReferenceArea
+  - getStatus() inline classifier (4-zone)
+
+rendered_in:
+  - location: /portfolio
+    via: MSTRSignalSection (Signal Pulse Grid 2nd cell)
+
+pattern_notes:
+  type: "chart atom"
+  notes: |
+    Single-line chart with 3 reference thresholds + 3 colored zones. Inline empty
+    state (chartData.length === 0 fallback text). y-domain dynamic with hard floor
+    -1 / ceiling 4.5. Colors hardcoded (red/orange/green) — flagged in 1721 audit.
+
+keywords:
+  - "[[mstr-zscore]]"
+  - "[[zone-threshold]]"
+  - "[[mnav-ratio]]"
+  - "[[mstr-rotation-rule]]"
+  - "[[recharts-line]]"

@@ -1,0 +1,48 @@
+name: EquityCurveSection
+file: frontend/src/components/features/portfolio/EquityCurveSection.tsx
+
+primary_question: "내 portfolio가 long-horizon으로 어떻게 누적되어 왔고, SPY 대비 어떤가?"
+
+secondary_questions:
+  - "오늘 자 일간 변화(₩, %)는 얼마이고 positive인가?"
+  - "Archive Wealth(cashflow 포함 절대)와 TWR(cashflow-neutral)의 두 곡선이 어떻게 다른가?"
+  - "Performance history가 unavailable일 때 어떻게 표시되나? coverage_start는 언제?"
+
+connects_to:
+  - target: "[[archive-wealth]]"
+    trigger: "history.archive.series → HistoryChart"
+  - target: "[[twr]]"
+    trigger: "history.performance.series → TwrEquityCurve"
+  - target: "[[performance-coverage]]"
+    trigger: "performance.status === 'unavailable' → fallback card with coverage_start"
+  - target: "[[daily-delta]]"
+    trigger: "마지막 두 archive 포인트로 today % 계산 → header pill"
+
+data_contract:
+  - getPortfolioHistory(period) → PortfolioHistoryData
+  - fields: archive.series[], performance.series[], performance.status, performance.coverage_start
+  - preloaded ApiResult<PortfolioHistoryData> 지원
+
+uses_design_components:
+  - Card x2 (Archive Wealth Curve + TWR vs SPY)
+  - HistoryChart + TwrEquityCurve (2 chart atoms 합성)
+  - AlertCircle, Sparkles, TrendingUp icons
+
+rendered_in:
+  - location: /portfolio
+    via: lg:col-span-8 메인 컬럼 top (Suspense fallback)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Multi-display composer — 두 chart atom을 묶음 + daily-delta pill을 header에 합성.
+    performance unavailable gate가 명시적 — partial data 안전. archive 빈 배열도 별도
+    empty card로 처리. Period state는 page에서 URL searchParams로 전달.
+
+keywords:
+  - "[[archive-wealth]]"
+  - "[[twr]]"
+  - "[[spy-benchmark]]"
+  - "[[performance-coverage]]"
+  - "[[daily-delta]]"
+  - "[[indexed-to-100]]"

@@ -90,6 +90,46 @@ class PriceIngestionService:
                 print(f"[{ticker}] Error occurred: {str(e)}")
 
     @staticmethod
+    def backfill_single_symbol(db: Session, asset: Asset, years_back: int = 3) -> int:
+        """
+        One-shot ingestion of historical prices for a single asset.
+        Used when a new asset is registered via POST /api/transactions to
+        avoid waiting for the next daily cron.
+        Returns the number of rows upserted. 5-second soft budget — caller
+        enforces timeout.
+        """
+        end_date = date.today()
+        start_date = end_date - timedelta(days=years_back * 365)
+
+        hist = PriceService.get_historical_prices(
+            asset.symbol,
+            start_date.isoformat(),
+            end_date.isoformat(),
+            source=asset.source,
+        )
+
+        if hist is None or hist.empty:
+            return 0
+
+        inserted = 0
+        for ts, close in hist.items():
+            row_date = ts.date() if hasattr(ts, "date") else ts
+            stmt = insert(RawDailyPrice).values(
+                date=row_date,
+                ticker=asset.symbol,
+                close_price=float(close),
+                ingested_at=datetime.utcnow(),
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["date", "ticker"],
+                set_={"close_price": float(close), "ingested_at": datetime.utcnow()},
+            )
+            db.execute(stmt)
+            inserted += 1
+        db.commit()
+        return inserted
+
+    @staticmethod
     def generate_portfolio_snapshots(db: Session):
         print("Generating portfolio snapshots...")
         history = PortfolioService.get_equity_curve(db, period="all")

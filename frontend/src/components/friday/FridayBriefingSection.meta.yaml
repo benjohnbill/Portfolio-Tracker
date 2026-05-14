@@ -1,0 +1,29 @@
+name: FridayBriefingSection
+file: frontend/src/components/friday/FridayBriefingSection.tsx
+
+primary_question: "지난 freeze 이후 무엇이 변했는가?"
+
+secondary_questions:
+  - "Briefing 페이로드가 실패했을 때 사용자에게 어떻게 알릴까?"
+
+connects_to:
+  - target: "[[since-last-friday-briefing]]"
+    trigger: "RSC fetch 성공 시 SinceLastFridayBriefing 렌더"
+
+data_contract:
+  - GET /api/friday/briefing (FridayBriefingData envelope)
+
+uses_design_components:
+  - rounded-lg empty-state card (envelope failure path)
+
+rendered_in:
+  - location: /friday
+    via: FridayDashboard (Suspense child)
+
+pattern_notes:
+  type: "data-fetcher atom"
+
+keywords:
+  - "[[friday-briefing]]"
+  - "[[envelope]]"
+  - "[[rsc-suspense]]"

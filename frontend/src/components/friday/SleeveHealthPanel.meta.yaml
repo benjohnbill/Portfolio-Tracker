@@ -1,0 +1,46 @@
+name: SleeveHealthPanel
+file: frontend/src/components/friday/SleeveHealthPanel.tsx
+
+primary_question: "각 sleeve의 건강 상태 — drift, 활성 rule, 4주 recency — 를 한 줄에 어떻게 보여주는가?"
+
+secondary_questions:
+  - "Sleeve의 현재 weight / target weight 차이는?"
+  - "이번 주 그 sleeve를 trigger한 rule이 몇 개이고 무엇인가?"
+  - "지난 4주 동안 rule firing이 어떤 패턴이었는가? (sparkline strip)"
+  - "Drift severity color: |drift| > 5% 적색, > 2% amber, 이하 primary"
+
+connects_to:
+  - target: "[[triggered-rules]]"
+    trigger: "Per-sleeve active rules count (deep-link 없음, 향후 후보)"
+
+data_contract:
+  - prop: WeeklyReport.portfolioSnapshot.targetDeviation
+  - prop: WeeklyReport.triggeredRules (with affectedSleeves)
+  - prop: SleeveHistoryData (NDX/DBMF/BRAZIL/MSTR/GLDM/BONDS-CASH)
+
+uses_design_components:
+  - Card, CardContent, CardDescription, CardHeader, CardTitle
+  - lucide Activity icon
+  - 12-column grid row per sleeve
+  - severity bar (1.5h, dynamic width)
+  - recency bar strip (4 weeks)
+
+rendered_in:
+  - location: /friday
+    via: FridaySleeveSection
+
+pattern_notes:
+  type: "multi-question atom"
+  notes: |
+    IA spec §3.1 sample. Sleeve label normalize는 backend
+    _normalize와 lockstep — '-', '_', ' ', '/' 모두 제거.
+
+keywords:
+  - "[[sleeve]]"
+  - "[[target-deviation]]"
+  - "[[triggered-rules]]"
+  - "[[sleeve-history]]"
+  - "[[drift-severity]]"
+  - "[[recency-strip]]"
+  - "[[multi-question]]"
+  - "[[sleeve-label-normalize]]"

@@ -1,0 +1,53 @@
+name: FridaySnapshotPanel
+file: frontend/src/components/friday/FridaySnapshotPanel.tsx
+
+primary_question: "Frozen Friday 이 주의 모든 것 — score / portfolio / allocation / rules / macro / decisions — 를 한 시점 archive로 어떻게 보여주는가?"
+
+secondary_questions:
+  - "Snapshot score breakdown (fit / alignment / posture)이 무엇이었는가?"
+  - "당시 portfolio state와 invested / regime?"
+  - "당시 recommendation stance와 rationale?"
+  - "Allocation drift + target weight + related rule per sleeve?"
+  - "Triggered rules per snapshot? (rule id / severity / message)"
+  - "Macro buckets와 bucket별 summary?"
+  - "Decision journal entries (decisionType / confidences / invalidation / failure mode / threshold)?"
+  - "Weekly comment (A7) — 이 주에 무엇을 느꼈는가?"
+
+connects_to:
+  - target: "[[friday-archive]]"
+    trigger: "backHref/backLabel → /friday/archive 또는 caller-supplied"
+
+data_contract:
+  - prop: WeeklyReport (frozen)
+  - prop: FridaySnapshot['decisions'][]
+  - prop: comment (string | null, A7)
+
+uses_design_components:
+  - Card stack (Snapshot Score, Portfolio State, Recommendation)
+  - Allocation details (collapsible per sleeve)
+  - Triggered Rules card
+  - Macro Regime card
+  - Decision Journal card
+
+rendered_in:
+  - location: /friday (현재 주 frozen view)
+    via: FridayDashboard
+  - location: /friday/archive/[date]
+    via: FridaySnapshotSection
+
+pattern_notes:
+  type: "multi-question atom"
+  notes: |
+    Frozen archive — partial-snapshot safety: 모든 sub-section은
+    null/undefined tolerant (?? fallback). Largest read-only atom.
+
+keywords:
+  - "[[friday-snapshot]]"
+  - "[[snapshot-score]]"
+  - "[[allocation]]"
+  - "[[target-deviation]]"
+  - "[[triggered-rules]]"
+  - "[[macro-snapshot]]"
+  - "[[weekly-decision]]"
+  - "[[weekly-comment]]"
+  - "[[partial-snapshot-safety]]"

@@ -1,0 +1,51 @@
+name: FridayDashboard
+file: frontend/src/components/friday/FridayDashboard.tsx
+
+primary_question: "이번 주를 어떻게 freeze + 결정 + 기록할 것인가?"
+
+secondary_questions:
+  - "현재 weekly score가 직전 freeze 대비 얼마나 움직였는가?"
+  - "이번 freeze에서 어떤 decision을 journal에 남길 것인가? (decision_type, asset, confidence triplet, invalidation, failure mode)"
+  - "지난 주 decision의 slippage (executed_at/price/qty)는 얼마였는가?"
+  - "Macro context cache를 revalidate해야 하는가?"
+
+connects_to:
+  - target: "[[friday-snapshot]]"
+    trigger: "Freeze action → createFridaySnapshot → snapshot list 갱신"
+  - target: "[[weekly-decision]]"
+    trigger: "Decision form submit → createFridayDecision"
+  - target: "[[execution-slippage]]"
+    trigger: "Per-decision slippage form → createFridaySlippage"
+  - target: "[[macro-context]]"
+    trigger: "Macro reveal action → revalidateMacroContext server action"
+
+data_contract:
+  - prop: WeeklyReport (current week)
+  - prop: FridaySnapshotSummary[] (history list)
+  - prop: FridaySnapshot | null (this week's frozen, if any)
+  - mutation: POST /api/friday/snapshots, /api/friday/decisions, /api/friday/slippage
+
+uses_design_components:
+  - Card, CardContent, CardHeader, CardTitle, CardDescription
+  - Button, Input
+  - lucide icons (CalendarDays, CheckCircle2, Clock3, GitCompareArrows, ShieldAlert, Sparkles)
+
+rendered_in:
+  - location: /friday
+    via: FridayReportSection (Suspense child)
+
+pattern_notes:
+  type: "multi-question atom"
+  notes: |
+    Largest atom in friday/ (~1000 lines). Hosts freeze action +
+    decision journal form + per-decision slippage form + score delta
+    hero. Separation candidate (Phase 2-4 scope), not Phase 1.
+
+keywords:
+  - "[[friday-freeze]]"
+  - "[[weekly-decision]]"
+  - "[[execution-slippage]]"
+  - "[[score-delta]]"
+  - "[[confidence-triplet]]"
+  - "[[invalidation]]"
+  - "[[macro-revalidate]]"

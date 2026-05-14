@@ -1,0 +1,35 @@
+name: FridaySleeveSection
+file: frontend/src/components/friday/FridaySleeveSection.tsx
+
+primary_question: "Sleeve별 drift + active signals + 4주 recency를 한 패널에 표시할 데이터를 어떻게 모으는가?"
+
+secondary_questions:
+  - "Sleeve history fetch가 실패해도 패널을 보여줄 수 있는가? (zeros fallback)"
+  - "Report fetch가 실패하면 어떻게 표시할까?"
+
+connects_to:
+  - target: "[[sleeve-health-panel]]"
+    trigger: "Envelope ready → SleeveHealthPanel에 report+sleeveHistory props 주입"
+
+data_contract:
+  - GET /api/friday/sleeve-history?weeks=4 (cached RSC)
+  - GET /api/friday/current (cached RSC)
+
+uses_design_components:
+  - rounded-lg border empty-state (report fetch 실패)
+
+rendered_in:
+  - location: /friday
+    via: FridayDashboard (Suspense child)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Partial-tolerance: sleeve-history 실패는 zeros fallback, report 실패는
+    placeholder. Drift / active rules는 report에서 derive.
+
+keywords:
+  - "[[sleeve-history]]"
+  - "[[weekly-report]]"
+  - "[[envelope]]"
+  - "[[rsc-suspense]]"

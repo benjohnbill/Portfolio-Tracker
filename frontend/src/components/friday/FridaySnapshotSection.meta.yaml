@@ -1,0 +1,33 @@
+name: FridaySnapshotSection
+file: frontend/src/components/friday/FridaySnapshotSection.tsx
+
+primary_question: "특정 날짜의 frozen snapshot을 어떻게 fetch + 표시하는가?"
+
+secondary_questions:
+  - "Snapshot이 해당 날짜에 존재하지 않으면 어떻게 안내하는가?"
+  - "Partial envelope도 패널 렌더에 허용할 것인가? (yes — partial-snapshot safety)"
+
+connects_to:
+  - target: "[[friday-snapshot-panel]]"
+    trigger: "Envelope ready/partial → FridaySnapshotPanel에 frozen report + decisions + comment 주입"
+
+data_contract:
+  - GET /api/friday/snapshot/{date}
+
+uses_design_components:
+  - heading + descriptive empty-state (unavailable path)
+
+rendered_in:
+  - location: /friday/archive/[date]
+    via: route segment
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Envelope partial / ready 모두 렌더. unavailable만 placeholder.
+
+keywords:
+  - "[[friday-snapshot]]"
+  - "[[envelope]]"
+  - "[[partial-snapshot-safety]]"
+  - "[[rsc-suspense]]"

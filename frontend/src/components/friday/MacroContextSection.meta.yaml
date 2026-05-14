@@ -1,0 +1,40 @@
+name: MacroContextSection
+file: frontend/src/components/friday/MacroContextSection.tsx
+
+primary_question: "오늘 macro 상태가 portfolio에 우호적인가, 적대적인가, 중립인가?"
+
+secondary_questions:
+  - "Fit Score는 얼마이고 직전 주 대비 얼마나 변했는가?"
+  - "데이터가 언제 갱신되었는가? (knownAsOf, logic version)"
+  - "더 깊이 보려면 어디로 가야 하는가?"
+
+connects_to:
+  - target: "[[intelligence-macro-context]]"
+    trigger: "'Open in Intelligence →' link → /intelligence/macro-context"
+
+data_contract:
+  - GET /api/macro-context (cached RSC via getMacroContextCached)
+
+uses_design_components:
+  - bg-card rounded-lg section
+  - 3-column grid (state / fit / updated)
+  - Link out
+
+rendered_in:
+  - location: /friday
+    via: page (Suspense child, parallel to other Friday sections)
+
+pattern_notes:
+  type: "gateway-thin atom"
+  notes: |
+    IA spec §3.1 example. 3 metrics only — depth lives at
+    /intelligence/macro-context. State derivation: ≥3 supportive →
+    supportive; ≥3 adverse → adverse; else neutral.
+
+keywords:
+  - "[[macro-context]]"
+  - "[[macro-state]]"
+  - "[[fit-score]]"
+  - "[[causal-map]]"
+  - "[[bucket-state]]"
+  - "[[gateway-thin]]"

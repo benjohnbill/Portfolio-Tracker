@@ -1,0 +1,46 @@
+name: SinceLastFridayBriefing
+file: frontend/src/components/friday/SinceLastFridayBriefing.tsx
+
+primary_question: "직전 freeze 이후 무엇이 일어났는가?"
+
+secondary_questions:
+  - "Regime bucket이 어떻게 transition했는가? (bucket / from / to)"
+  - "어떤 decision outcomes가 mature되었는가? (delta, horizon)"
+  - "Cron alert 통계: success / failed / last failure message?"
+  - "지난 주 weekly comment는 무엇이었는가?"
+
+connects_to:
+  - target: "[[regime-transitions]]"
+    trigger: "Transition list 표시 (현재 surface 내부, 아직 deep-link 없음)"
+  - target: "[[decision-outcomes]]"
+    trigger: "Matured outcomes list (slice 5) — deep-dive는 /intelligence"
+  - target: "[[weekly-comment]]"
+    trigger: "Last snapshot comment 표시"
+
+data_contract:
+  - prop: FridayBriefingData (FridayBriefingSection이 주입)
+
+uses_design_components:
+  - Card, CardContent, CardDescription, CardHeader, CardTitle
+  - lucide icons (AlertTriangle, CheckCircle2, Clock3, MessageSquare)
+  - rounded-lg bg-background sub-cards
+  - border-l-2 callout (last weekly comment)
+
+rendered_in:
+  - location: /friday
+    via: FridayBriefingSection
+
+pattern_notes:
+  type: "multi-question atom"
+  notes: |
+    IA spec §3.1 example. 4 question lenses merged because cross-lens
+    "since freeze" narrative loses value when split. sinceDate가 null이면
+    empty-state.
+
+keywords:
+  - "[[friday-briefing]]"
+  - "[[regime-transitions]]"
+  - "[[decision-outcomes]]"
+  - "[[cron-alert-history]]"
+  - "[[weekly-comment]]"
+  - "[[multi-question]]"

@@ -1,0 +1,36 @@
+name: FridayReportSection
+file: frontend/src/components/friday/FridayReportSection.tsx
+
+primary_question: "이번 주 weekly report를 어떻게 가져와서 dashboard에 넘기는가?"
+
+secondary_questions:
+  - "현재 주차 freeze가 이미 존재하면 그 snapshot도 함께 fetch할까?"
+  - "Report fetch 실패 시 어떤 fallback을 보여줄까?"
+
+connects_to:
+  - target: "[[friday-dashboard]]"
+    trigger: "Envelope ready → FridayDashboard에 report+snapshots+currentSnapshot props 주입"
+
+data_contract:
+  - GET /api/friday/current (cached RSC)
+  - GET /api/friday/snapshots (cached RSC)
+  - GET /api/friday/snapshot/{date} (조건부 — 이번주 freeze 있을 때만)
+
+uses_design_components:
+  - rounded-lg border empty-state (envelope failure)
+
+rendered_in:
+  - location: /friday
+    via: FridayDashboard (Suspense child)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Conditional sequential await after Promise.all — getFridaySnapshot
+    runs only if snapshots list confirms current week is frozen.
+
+keywords:
+  - "[[weekly-report]]"
+  - "[[friday-snapshot]]"
+  - "[[envelope]]"
+  - "[[rsc-suspense]]"

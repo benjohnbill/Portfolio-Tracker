@@ -1,5 +1,6 @@
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
@@ -240,6 +241,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     if not asset and is_kr:
         asset = db.query(Asset).filter(Asset.code == symbol_upper, Asset.source == "KR").first()
 
+    newly_created_asset = False
     if not asset:
         source = "KR" if is_kr else "US"
         asset = Asset(
@@ -253,6 +255,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         db.add(asset)
         db.commit()
         db.refresh(asset)
+        newly_created_asset = True
     else:
         source = asset.source
 
@@ -266,7 +269,25 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
         db.add(asset)
     db.commit()
     db.refresh(asset)
-         
+
+    # 1b. Backfill historical prices synchronously for newly registered assets
+    # (5s budget). On timeout/failure the daily cron picks up the gap.
+    if newly_created_asset:
+        try:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(
+                    PriceIngestionService.backfill_single_symbol, db, asset
+                )
+                future.result(timeout=5.0)
+        except FuturesTimeoutError:
+            logger.warning(
+                "backfill_single_symbol timed out for %s", asset.symbol
+            )
+        except Exception as e:
+            logger.warning(
+                "backfill_single_symbol failed for %s", asset.symbol, exc_info=e
+            )
+
     # 2. Auto-fetch price if not provided
     final_price = tx.price
     if not final_price or final_price <= 0:

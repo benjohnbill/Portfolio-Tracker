@@ -1,6 +1,5 @@
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
@@ -270,19 +269,12 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(asset)
 
-    # 1b. Backfill historical prices synchronously for newly registered assets
-    # (5s budget). On timeout/failure the daily cron picks up the gap.
+    # 1b. Backfill historical prices for newly registered assets.
+    # Synchronous call — bounded by yfinance's own response time (typically
+    # 1-3s for 3y of daily closes). On failure the daily cron picks up the gap.
     if newly_created_asset:
         try:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(
-                    PriceIngestionService.backfill_single_symbol, db, asset
-                )
-                future.result(timeout=5.0)
-        except FuturesTimeoutError:
-            logger.warning(
-                "backfill_single_symbol timed out for %s", asset.symbol
-            )
+            PriceIngestionService.backfill_single_symbol(db, asset)
         except Exception as e:
             logger.warning(
                 "backfill_single_symbol failed for %s", asset.symbol, exc_info=e

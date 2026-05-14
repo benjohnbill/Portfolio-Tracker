@@ -116,11 +116,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/api/healthz")
+@app.api_route("/api/healthz", methods=["GET", "HEAD"])
 def healthz():
     """Lightweight health-check for external uptime pings.
     Intentionally does not touch the DB or any external API so a 5-minute
-    ping schedule generates no load and never blocks on cold-start IO."""
+    ping schedule generates no load and never blocks on cold-start IO.
+    Accepts HEAD as well so UptimeRobot's default HEAD method works."""
     return {"status": "ok"}
 
 

@@ -3,45 +3,40 @@ import FinanceDataReader as fdr
 from datetime import datetime, timedelta, date
 from typing import Tuple, Dict
 import pandas as pd
+from sqlalchemy.orm import Session
 
-# Module-level cache for the current backend process. Keyed by
-# (symbol, source, ISO date). Day rollover invalidates automatically
-# because the date component changes; no TTL mechanism needed.
+from ..models import RawDailyPrice
+
+# Module-level cache. Keyed by (symbol, source, ISO date).
+# Day rollover invalidates automatically.
 _PRICE_CACHE: Dict[Tuple[str, str, str], float] = {}
 
 
 class PriceService:
     @staticmethod
-    def get_current_price(symbol: str, source: str = "US") -> float:
+    def get_current_price(db: Session, symbol: str, source: str = "US") -> float:
         """
-        Fetches the latest closing price for a given symbol.
-        source: "US" for Yahoo Finance, "KR" for FinanceDataReader.
-        Same-day calls reuse a process-local cache.
+        Returns the latest close price for `symbol` from RawDailyPrice.
+        DB is source of truth — populated by the daily cron pipeline.
+        Returns 0.0 when no row exists for the symbol.
+        Caller decides how to handle 0.0 (e.g. trigger backfill).
         """
         cache_key = (symbol, source, date.today().isoformat())
         if cache_key in _PRICE_CACHE:
             return _PRICE_CACHE[cache_key]
 
-        try:
-            if source == "US":
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(period="1d")
-                if not data.empty:
-                    price = float(data['Close'].iloc[-1])
-                    _PRICE_CACHE[cache_key] = price
-                    return price
-
-            elif source == "KR":
-                df = fdr.DataReader(symbol, (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
-                if not df.empty:
-                    price = float(df['Close'].iloc[-1])
-                    _PRICE_CACHE[cache_key] = price
-                    return price
-
+        row = (
+            db.query(RawDailyPrice)
+            .filter(RawDailyPrice.ticker == symbol)
+            .order_by(RawDailyPrice.date.desc())
+            .first()
+        )
+        if row is None:
             return 0.0
-        except Exception as e:
-            print(f"Error fetching price for {symbol}: {e}")
-            return 0.0
+
+        price = float(row.close_price)
+        _PRICE_CACHE[cache_key] = price
+        return price
 
     @staticmethod
     def get_historical_prices(symbol: str, start_date: str, end_date: str, source: str = "US"):

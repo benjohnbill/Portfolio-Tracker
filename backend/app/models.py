@@ -52,6 +52,7 @@ class RawDailyPrice(Base):
     date = Column(Date, primary_key=True)
     ticker = Column(String, primary_key=True)
     close_price = Column(Float)
+    ingested_at = Column(DateTime, nullable=True)
 
 class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"

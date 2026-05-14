@@ -57,6 +57,7 @@ class PriceIngestionService:
                     continue
 
                 records = []
+                ingestion_ts = datetime.utcnow()
                 for index, close_price in price_history.dropna().items():
                     record_date = index.date() if hasattr(index, "date") else pd.Timestamp(index).date()
                     # Filter out records that are before start_date (just in case) or in the future
@@ -64,7 +65,8 @@ class PriceIngestionService:
                         records.append({
                             "date": record_date,
                             "ticker": ticker,
-                            "close_price": float(close_price)
+                            "close_price": float(close_price),
+                            "ingested_at": ingestion_ts,
                         })
 
                 if records:
@@ -72,7 +74,10 @@ class PriceIngestionService:
                     # Use on_conflict_do_update to save or update fetched close_price gracefully
                     stmt = stmt.on_conflict_do_update(
                         index_elements=['date', 'ticker'],
-                        set_={'close_price': stmt.excluded.close_price}
+                        set_={
+                            'close_price': stmt.excluded.close_price,
+                            'ingested_at': stmt.excluded.ingested_at,
+                        }
                     )
                     db.execute(stmt)
                     db.commit()

@@ -95,8 +95,9 @@ class PriceIngestionService:
         One-shot ingestion of historical prices for a single asset.
         Used when a new asset is registered via POST /api/transactions to
         avoid waiting for the next daily cron.
-        Returns the number of rows upserted. 5-second soft budget — caller
-        enforces timeout.
+        Returns the number of rows upserted. Synchronous, no enforced timeout
+        — bounded by yfinance's own response (~1-3s for 3y daily). On
+        exception the caller logs and continues; daily cron picks up the gap.
         """
         end_date = date.today()
         start_date = end_date - timedelta(days=years_back * 365)

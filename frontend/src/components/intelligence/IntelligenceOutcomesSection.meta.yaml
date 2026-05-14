@@ -1,0 +1,31 @@
+name: IntelligenceOutcomesSection
+file: frontend/src/components/intelligence/IntelligenceOutcomesSection.tsx
+
+primary_question: "Decision outcomes 데이터가 도착했나? → OutcomesView로 위임."
+
+secondary_questions:
+  - "envelope unavailable일 때 사용자에게 어떤 메시지를 보여주나?"
+
+connects_to:
+  - target: "[[decision-outcomes]]"
+    trigger: "envelope ready → OutcomesView(initialOutcomes) 렌더"
+
+data_contract:
+  - getIntelligenceOutcomesCached() → envelope.outcomes: DecisionOutcomeData[]
+  - isReady(envelope) gate
+
+uses_design_components:
+  - OutcomesView (client child)
+  - fallback card (envelope error message)
+
+rendered_in:
+  - location: /intelligence/outcomes
+    via: page.tsx (Suspense wrapped)
+
+pattern_notes:
+  type: "data-fetcher atom — minimal RSC shell, no UI of its own beyond fallback"
+
+keywords:
+  - "[[data-fetcher]]"
+  - "[[envelope]]"
+  - "[[decision-outcomes]]"

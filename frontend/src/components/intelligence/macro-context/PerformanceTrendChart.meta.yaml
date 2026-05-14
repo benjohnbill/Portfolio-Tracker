@@ -1,0 +1,31 @@
+name: PerformanceTrendChart
+file: frontend/src/components/intelligence/macro-context/PerformanceTrendChart.tsx
+
+primary_question: "주 단위 total score(0-100)는 시간에 따라 어떻게 움직였나?"
+
+secondary_questions:
+  - "Frozen score가 아직 0개일 때 어떻게 안내하나?"
+  - "각 포인트 hover 시 점수가 정확히 몇 점인가?"
+
+connects_to:
+  - target: "[[score-attribution]]"
+    trigger: "trends[*].totalScore → area gradient + 호버 tooltip"
+
+data_contract:
+  - trends: WeeklyScoreHistory[]{weekEnding, totalScore|null}
+
+uses_design_components:
+  - recharts AreaChart (single series, gold gradient fill)
+  - bg-card h-48
+
+rendered_in:
+  - location: /intelligence/macro-context
+    via: PerformanceSection footer (page.tsx)
+
+pattern_notes:
+  type: "chart atom — minimal sparkline-like trend. Axes hidden; only series + tooltip surface meaningful values."
+
+keywords:
+  - "[[performance-trend]]"
+  - "[[total-score]]"
+  - "[[score-history]]"

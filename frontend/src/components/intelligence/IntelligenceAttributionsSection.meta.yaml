@@ -1,0 +1,37 @@
+name: IntelligenceAttributionsSection
+file: frontend/src/components/intelligence/IntelligenceAttributionsSection.tsx
+
+primary_question: "내 attribution 데이터가 도착했나? (envelope ready check)"
+
+secondary_questions:
+  - "어느 정도의 데이터 밀도(주 수)가 있나? — DataDensityBadge"
+  - "Heatmap + chart-table view를 묶어 한 surface로 노출할 수 있나?"
+
+connects_to:
+  - target: "[[score-attribution]]"
+    trigger: "envelope ready → AttributionsView 렌더 / pending → 빈 안내"
+  - target: "[[contribution-heatmap]]"
+    trigger: "동일 attribution 데이터 → ContributionHeatmap 렌더"
+
+data_contract:
+  - getIntelligenceAttributionsCached() → envelope.attributions: AttributionData[]
+  - isReady(envelope) — envelope.ts pattern (loaded/pending/empty branches)
+
+uses_design_components:
+  - DataDensityBadge (IntelligenceSharedUI)
+  - ContributionHeatmap (IntelligenceSharedUI)
+  - AttributionsView (client child)
+
+rendered_in:
+  - location: /intelligence/attributions
+    via: page.tsx (Suspense wrapped)
+
+pattern_notes:
+  type: "data-fetcher atom — RSC envelope guard + 3-child composition. regimeHistory hardcoded [] (TODO: wire to IntelligenceRegimeHistorySection)"
+
+keywords:
+  - "[[data-fetcher]]"
+  - "[[envelope]]"
+  - "[[data-density]]"
+  - "[[contribution-heatmap]]"
+  - "[[score-attribution]]"

@@ -1,0 +1,37 @@
+name: IntelligenceSharedUI
+file: frontend/src/components/intelligence/IntelligenceSharedUI.tsx
+
+primary_question: "Attribution-derived 보조 시각화 2개(DataDensityBadge + ContributionHeatmap)를 어디서 재사용하나?"
+
+secondary_questions:
+  - "DataDensityBadge — 분석된 주(week) 수에 따라 어느 데이터-성숙도 단계인가? (<4 / <12 / ≥12)"
+  - "ContributionHeatmap — 지난 52주 score를 한 눈에 보이는 grid로 어떻게 그리나?"
+
+connects_to:
+  - target: "[[score-attribution]]"
+    trigger: "ContributionHeatmap 셀 hover → tooltip (date · score/100)"
+  - target: "[[data-density]]"
+    trigger: "weeks prop으로 단계 분기 (getting started / early data / analyzed)"
+
+data_contract:
+  - DataDensityBadge: { weeks: number }
+  - ContributionHeatmap: { attributions: AttributionData[] } — 마지막 52개 사용
+
+uses_design_components:
+  - rounded-full badge (3 variants: muted / amber / emerald)
+  - 52-cell heatmap grid (inline rgba opacity from totalScore/100)
+
+rendered_in:
+  - location: /intelligence
+    via: page.tsx Hero (DataDensityBadge) + Heatmap section (ContributionHeatmap)
+  - location: /intelligence/attributions
+    via: IntelligenceAttributionsSection (both)
+
+pattern_notes:
+  type: "utility — 2 mini-atom 묶음 (DataDensityBadge + ContributionHeatmap). Option A per Plan §Task 2.1: keep 1:1 file:meta mapping; split-candidate flagged if Phase 2-4 refactor splits the .tsx"
+
+keywords:
+  - "[[data-density]]"
+  - "[[contribution-heatmap]]"
+  - "[[score-attribution]]"
+  - "[[shared-ui]]"

@@ -1,0 +1,37 @@
+name: RulesView
+file: frontend/src/components/intelligence/RulesView.tsx
+
+primary_question: "각 rule이 몇 번 발화했고, 발화 시 내가 얼마나 따랐나? (follow rate)"
+
+secondary_questions:
+  - "전체 fire 횟수 / 전체 follow rate 한 줄 summary는?"
+  - "Rule 별 severity(critical/high/medium/low)는 어떻게 분포하나?"
+  - "Followed / Ignored / Pending 분해 — 어떤 rule이 가장 무시되었나?"
+  - "Limited data(< 3 fires) rule을 시각적으로 구분하나?"
+
+connects_to:
+  - target: "[[rule-accuracy]]"
+    trigger: "table row 렌더 (ruleId · severity · fired · followed · ignored · pending · followRate)"
+  - target: "[[triggered-rules]]"
+    trigger: "동일 ruleId 공간 — Friday 발화 ↔ 누적 정확도"
+
+data_contract:
+  - ruleAccuracy: RuleAccuracyData[]{ruleId, severity, timesFired, timesFollowed, timesIgnored, timesPending, followRate|null}
+
+uses_design_components:
+  - SeverityBadge (4-color map: critical red / high amber / medium blue / low emerald)
+  - table (7 cols)
+  - hero stats line (totalFired · overall follow rate)
+
+rendered_in:
+  - location: /intelligence/rules
+    via: IntelligenceRulesSection
+
+pattern_notes:
+  type: "multi-question atom — owns h1, hero, table. Pure display (no client-side filters yet)"
+
+keywords:
+  - "[[rule-accuracy]]"
+  - "[[follow-rate]]"
+  - "[[severity]]"
+  - "[[triggered-rules]]"

@@ -1,0 +1,33 @@
+name: CalmarTrajectoryPlaceholder
+file: frontend/src/components/intelligence/CalmarTrajectoryPlaceholder.tsx
+
+primary_question: "장기 risk-adjusted trajectory를 그릴 만큼 freeze가 충분히 쌓였나?"
+
+secondary_questions:
+  - "현재 누적 freeze 수가 maturity gate(52주) 대비 어디쯤인가?"
+  - "Trajectory가 열리면 어떤 decision marker가 표시될 것인가? (preview)"
+
+connects_to:
+  - target: "[[risk-adjusted-scorecard]]"
+    trigger: "동일 maturity-gate 패밀리 — gate 통과 시 본격 chart 활성화"
+
+data_contract:
+  - GET /api/intelligence/calmar-trajectory → CalmarTrajectoryPayload{status, ready, based_on_freezes, required_weeks, points[], decision_markers[]}
+  - client-side fetch via fetchCalmarTrajectory() in useEffect
+
+uses_design_components:
+  - section card (rounded-lg + border)
+  - header with freeze-count badge
+
+rendered_in:
+  - location: /intelligence
+    via: page.tsx (mounted directly, self-fetching client component — no Suspense wrapper)
+
+pattern_notes:
+  type: "gateway-thin atom — pre-maturity placeholder; carries data-density message until gate opens. Self-fetching (no RSC wrapper)."
+
+keywords:
+  - "[[calmar]]"
+  - "[[maturity-gate]]"
+  - "[[freeze-count]]"
+  - "[[risk-adjusted-scorecard]]"

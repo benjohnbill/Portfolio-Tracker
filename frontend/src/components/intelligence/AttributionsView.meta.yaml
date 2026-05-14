@@ -1,0 +1,38 @@
+name: AttributionsView
+file: frontend/src/components/intelligence/AttributionsView.tsx
+
+primary_question: "내 주간 score는 fit / alignment / posture 어떤 축에서 만들어졌나?"
+
+secondary_questions:
+  - "Score 분해가 시간에 따라 어떻게 변했나?"
+  - "어느 fit bucket이 가장 잘 / 가장 못 점수를 냈나? (4-week / best / worst)"
+  - "Regime 전환 시점과 score 변화는 겹치나?"
+  - "기간(3M / 6M / 1Y / All) 별로 분해 패턴이 달라지나?"
+
+connects_to:
+  - target: "[[score-attribution]]"
+    trigger: "기간 selector / regime overlay toggle — view-local state"
+  - target: "[[regime-transitions]]"
+    trigger: "Regime overlay → reference line as visual cue"
+
+data_contract:
+  - attributions: AttributionData[] (snapshotDate, fit{score, liquidity, rates, inflation, growth, stress}, alignment.score, posture.score, totalScore)
+  - regimeHistory: RegimeTransitionData[] (date markers for overlay)
+
+uses_design_components:
+  - recharts AreaChart (stacked)
+  - recharts ReferenceLine (regime overlay)
+
+rendered_in:
+  - location: /intelligence/attributions
+    via: IntelligenceAttributionsSection
+
+pattern_notes:
+  type: "chart atom — multi-stack + table hybrid; owns its h1 per D8 convention (page-level hero omitted)"
+
+keywords:
+  - "[[score-attribution]]"
+  - "[[fit-bucket]]"
+  - "[[alignment]]"
+  - "[[posture]]"
+  - "[[regime-transitions]]"

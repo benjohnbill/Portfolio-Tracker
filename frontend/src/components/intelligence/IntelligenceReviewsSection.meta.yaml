@@ -1,0 +1,32 @@
+name: IntelligenceReviewsSection
+file: frontend/src/components/intelligence/IntelligenceReviewsSection.tsx
+
+primary_question: "Periodic-review summary가 도착했나? → ReviewsView로 위임."
+
+secondary_questions:
+  - "envelope unavailable일 때 fallback 메시지는?"
+
+connects_to:
+  - target: "[[review-summary]]"
+    trigger: "envelope ready → ReviewsView(summary) 렌더"
+
+data_contract:
+  - getReviewSummary() → envelope.summary: ReviewSummaryData{months[], quarters[], years[], totalWeeks}
+  - isReady(envelope) gate
+
+uses_design_components:
+  - ReviewsView (client child)
+  - fallback card
+
+rendered_in:
+  - location: /intelligence/reviews
+    via: page.tsx (Suspense wrapped)
+
+pattern_notes:
+  type: "data-fetcher atom — thin RSC shell. NOTE: uses getReviewSummary() not cached fetcher (review-summary unlikely hot, may be intentional)"
+
+keywords:
+  - "[[data-fetcher]]"
+  - "[[envelope]]"
+  - "[[review-summary]]"
+  - "[[periodic-review]]"

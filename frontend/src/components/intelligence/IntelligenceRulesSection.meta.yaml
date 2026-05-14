@@ -1,0 +1,31 @@
+name: IntelligenceRulesSection
+file: frontend/src/components/intelligence/IntelligenceRulesSection.tsx
+
+primary_question: "Rule-accuracy 데이터가 도착했나? → RulesView로 위임."
+
+secondary_questions:
+  - "envelope unavailable일 때 어떻게 안내하나?"
+
+connects_to:
+  - target: "[[rule-accuracy]]"
+    trigger: "envelope ready → RulesView(ruleAccuracy) 렌더"
+
+data_contract:
+  - getIntelligenceRuleAccuracyCached() → envelope.rules: RuleAccuracyData[]
+  - isReady(envelope) gate
+
+uses_design_components:
+  - RulesView (client child)
+  - fallback card
+
+rendered_in:
+  - location: /intelligence/rules
+    via: page.tsx (Suspense wrapped)
+
+pattern_notes:
+  type: "data-fetcher atom — symmetric to outcomes/reviews sections"
+
+keywords:
+  - "[[data-fetcher]]"
+  - "[[envelope]]"
+  - "[[rule-accuracy]]"

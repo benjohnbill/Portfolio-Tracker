@@ -1,0 +1,41 @@
+name: CausalMapSection
+file: frontend/src/components/intelligence/macro-context/CausalMapSection.tsx
+
+primary_question: "Indicators → Buckets → Sleeves → Composite의 인과 흐름이 이번 주에 어떻게 작동했나?"
+
+secondary_questions:
+  - "각 bucket의 현재 state(supportive/neutral/adverse)는?"
+  - "Bucket 별 matched rule + 획득 points(예: +12/30)와 그 narrative는?"
+  - "Bucket이 어느 sleeve에 어떤 compatibility band(under/at/above)를 주었나?"
+  - "Composite breakdown (Fit 30 / Alignment 30 / Posture 40 → Total 100)은 어떻게 나뉘나?"
+
+connects_to:
+  - target: "[[macro-context]]"
+    trigger: "/api/macro-context envelope → 4-column hover-linked view"
+  - target: "[[bucket-state-derivation]]"
+    trigger: "Bucket state mouseEnter → 다른 3 column 동일 bucket row hover sync"
+  - target: "[[sleeve-compatibility]]"
+    trigger: "sleeveImpacts column에서 sleeve:band 표시"
+
+data_contract:
+  - causalMap: MacroContext['causalMap']{currentBucketStates[], bucketRules[]{bucket, points, rule.pointsFullMatch, narrative}, sleeveImpacts[]{bucket, sleeves[]{sleeve, compatibilityBand}}}
+  - performance: MacroContext['performance']{fit.score, alignment.score, posture.score, lastTotal}
+
+uses_design_components:
+  - 4-column grid (bg-card rounded-lg)
+  - cross-column hover sync via single highlight state
+
+rendered_in:
+  - location: /intelligence/macro-context
+    via: CausalMapAsync (page.tsx RSC wrapper around macroContext fetch)
+
+pattern_notes:
+  type: "multi-question atom — composer level, stays whole per Plan §Task 2.1 ('Don't fragment'). 4 sub-columns answer 4 facets of one inquiry."
+
+keywords:
+  - "[[macro-context]]"
+  - "[[causal-map]]"
+  - "[[bucket-state]]"
+  - "[[sleeve-compatibility]]"
+  - "[[compatibility-band]]"
+  - "[[composite-breakdown]]"

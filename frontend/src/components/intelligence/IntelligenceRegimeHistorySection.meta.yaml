@@ -1,0 +1,34 @@
+name: IntelligenceRegimeHistorySection
+file: frontend/src/components/intelligence/IntelligenceRegimeHistorySection.tsx
+
+primary_question: "지난 weeks 동안 어떤 regime transition이 일어났나?"
+
+secondary_questions:
+  - "각 transition의 date / from-state / to-state는 무엇인가?"
+  - "Transition이 없거나 envelope이 unavailable일 때 어떻게 안내하나?"
+
+connects_to:
+  - target: "[[regime-transitions]]"
+    trigger: "transitions list 렌더 (date · from → to)"
+  - target: "[[score-attribution]]"
+    trigger: "같은 페이지의 AttributionsView regime overlay와 lockstep"
+
+data_contract:
+  - getIntelligenceRegimeHistoryCached() → envelope.transitions: RegimeTransitionData[]{date, from, to}
+  - isReady(envelope) + empty-array gate
+
+uses_design_components:
+  - inline list (text-based, no chart)
+  - section header (h2 uppercase tracking-wider)
+
+rendered_in:
+  - location: /intelligence/attributions
+    via: page.tsx (Suspense wrapped, alongside IntelligenceAttributionsSection)
+
+pattern_notes:
+  type: "data-fetcher atom — fully renders its own list (no display-atom delegate)"
+
+keywords:
+  - "[[data-fetcher]]"
+  - "[[envelope]]"
+  - "[[regime-transitions]]"

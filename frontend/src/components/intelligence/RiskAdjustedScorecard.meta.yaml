@@ -1,0 +1,39 @@
+name: RiskAdjustedScorecard
+file: frontend/src/components/intelligence/RiskAdjustedScorecard.tsx
+
+primary_question: "6M / 1Y / ITD 구간 별 portfolio의 risk-adjusted 성과가 SPY-KRW 대비 어떤가?"
+
+secondary_questions:
+  - "Maturity gate(26주 default) 통과했나? — 미통과 시 'Accumulating' 안내"
+  - "CAGR / MDD / SD / Sharpe / Calmar / Sortino 6 metric 각각 어떤 값인가?"
+
+connects_to:
+  - target: "[[risk-adjusted-scorecard]]"
+    trigger: "metric table 렌더 (portfolio vs spy_krw 병기)"
+  - target: "[[maturity-gate]]"
+    trigger: "based_on_freezes / required_weeks 진행도 노출"
+
+data_contract:
+  - payload: RiskAdjustedScorecardPayload{status, ready, based_on_freezes, maturity_gate{required_weeks, current_weeks, ready}, horizons{6M, 1Y, ITD}.{portfolio, spy_krw}.{cagr,mdd,sd,sharpe,calmar,sortino}}
+  - upstream: GET /api/intelligence/risk-adjusted via fetchRiskAdjustedScorecard()
+
+uses_design_components:
+  - section card
+  - metric table (6 rows × 3 horizons)
+
+rendered_in:
+  - location: /intelligence/risk-adjusted
+    via: page.tsx (client component, useEffect-based fetch — distinct from RSC pattern elsewhere)
+
+pattern_notes:
+  type: "chart atom — table-shaped scorecard. Page is client (useEffect+fetch) not RSC: legacy holdover from earlier UX-1 phase. Migration candidate to RSC."
+
+keywords:
+  - "[[risk-adjusted-scorecard]]"
+  - "[[maturity-gate]]"
+  - "[[cagr]]"
+  - "[[sharpe]]"
+  - "[[calmar]]"
+  - "[[sortino]]"
+  - "[[mdd]]"
+  - "[[spy-krw]]"

@@ -1,0 +1,39 @@
+name: OutcomesView
+file: frontend/src/components/intelligence/OutcomesView.tsx
+
+primary_question: "지난 주간 decision들의 성과(outcome delta)는 horizon 별로 어땠나?"
+
+secondary_questions:
+  - "Decision은 총 몇 건이고, 그 중 mature된 건 몇 건인가? (Total / Evaluated)"
+  - "평균 outcome delta는 양수인가 음수인가? (Avg Outcome)"
+  - "각 decision의 confidence / score-delta / regime-shift 마커는 어떻게 보이나?"
+  - "Horizon 필터(All/1w/1m/3m/6m/1y) 별로 outcome 분포가 어떻게 달라지나?"
+
+connects_to:
+  - target: "[[decision-outcomes]]"
+    trigger: "Horizon chip click → getIntelligenceOutcomes(h) refetch + 상태 갱신"
+  - target: "[[regime-transitions]]"
+    trigger: "regimeChanged === 'true' → 'regime shift' 마커 표시"
+
+data_contract:
+  - initialOutcomes: DecisionOutcomeData[]{snapshotDate, decision{type, assetTicker, confidenceVsSpyRiskadj}, horizon, outcomeDeltaPct|null, scoreDelta|null, regimeChanged}
+  - getIntelligenceOutcomes(horizon?) re-fetch on horizon change
+
+uses_design_components:
+  - 3-card stats row
+  - OutcomeBadge (Pending / +x% / -x%)
+  - skeleton-pulse during loading
+
+rendered_in:
+  - location: /intelligence/outcomes
+    via: IntelligenceOutcomesSection
+
+pattern_notes:
+  type: "multi-question atom — owns h1, stats row, list. Hosts both summary stats AND per-decision detail in one view (separation candidate noted)"
+
+keywords:
+  - "[[decision-outcomes]]"
+  - "[[horizon-filter]]"
+  - "[[outcome-delta]]"
+  - "[[regime-shift]]"
+  - "[[score-delta]]"

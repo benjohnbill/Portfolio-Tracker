@@ -1,0 +1,42 @@
+name: IndicatorCard
+file: frontend/src/components/intelligence/macro-context/IndicatorCard.tsx
+
+primary_question: "이 한 indicator의 현재 값과 의미(definition / methodology / why-it-matters)는?"
+
+secondary_questions:
+  - "어느 bucket(LIQ/RAT/INF/GRO/STR)에 속하나? — bucket abbreviation"
+  - "현재 state는 supportive / neutral / adverse 중 무엇? — state badge"
+  - "Lead/lag tier(strong lead 12-18M / mid 6-12M / coincident / weak lag / quarterly)은?"
+  - "Core indicator인가? (CORE 마커)"
+  - "Threshold rationale + 출처는? (tooltip footer)"
+
+connects_to:
+  - target: "[[macro-indicator]]"
+    trigger: "Card hover → Radix tooltip(definition / methodology / whyItMatters / threshold)"
+  - target: "[[lead-lag-tier]]"
+    trigger: "leadLagTier 라벨 표시 (TIER_LABEL map)"
+  - target: "[[core-indicator]]"
+    trigger: "coreIndicator true → CORE eyebrow"
+
+data_contract:
+  - indicator: IndicatorWithMeta{key, bucket, label, value|null, unit, state, leadLagTier|null, coreIndicator, definition, methodology, whyItMatters, thresholdRationale, thresholdRationaleSource}
+
+uses_design_components:
+  - ui/tooltip (Radix-based)
+  - state badge (3-color: supportive/neutral/adverse)
+  - core-indicator eyebrow
+
+rendered_in:
+  - location: /intelligence/macro-context
+    via: IndicatorsSection (page.tsx — grid of ~13 cards)
+
+pattern_notes:
+  type: "multi-question atom (IA spec example) — surface(card)와 depth(tooltip)이 한 컴포넌트에서 동거. 값 표시 + 의미 설명 분리하면 학습 흐름 끊어짐."
+
+keywords:
+  - "[[macro-indicator]]"
+  - "[[indicator-bucket]]"
+  - "[[indicator-state]]"
+  - "[[lead-lag-tier]]"
+  - "[[core-indicator]]"
+  - "[[threshold-rationale]]"

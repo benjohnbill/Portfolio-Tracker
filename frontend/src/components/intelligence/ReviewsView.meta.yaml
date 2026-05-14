@@ -1,0 +1,37 @@
+name: ReviewsView
+file: frontend/src/components/intelligence/ReviewsView.tsx
+
+primary_question: "월별 / 분기별 / 연도별 score 통계(avg/min/max/trend)는 어떻게 변했나?"
+
+secondary_questions:
+  - "어느 기간 단위(monthly/quarterly/annual)로 볼 것인가?"
+  - "특정 기간을 클릭하면 그 기간의 fit/alignment/posture 평균 + 발화 rule 수가 보이나?"
+  - "데이터가 충분한가? (totalWeeks 노출)"
+
+connects_to:
+  - target: "[[review-summary]]"
+    trigger: "PeriodType chip → summary.months/quarters/years 분기"
+  - target: "[[review-aggregation]]"
+    trigger: "Period chip click → getMonthlyReview/getQuarterlyReview/getAnnualReview fetch"
+
+data_contract:
+  - summary: ReviewSummaryData{months[], quarters[], years[], totalWeeks}
+  - on-demand: ReviewAggregation{period, count, scores{avg,min,max,trend}, fit{avg}, alignment{avg}, posture{avg}, ruleStats[]}
+
+uses_design_components:
+  - period-type segmented control (monthly/quarterly/annual)
+  - period chip list
+  - AggregationCard (4-stat grid + 3 score-component row + rule-firing count)
+
+rendered_in:
+  - location: /intelligence/reviews
+    via: IntelligenceReviewsSection
+
+pattern_notes:
+  type: "multi-question atom — owns h1, owns 2-stage selection state (periodType → period). AggregationCard is inline mini-atom (split candidate if reused elsewhere)"
+
+keywords:
+  - "[[review-summary]]"
+  - "[[review-aggregation]]"
+  - "[[periodic-review]]"
+  - "[[score-trend]]"

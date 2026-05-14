@@ -19,6 +19,8 @@ def test_cron_warms_macro_snapshot(client, monkeypatch):
     with patch(
         "app.main.MacroService.get_macro_snapshot_cached"
     ) as mock_warm, patch(
+        "app.main.StressService.warmup_caches"
+    ) as mock_stress_warm, patch(
         "app.services.ingestion_service.PriceIngestionService.update_raw_prices"
     ), patch(
         "app.services.ingestion_service.PriceIngestionService.generate_portfolio_snapshots"
@@ -54,3 +56,4 @@ def test_cron_warms_macro_snapshot(client, monkeypatch):
 
     assert response.status_code == 200, response.text
     assert mock_warm.call_count >= 1, "cron did not warm macro snapshot"
+    assert mock_stress_warm.call_count >= 1, "cron did not warm stress caches"

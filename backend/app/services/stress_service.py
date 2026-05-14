@@ -4,10 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 from sqlalchemy.orm import Session
 from .cache_service import CacheService
-
-# TODO: Wire a daily cron warmup to pre-populate stress_closes:* keys so the
-# first-after-deploy request is fast. Until then, the first request pays
-# yfinance latency; subsequent requests are cache hits.
+from ..models import Asset, Transaction
 
 class StressService:
     # Hardcoded crisis periods
@@ -114,6 +111,37 @@ class StressService:
         }
         CacheService.set_cache(db, cache_key, payload)
         return closes
+
+    @staticmethod
+    def warmup_caches(db: Session) -> None:
+        """Pre-seed stress_closes:* SystemCache for every scenario.
+
+        Called from the daily cron so the first /api/stress-test request
+        after a Render restart never pays yfinance latency. Walks current
+        BUY/SELL holdings, maps to per-scenario proxies, and triggers one
+        _fetch_scenario_closes per scenario.
+        """
+        txs = db.query(Transaction).filter(Transaction.type.in_(["BUY", "SELL"])).all()
+        qty_by_asset: Dict[int, float] = {}
+        for t in txs:
+            delta = t.quantity if t.type == "BUY" else -t.quantity
+            qty_by_asset[t.asset_id] = qty_by_asset.get(t.asset_id, 0.0) + delta
+        active_asset_ids = [aid for aid, qty in qty_by_asset.items() if qty > 0.0001]
+        if not active_asset_ids:
+            return
+
+        symbols = [
+            a.symbol
+            for a in db.query(Asset).filter(Asset.id.in_(active_asset_ids)).all()
+        ]
+        if not symbols:
+            return
+
+        for scenario_key in StressService.SCENARIOS:
+            proxies = sorted({
+                StressService.get_proxy_ticker(sym, scenario_key) for sym in symbols
+            } | {"SPY"})
+            StressService._fetch_scenario_closes(db, scenario_key, proxies)
 
     @staticmethod
     def run_simulation(db: Session, current_holdings: Dict[str, float]):

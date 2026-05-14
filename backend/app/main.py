@@ -1128,6 +1128,13 @@ def update_signals(x_cron_secret: Optional[str] = Header(None), db: Session = De
         except Exception as e:
             logger.warning("cron_macro_snapshot_warmup_failed", exc_info=e)
 
+        # Pre-seed stress_closes:* SystemCache so /api/stress-test cold path
+        # (~5s on Render restart) is eliminated.
+        try:
+            StressService.warmup_caches(db)
+        except Exception as e:
+            logger.warning("cron_stress_warmup_failed", exc_info=e)
+
         # Send success notification
         NotificationService.send_cron_success(
             duration_seconds=duration,

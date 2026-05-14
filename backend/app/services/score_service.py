@@ -218,7 +218,7 @@ def compute_posture_diversification_score(db: Session, allocation: List[Dict[str
     top2 = sum(sorted_weights[:2]) if len(sorted_weights) >= 2 else top1
     hhi = sum(weight * weight for weight in weights_by_symbol.values())
 
-    stress_results = StressService.run_simulation(weights_by_symbol) if weights_by_symbol else []
+    stress_results = StressService.run_simulation(db, weights_by_symbol) if weights_by_symbol else []
     worst_return = min((item.get("portfolio", {}).get("return", 0.0) for item in stress_results), default=0.0)
     worst_mdd = min((item.get("portfolio", {}).get("mdd", 0.0) for item in stress_results), default=0.0)
 

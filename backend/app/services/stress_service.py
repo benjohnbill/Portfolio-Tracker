@@ -2,6 +2,12 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List
+from sqlalchemy.orm import Session
+from .cache_service import CacheService
+
+# TODO: Wire a daily cron warmup to pre-populate stress_closes:* keys so the
+# first-after-deploy request is fast. Until then, the first request pays
+# yfinance latency; subsequent requests are cache hits.
 
 class StressService:
     # Hardcoded crisis periods
@@ -48,7 +54,69 @@ class StressService:
         return StressService.TICKER_PROXY.get(symbol, symbol)
 
     @staticmethod
-    def run_simulation(current_holdings: Dict[str, float]):
+    def _fetch_scenario_closes(db: Session, scenario_key: str, tickers: List[str]) -> pd.DataFrame:
+        """
+        Returns a DataFrame of close prices (DatetimeIndex x ticker columns) for
+        the given scenario and ticker set. Cached via SystemCache — scenarios are
+        fixed historical windows so cached data never goes stale.
+        """
+        sorted_tickers = sorted(tickers)
+        cache_key = f"stress_closes:{scenario_key}:{','.join(sorted_tickers)}"
+
+        cached = CacheService.get_cache(db, cache_key)
+        if cached:
+            df = pd.DataFrame(
+                cached["data"],
+                index=pd.to_datetime(cached["index"]),
+                columns=cached["columns"],
+            )
+            return df
+
+        scenario = StressService.SCENARIOS[scenario_key]
+        df = yf.download(
+            sorted_tickers,
+            start=scenario["start"],
+            end=scenario["end"],
+            progress=False,
+            auto_adjust=True,
+        )
+        if df.empty:
+            return pd.DataFrame()
+
+        # Handle yfinance's variable return structure
+        closes = pd.DataFrame()
+        if isinstance(df.columns, pd.MultiIndex):
+            if "Close" in df.columns.get_level_values(0):
+                closes = df["Close"]
+            else:
+                closes = df.xs("Close", axis=1, level=0, drop_level=True)
+        else:
+            if len(sorted_tickers) == 1:
+                if "Close" in df.columns:
+                    closes = pd.DataFrame({sorted_tickers[0]: df["Close"]})
+                else:
+                    closes = pd.DataFrame({sorted_tickers[0]: df.iloc[:, 0]})
+            else:
+                if "Close" in df.columns:
+                    closes = df[["Close"]]
+                else:
+                    closes = df  # Fallback
+
+        closes = closes.ffill().dropna()
+        if closes.empty:
+            return closes
+
+        # Cache as a JSON-safe split-style representation
+        payload = {
+            "index": [d.strftime("%Y-%m-%d") for d in closes.index],
+            "columns": list(closes.columns),
+            "data": [[float(v) for v in row] for row in closes.values],
+        }
+        CacheService.set_cache(db, cache_key, payload)
+        return closes
+
+    @staticmethod
+    def run_simulation(db: Session, current_holdings: Dict[str, float]):
         """
         Simulates portfolio performance during historical crises.
         current_holdings: { 'QQQ': 0.3, 'TLT': 0.2, ... } (Weights sum to 1.0)
@@ -58,64 +126,29 @@ class StressService:
         for key, scenario in StressService.SCENARIOS.items():
             start_date = scenario['start']
             end_date = scenario['end']
-            
+
             # 1. Map assets to proxies for this scenario
             # symbol -> proxy_ticker
-            ticker_map = {} 
+            ticker_map = {}
             for symbol, weight in current_holdings.items():
                 if weight > 0:
                     proxy = StressService.get_proxy_ticker(symbol, key)
                     ticker_map[symbol] = proxy
-            
+
             # Add Benchmark
             ticker_map['SPY'] = 'SPY'
-            
+
             unique_proxies = list(set(ticker_map.values()))
             if not unique_proxies:
                 continue
 
             try:
-                # 2. Bulk Fetch Data
-                # auto_adjust=True returns OHLC, but columns might be MultiIndex if >1 ticker
-                df = yf.download(unique_proxies, start=start_date, end=end_date, progress=False, auto_adjust=True)
-                
-                if df.empty:
-                    continue
-
-                # 3. Extract Closing Prices
-                # Handle yfinance's variable return structure
-                closes = pd.DataFrame()
-
-                if isinstance(df.columns, pd.MultiIndex):
-                    # If MultiIndex (Price, Ticker), we want 'Close'
-                    # Check if 'Close' exists in level 0
-                    if 'Close' in df.columns.get_level_values(0):
-                        closes = df['Close']
-                    else:
-                        # Sometimes it returns 'Adj Close'
-                        closes = df.xs('Close', axis=1, level=0, drop_level=True)
-                else:
-                    # Single level columns. 
-                    # If we requested 1 ticker, it's just OHLC columns
-                    if len(unique_proxies) == 1:
-                        if 'Close' in df.columns:
-                            closes = pd.DataFrame({unique_proxies[0]: df['Close']})
-                        else:
-                            closes = pd.DataFrame({unique_proxies[0]: df.iloc[:, 0]})
-                    else:
-                        # Multiple tickers but single level? Unlikely unless flattened.
-                        # Assume it's Close prices if no OHLC columns found? No, dangerous.
-                        if 'Close' in df.columns:
-                             closes = df[['Close']]
-                        else:
-                             closes = df # Fallback
-
-                # Forward fill missing data (e.g. holidays)
-                closes = closes.ffill().dropna()
+                # 2. Fetch close prices (cached via SystemCache)
+                closes = StressService._fetch_scenario_closes(db, key, unique_proxies)
                 if closes.empty:
                     continue
 
-                # 4. Normalize Prices (Start at 1.0)
+                # 3. Normalize Prices (Start at 1.0)
                 normalized = closes / closes.iloc[0]
 
                 # 5. Build Portfolio Weighted Series

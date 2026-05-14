@@ -467,7 +467,7 @@ def get_stress_test(db: Session = Depends(get_db)):
     if total_value == 0:
         return []
     weights = {sym: val / total_value for sym, val in asset_values.items()}
-    return StressService.run_simulation(weights)
+    return StressService.run_simulation(db, weights)
 
 @app.get("/api/signals/vxn")
 def get_vxn_signal(db: Session = Depends(get_db)):

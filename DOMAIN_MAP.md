@@ -86,6 +86,9 @@
 - **daily-delta** — archive.series 마지막 두 포인트로 계산한 오늘자 ₩ + % 변화. EquityCurveSection 헤더 pill. ✅
 - **performance-coverage** — performance.status === 'unavailable' 일 때 coverage_start 안내. cashflow coverage 완료 전에는 benchmark-relative history 미산출. ✅
 - **envelope** — { status, data, error } 표준 envelope. PortfolioSummaryCard가 legacy envelope ↔ ApiResult 두 shape를 isReady gate로 정규화. ✅
+- **llm-summary** — WeeklyReport.llmSummary { provider, model, headline, whyScoreChanged, keyChanges[] }. WeeklyReportView가 존재 시 AI Summary card로 표시. ✅
+- **data-freshness** — WeeklyReport.dataFreshness { signalsAsOf, portfolioAsOf, macroKnownAsOf, staleFlags[], portfolioValuation? }. Freshness pill의 색은 24h/72h 임계. ✅
+- **this-week** — / route surface 명칭. Sidebar nav 첫 항목. 현재 cluster naming에서 /friday(this-week 결정)와 의도적으로 분리 — Phase 5 sitemap 재배치 후보. ✅
 
 ## §2 Behaviors (동작 / 시간 변화)
 
@@ -104,6 +107,7 @@
 - **router-refresh** — AddAssetModal이 createTransaction 성공 후 next/navigation router.refresh()로 RSC 재요청 → portfolio 화면 즉시 갱신. ✅
 - **silo-grouping** — portfolio-allocation을 account_silo 키로 reduce → ISA/OVERSEAS/BRAZIL_BOND 카드. siloLabelMap이 legacy + 신규 silo 라벨을 모두 매핑. ✅
 - **indexed-normalization** — benchmark/portfolio 두 시계열을 first non-zero 시점 100 기준으로 나누어 누적 비교 가능하게 만드는 처리. TwrEquityCurve 안에서 firstBv 변수로 inline. ✅
+- **props-driven-framing** — 같은 component(예: WeeklyReportView)를 두 host(ArchiveReportDetailSection, FridayReportSection)가 eyebrow/title/backHref props로 각자 frame. *navigation context as prop* 패턴. ✅
 
 ## §3 Cluster-Level Concepts (여러 entity의 종합 / 묶음)
 
@@ -121,6 +125,7 @@
 - **signal-pulse-grid** — NDX(asset-signal) + MSTR(mstr-zscore) + GLDM(asset-signal) + TLT(asset-signal) 4-cell signal grid. 각 cell은 rotation-rule driver. ✅
 - **target-deviation-cluster** — core-6-target + rebalance-threshold + holdings + portfolio-allocation을 strategy deviation chart + silo list 두 sub-section으로 결합. AssetAllocationSection이 한 surface. ✅
 - **inputs-entry** — AddAssetModal 단일 atom으로 trade + cashflow를 같이 입력. Phase 2 navigation grammar에서 별도 /inputs surface 후보. ✅
+- **composer-page** — 한 component가 다양한 entity의 한 페이지 view를 통째로 표현. WeeklyReportView (archive/friday 양 surface가 props로 frame) 가 archetype. 분리 시 cross-entity narrative arc 손실. ✅
 
 ## §4 Atom Types (컴포넌트 역할 분류 vocabulary)
 
@@ -128,6 +133,7 @@
 한 컴포넌트가 여러 sub-question을 *함께* 답함. 분리하면 cross-lens 통찰 손실.
 - Batch 1: FridayDashboard, FridaySnapshotPanel, SinceLastFridayBriefing, SleeveHealthPanel.
 - Batch 2: OutcomesView, ReviewsView, RulesView, CausalMapSection, IndicatorCard.
+- Batch 4: WeeklyReportView (composer-page archetype — 10+ Card sub-sections + Suspense charts + props-driven-framing).
 
 ### gateway-thin atom
 짧은 요약 + 다른 surface로의 다리. 깊이는 destination에.
@@ -145,6 +151,7 @@ RSC wrapper — fetch + error/empty handling, then renders a display atom.
 - Batch 1: FridayBriefingSection, FridayReportSection, FridaySleeveSection, FridaySnapshotSection.
 - Batch 2: IntelligenceAttributionsSection, IntelligenceOutcomesSection, IntelligenceRegimeHistorySection, IntelligenceReviewsSection, IntelligenceRulesSection.
 - Batch 3: AssetAllocationSection, AssetSignalSection, EquityCurveSection, MSTRSignalSection, PortfolioSummaryCard.
+- Batch 4: ArchiveTimelineSection, ArchiveReportDetailSection (delegating data-fetcher — body는 props mapping만 + WeeklyReportView 위임).
 
 ### form-input atom
 사용자 입력 받음.
@@ -153,6 +160,7 @@ RSC wrapper — fetch + error/empty handling, then renders a display atom.
 ### shell / utility atom
 navigation / shared primitives. atom 정의 약화 (질문에 답 X), 그러나 inventory 일관성 위해 포함.
 - Batch 2: IntelligenceSharedUI (DataDensityBadge + ContributionHeatmap 묶음 — utility A/B 결정 = A).
+- Batch 4: Sidebar (top-level 5-route nav shell — current sitemap의 명시적 anchor).
 
 ## §5 Interaction Patterns
 
@@ -160,7 +168,7 @@ _(deferred — vocabulary 5+ 모이면 분리)_
 
 ## §6 API Field Registry
 
-_(흡수 from docs/DOMAIN_MAP — Batch 4 마무리 시 통합)_
+_(no-op — docs/DOMAIN_MAP.md 부재 확인 (handoff §3에서 사전 확인됨). 흡수할 source 없음. 후속 API field registry 작성은 별도 작업으로 이월.)_
 
 ## §7 Cross-reference
 
@@ -216,3 +224,23 @@ _(흡수 from docs/DOMAIN_MAP — Batch 4 마무리 시 통합)_
   - Hardcoded color는 features/ 전체에 만연(1721 audit). 5 chart 모두 pattern_notes에 "Colors hardcoded — flagged in 1721 audit" 적힘. Phase 4 aesthetic uplift의 가장 명확한 entry point.
   - `[[envelope]]` entity가 batch 3에서 처음 명시 — PortfolioSummaryCard가 legacy envelope ↔ ApiResult 두 shape를 isReady gate로 정규화하는 comment block이 backend ↔ frontend 계약의 진화 흔적. UX-1 envelope 통일 과제(memory)와 직접 연결.
   - Cumulative atom-type tally after Batch 3: 9 multi-question, 2 gateway-thin, 8 chart, 14 data-fetcher, 1 form-input, 1 utility = 35 atoms / 39 total. data-fetcher 우세는 유지(40%), chart 비중 8/35 (23%)로 상승. Batch 4(archive + reports + shell) 4 atoms 추가 후 39 total 도달 예상.
+
+- 2026-05-14 — [batch-4] archive/ + reports/ + Sidebar 4 atoms done. Vocab additions:
+  - §1 Entities (+3): llm-summary, data-freshness, this-week.
+  - §2 Behaviors (+1): props-driven-framing.
+  - §3 Clusters (+1): composer-page.
+  - §4 Atom-type instances (batch 4): 1 multi-question (WeeklyReportView), 0 gateway-thin, 0 chart, 2 data-fetcher, 0 form-input, 1 shell (Sidebar).
+  - §6 API Field Registry: docs/DOMAIN_MAP.md 부재 확인 — 흡수 no-op.
+
+  **Framework reflections (Checkpoint 4 — 마무리):**
+  - WeeklyReportView가 inventory에서 가장 특수한 multi-question atom — *composer-page* archetype을 도입. 10+ Card sub-sections + lazy Suspense charts + 두 surface 동시 host. IA spec §4 "추가결정사항"의 "fragmenting harms"를 가장 명확히 보여주는 사례. Phase 2-4 어디서도 fragmentation 대상 아님.
+  - ArchiveReportDetailSection이 *delegating data-fetcher* 첫 사례 — body는 envelope gate + props mapping만, 본체는 WeeklyReportView 위임. data-fetcher 안에 또 다른 atom이 있는 *thin host* 패턴. 인텔리전스 batch의 data-fetcher들이 body 자체를 직접 그리던 것과 대비.
+  - `[[props-driven-framing]]` behavior 첫 등장 — 같은 composer를 archive와 friday surface가 각자 eyebrow/backHref로 frame. *navigation context as prop* 패턴. Phase 2 navigation grammar 작업의 흥미로운 input: cluster boundary를 atom 안이 아니라 host site가 결정.
+  - Sidebar는 shell이라 약한 atom — 5-route registration 표만 의미. 그런데 Phase 5 sitemap proposal 입장에서는 *current state의 가장 명시적 anchor*. Sidebar의 navItems = 현재 sitemap. cluster derivation은 이 5-noun set과 cluster 가설을 비교하는 작업.
+  - `[[friday-archive]]` cluster의 incoming connects_to 누적: ArchiveTimelineSection + ArchiveReportDetailSection + WeeklyReportView + Sidebar = 4. /archive surface가 friday-archive cluster의 단일 hosting locus 확인.
+  - `[[envelope]]` 이번 batch에서도 두 번 명시 (ArchiveTimelineSection, ArchiveReportDetailSection) — UX-1 envelope 통일 과제가 cross-batch backbone. friday + intelligence + portfolio + archive 4 batch 모두에서 등장.
+  - **Final tally (Batch 4 후): 10 multi-question, 2 gateway-thin, 8 chart, 16 data-fetcher, 1 form-input, 2 utility = 39 atoms / 39 total ✅**
+  - Inventory 완전성: 9 (friday) + 15 (intel + macro-context) + 11 (features + portfolio) + 4 (archive + reports + Sidebar) = 39. Plan acceptance criterion 충족.
+  - Atom-type 분포 (39 기준): data-fetcher 41% / multi-question 26% / chart 21% / utility 5% / gateway-thin 5% / form-input 3%. data-fetcher + multi-question 67% — RSC envelope + composite-question이 frontend backbone임을 inventory 차원에서 확인. Single-question atoms은 chart + gateway-thin + form-input의 28%만 차지.
+
+  **Next phase entry:** Phase 5 cluster derivation + sitemap proposal — 키워드 frequency grep + 4-7 cluster boundary 그리기 + docs/superpowers/specs/2026-05-14-ia-phase-1-sitemap.md 작성.

@@ -1,0 +1,43 @@
+name: ArchiveTimelineSection
+file: frontend/src/components/archive/ArchiveTimelineSection.tsx
+
+primary_question: "최근 52주 frozen weekly-report들이 어떤 timeline으로 쌓여 있나?"
+
+secondary_questions:
+  - "각 archived report의 weekEnding · score · status · logicVersion · generatedAt는?"
+  - "특정 주의 detail로 어떻게 drill in 하나?"
+  - "archive가 아직 빈 상태일 때 어떻게 표시되나?"
+
+connects_to:
+  - target: "[[weekly-report]]"
+    trigger: "각 card → /archive/{weekEnding} (ArchiveReportDetailSection이 host)"
+  - target: "[[friday-archive]]"
+    trigger: "전체 friday-snapshot 시점 list view — friday-ritual의 누적 결과를 timeline grid로 노출"
+  - target: "[[envelope]]"
+    trigger: "isReady(getWeeklyReports(52))로 ready or empty fallback 분기"
+
+data_contract:
+  - getWeeklyReports(52) → WeeklyReportsEnvelope
+  - fields: reports[] { weekEnding, score, status, logicVersion, generatedAt }
+
+uses_design_components:
+  - Card x N (grid cell per report)
+  - lucide Archive, CalendarRange, ChevronRight icons
+
+rendered_in:
+  - location: /archive
+    via: page 내 grid (md:col-span-2 xl:col-span-3 spanning empty state)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Card-list data-fetcher — 52 cards 한꺼번에 fetch + 그리드 spread. Sub-display
+    atom 없이 inline card 합성(분리 후보지만 currently 인라인). drill-down은 Link
+    pattern으로 명시.
+
+keywords:
+  - "[[weekly-report]]"
+  - "[[friday-archive]]"
+  - "[[envelope]]"
+  - "[[timeline-grid]]"
+  - "[[drill-down]]"

@@ -1,0 +1,38 @@
+name: Sidebar
+file: frontend/src/components/Sidebar.tsx
+
+primary_question: "현재 어느 surface에 있고, 어디로 갈 수 있나?"
+
+connects_to:
+  - target: "[[this-week]]"
+    trigger: "click 'This Week' → /"
+  - target: "[[friday-ritual]]"
+    trigger: "click 'Friday' → /friday"
+  - target: "[[portfolio-long-horizon]]"
+    trigger: "click 'Portfolio' → /portfolio"
+  - target: "[[attribution-cluster]]"
+    trigger: "click 'Intelligence' → /intelligence (hub for attribution + outcome + rule + macro-context + review)"
+  - target: "[[friday-archive]]"
+    trigger: "click 'Archive' → /archive"
+
+rendered_in:
+  - location: every authenticated surface
+    via: app/layout.tsx 좌측 sticky aside (RSC layout)
+
+pattern_notes:
+  type: "shell / utility atom"
+  notes: |
+    Top-level navigation shell — 5 routes (/ · /friday · /portfolio · /intelligence
+    · /archive). Phase 5 sitemap proposal의 *current state* anchor — IA cluster
+    derivation은 이 5-route 기준에서 출발한다. collapse 토글 상태(useState)는
+    session-local. Active state는 pathname startsWith 매칭. Phase 2 navigation
+    grammar 작업이 이 5-noun set을 cluster 기반으로 재정의할 가능성 큼.
+
+keywords:
+  - "[[this-week]]"
+  - "[[friday-ritual]]"
+  - "[[portfolio-long-horizon]]"
+  - "[[attribution-cluster]]"
+  - "[[friday-archive]]"
+  - "[[navigation]]"
+  - "[[collapse-toggle]]"

@@ -1,0 +1,78 @@
+name: WeeklyReportView
+file: frontend/src/components/reports/WeeklyReportView.tsx
+
+primary_question: "이 weekly-report 한 건의 모든 dimension(score · actions · snapshot · macro · rules · events)을 어떻게 한 페이지에 풀어내나?"
+
+secondary_questions:
+  - "Pinned Actions에 어떤 signal-input(z-score, mnav, vxn, thresholds)이 hover로 노출되나?"
+  - "Data Freshness pill(signals/portfolio/macro)이 stale 여부를 어떻게 색 코드(green/yellow/red)로 표시?"
+  - "Action에 등장한 자산을 어떤 ticker로 normalize해서 Contextual Evidence chart를 띄우나?"
+  - "AI Summary가 있으면 어떤 형태(headline · whyScoreChanged · keyChanges)로 표시?"
+  - "Portfolio Snapshot의 4 metric(CAGR/MDD/Vol/Sharpe)이 어떻게 grid로 배치?"
+  - "Macro Buckets state(supportive/adverse/neutral) 색 분기는?"
+  - "Recommendation · Target Drift · Triggered Rules · Event Overlay의 우측 컬럼 4-stack은 어떤 우선순위?"
+  - "props.eyebrow/title/backHref가 archive와 friday surface를 어떻게 differentiate?"
+
+connects_to:
+  - target: "[[weekly-report]]"
+    trigger: "(passive — single-report all-aspect renderer)"
+  - target: "[[score-attribution]]"
+    trigger: "4-tile score grid (total · fit · alignment · posture) — composite-breakdown 시각화"
+  - target: "[[triggered-rules]]"
+    trigger: "rule-card list with severity-driven color + affectedSleeves chips"
+  - target: "[[target-deviation]]"
+    trigger: "Target Drift card (currentWeight, targetWeight, deviation %)"
+  - target: "[[macro-snapshot]]"
+    trigger: "Macro Buckets card with bucket state badge"
+  - target: "[[asset-signal]]"
+    trigger: "Contextual Evidence grid → AssetSignalSection / MSTRSignalSection per ticker"
+  - target: "[[friday-archive]]"
+    trigger: "props.backHref / eyebrow에 따라 archive(/archive) 또는 friday(/friday) surface로 host"
+  - target: "[[llm-summary]]"
+    trigger: "report.llmSummary 존재 시 AI Summary card 노출 (provider · model · headline · keyChanges)"
+  - target: "[[data-freshness]]"
+    trigger: "signalsAsOf / portfolioAsOf / macroKnownAsOf → freshness color + staleFlags counter"
+
+data_contract:
+  - WeeklyReport (props) — 모든 sub-section 한꺼번에
+  - props: { report, eyebrow, title, description?, backHref?, backLabel? }
+  - inline helpers: ASSET_TO_TICKER, SEVERITY_CONFIG, formatPercent, formatRelativeTime, getFreshnessColor
+
+uses_design_components:
+  - Card x ~10 (pinned actions, score 4-tile, AI summary, snapshot, macro buckets, recommendation, target drift, triggered rules, event overlay)
+  - Suspense (charts lazy)
+  - AssetSignalSection + MSTRSignalSection (chart atoms 합성)
+  - lucide icons: AlertOctagon, AlertTriangle, BrainCircuit, CalendarRange, ChevronLeft, ShieldCheck, TrendingUp, Zap, Info, Clock, LineChart
+
+rendered_in:
+  - location: /archive/[weekEnding]
+    via: ArchiveReportDetailSection (eyebrow="Archive", backHref="/archive")
+  - location: /friday
+    via: FridayReportSection (eyebrow="Friday", description from briefing)
+
+pattern_notes:
+  type: "multi-question atom (composer)"
+  notes: |
+    Mega-composer — 22KB, ~440 lines, 10+ sub-sections. IA spec §4 추가결정 per handoff:
+    "WeeklyReportView is a 22KB mega-composer — flag as composer/whole-page atom; don't
+    fragment". Inline helpers(ASSET_TO_TICKER, SEVERITY_CONFIG) carry legacy ticker
+    residue (TIGER_2X, KODEX_1X mapped to QQQ) — flagged in 885 observation for
+    DOMAIN_MAP single-source-of-truth migration. props-driven framing은 archive와
+    friday 두 surface를 single component로 cover하는 명시적 패턴 — Phase 2 split
+    candidate가 아닌, *deliberate sharing*. Recharts-heavy 자식들(AssetSignalSection,
+    MSTRSignalSection)을 Suspense로 wrap하여 lazy-render — single-page에 10+ Card +
+    multiple charts라는 무게를 mitigation. Aesthetic uplift(Phase 4) entry point로
+    가장 큰 surface area.
+
+keywords:
+  - "[[weekly-report]]"
+  - "[[score-attribution]]"
+  - "[[triggered-rules]]"
+  - "[[target-deviation]]"
+  - "[[macro-snapshot]]"
+  - "[[asset-signal]]"
+  - "[[llm-summary]]"
+  - "[[data-freshness]]"
+  - "[[friday-archive]]"
+  - "[[composer]]"
+  - "[[props-driven-framing]]"

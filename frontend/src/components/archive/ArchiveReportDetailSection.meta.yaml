@@ -1,0 +1,41 @@
+name: ArchiveReportDetailSection
+file: frontend/src/components/archive/ArchiveReportDetailSection.tsx
+
+primary_question: "특정 weekEnding의 archived weekly-report 전체 detail이 어떻게 보이나?"
+
+secondary_questions:
+  - "report가 없거나 envelope이 ready 아닐 때 어떻게 fallback 표시?"
+  - "WeeklyReportView에 어떤 eyebrow/title/description/back link을 props로 넘기나?"
+
+connects_to:
+  - target: "[[weekly-report]]"
+    trigger: "getWeeklyReport(weekEnding) → WeeklyReportView host"
+  - target: "[[friday-archive]]"
+    trigger: "/archive/[weekEnding] route segment — timeline → detail drill-down 종착점"
+  - target: "[[envelope]]"
+    trigger: "isReady(envelope) + envelope.report !== null → fallback unavailable card"
+
+data_contract:
+  - getWeeklyReport(weekEnding) → WeeklyReportEnvelope
+  - fields: report (WeeklyReport — see WeeklyReportView.meta.yaml)
+
+uses_design_components:
+  - inline fallback card (unavailable state)
+  - delegates entire body to WeeklyReportView
+
+rendered_in:
+  - location: /archive/[weekEnding]
+    via: RSC async section (Phase UX-1c Task 2)
+
+pattern_notes:
+  type: "data-fetcher atom"
+  notes: |
+    Thinnest data-fetcher in Batch 4 — fetch + envelope gate + props mapping → delegate
+    to WeeklyReportView. eyebrow="Archive" / backHref="/archive" 차이로 friday surface와
+    의도적으로 분기 (같은 WeeklyReportView를 두 surface가 props로 다르게 frame).
+
+keywords:
+  - "[[weekly-report]]"
+  - "[[friday-archive]]"
+  - "[[envelope]]"
+  - "[[archive-detail]]"

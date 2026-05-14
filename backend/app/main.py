@@ -274,7 +274,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db)):
             fetched_price = KISService.get_brazil_bond_value()
         else:
             # Use the newly determined source
-            fetched_price = PriceService.get_current_price(PortfolioService.get_price_lookup_ticker(asset), source=source)
+            fetched_price = PriceService.get_current_price(db, PortfolioService.get_price_lookup_ticker(asset), source=source)
             
         if fetched_price <= 0:
             # Fallback for BRAZIL_BOND if API is slow/down
@@ -446,7 +446,7 @@ def get_stress_test(db: Session = Depends(get_db)):
         asset = asset_by_id.get(aid)
         if asset is None:
             continue
-        price = PriceService.get_current_price(asset.symbol, asset.source)
+        price = PriceService.get_current_price(db, asset.symbol, asset.source)
         val = qty * price
         asset_values[asset.symbol] = val
         total_value += val

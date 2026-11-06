@@ -26,6 +26,7 @@ Domain business logic layer — the primary complexity hotspot. Each service own
 | `llm_service.py` | LLM integration — weekly summary generation via OpenAI or Google GenAI |
 | `notification_service.py` | Telegram alert dispatcher for portfolio events/signals |
 | `annotation_service.py` | Event annotations — creates EventAnnotation records for market events |
+| `day_scoped_cache.py` | Process-local `DayScopedCache` for FX history, current price, and KIS Brazil Bond value; drops all entries on day rollover |
 | `cache_service.py` | Persistent SystemCache — JSON payloads with TTL via get_cache/set_cache |
 
 ## For AI Agents

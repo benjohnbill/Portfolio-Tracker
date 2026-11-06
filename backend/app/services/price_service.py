@@ -1,15 +1,14 @@
 import yfinance as yf
 import FinanceDataReader as fdr
-from datetime import datetime, timedelta, date
-from typing import Tuple, Dict
+from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy.orm import Session
 
 from ..models import RawDailyPrice
+from .day_scoped_cache import DayScopedCache
 
-# Module-level cache. Keyed by (symbol, source, ISO date).
-# Day rollover invalidates automatically.
-_PRICE_CACHE: Dict[Tuple[str, str, str], float] = {}
+# Keyed by (symbol, source). The cache drops every entry on day rollover.
+_PRICE_CACHE: DayScopedCache[float] = DayScopedCache()
 
 
 class PriceService:
@@ -21,9 +20,10 @@ class PriceService:
         Returns 0.0 when no row exists for the symbol.
         Caller decides how to handle 0.0 (e.g. trigger backfill).
         """
-        cache_key = (symbol, source, date.today().isoformat())
-        if cache_key in _PRICE_CACHE:
-            return _PRICE_CACHE[cache_key]
+        cache_key = (symbol, source)
+        cached = _PRICE_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
 
         row = (
             db.query(RawDailyPrice)
@@ -35,7 +35,7 @@ class PriceService:
             return 0.0
 
         price = float(row.close_price)
-        _PRICE_CACHE[cache_key] = price
+        _PRICE_CACHE.set(cache_key, price)
         return price
 
     @staticmethod

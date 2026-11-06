@@ -1,12 +1,11 @@
 import os
 import requests
-from datetime import date
-from typing import Tuple, Dict
+from .day_scoped_cache import DayScopedCache
 from .kis_auth import KISAuth
 
-# Module-level cache for the current backend process. Keyed by
-# (today's ISO date,). Day rollover invalidates automatically.
-_KIS_BRAZIL_BOND_CACHE: Dict[Tuple[str], float] = {}
+# Holds one value under _BRAZIL_BOND_KEY. The cache drops it on day rollover.
+_KIS_BRAZIL_BOND_CACHE: DayScopedCache[float] = DayScopedCache()
+_BRAZIL_BOND_KEY = "brazil_bond_value_krw"
 
 class KISService:
     @staticmethod
@@ -16,9 +15,9 @@ class KISService:
         Same-day calls reuse a process-local cache; day rollover invalidates.
         Failures (value <= 0) are not cached.
         """
-        cache_key = (date.today().isoformat(),)
-        if cache_key in _KIS_BRAZIL_BOND_CACHE:
-            return _KIS_BRAZIL_BOND_CACHE[cache_key]
+        cached = _KIS_BRAZIL_BOND_CACHE.get(_BRAZIL_BOND_KEY)
+        if cached is not None:
+            return cached
 
         token = KISAuth.get_access_token()
         if not token:
@@ -63,7 +62,7 @@ class KISService:
                         total_brazil_value_krw += item_krw_val
 
                 if total_brazil_value_krw > 0:  # don't cache failures
-                    _KIS_BRAZIL_BOND_CACHE[cache_key] = total_brazil_value_krw
+                    _KIS_BRAZIL_BOND_CACHE.set(_BRAZIL_BOND_KEY, total_brazil_value_krw)
                 return total_brazil_value_krw
             else:
                 print(f"[KIS] API Error: {data.get('msg1')}")

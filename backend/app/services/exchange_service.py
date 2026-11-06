@@ -1,13 +1,12 @@
 import FinanceDataReader as fdr
-from datetime import datetime, timedelta, date
-from typing import Tuple, Dict
+from datetime import datetime, timedelta
 import pandas as pd
 import time
 
-# Module-level cache for the current backend process. Keyed by
-# (start_date, end_date, today's ISO date). Day rollover invalidates
-# automatically because the date component changes; no TTL needed.
-_FX_HISTORY_CACHE: Dict[Tuple[str, str, str], pd.Series] = {}
+from .day_scoped_cache import DayScopedCache
+
+# Keyed by (start_date, end_date). The cache drops every entry on day rollover.
+_FX_HISTORY_CACHE: DayScopedCache[pd.Series] = DayScopedCache()
 _fx_current_cache = {}
 
 class ExchangeService:
@@ -17,15 +16,16 @@ class ExchangeService:
         Fetches historical USD/KRW exchange rates.
         Same-day calls reuse a process-local cache; day rollover invalidates.
         """
-        cache_key = (start_date, end_date, date.today().isoformat())
-        if cache_key in _FX_HISTORY_CACHE:
-            return _FX_HISTORY_CACHE[cache_key].copy()  # defensive copy
+        cache_key = (start_date, end_date)
+        cached = _FX_HISTORY_CACHE.get(cache_key)
+        if cached is not None:
+            return cached.copy()  # defensive copy
 
         try:
             df = fdr.DataReader('USD/KRW', start_date, end_date)
             if not df.empty:
                 result = df['Close']
-                _FX_HISTORY_CACHE[cache_key] = result.copy()
+                _FX_HISTORY_CACHE.set(cache_key, result.copy())
                 return result
             return pd.Series()
         except Exception as e:
